@@ -34,13 +34,14 @@ type MemberFormValues = z.infer<typeof memberSchema>;
 interface NewMemberDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  user: any; // Accept user as a prop
 }
 
 export default function NewMemberDialog({
   open,
   onOpenChange,
+  user,
 }: NewMemberDialogProps) {
-  const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
 
@@ -65,7 +66,7 @@ export default function NewMemberDialog({
     }
   }, [open, reset]);
 
-  const onSubmit: SubmitHandler<MemberFormValues> = async (data) => {
+  const onSubmit: SubmitHandler<MemberFormValues> = (data) => {
     if (!user) {
       toast({
         variant: 'destructive',
@@ -81,22 +82,21 @@ export default function NewMemberDialog({
       avatarUrl: `https://i.pravatar.cc/150?u=${data.email}`,
     };
 
-    try {
-      const membersCollection = collection(firestore, collectionPath);
-      await addDoc(membersCollection, newMember);
-      toast({
-        title: 'Miembro Agregado',
-        description: `${newMember.name} ha sido añadido al equipo.`,
-      });
-      onOpenChange(false);
-    } catch (serverError) {
+    const membersCollection = collection(firestore, collectionPath);
+    addDoc(membersCollection, newMember).then(() => {
+        toast({
+            title: 'Miembro Agregado',
+            description: `${newMember.name} ha sido añadido al equipo.`,
+        });
+        onOpenChange(false);
+    }).catch(async (serverError) => {
       const permissionError = new FirestorePermissionError({
         path: collectionPath,
         operation: 'create',
         requestResourceData: newMember,
       });
       errorEmitter.emit('permission-error', permissionError);
-    }
+    });
   };
 
   return (

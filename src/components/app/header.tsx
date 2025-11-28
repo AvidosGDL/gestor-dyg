@@ -8,17 +8,12 @@ import NewMemberDialog from './new-member-dialog';
 import type { View } from '@/app/page';
 import type { Task } from '@/lib/types';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { useUser } from '@/firebase';
 
 interface AppHeaderProps {
   view: View;
   activeTaskForPomodoro: Task | null;
 }
-
-const viewTitles: Record<View, string> = {
-  board: 'Tablero de Tareas',
-  planning: 'Centro de Comando',
-  team: 'Gestión de Equipo',
-};
 
 export default function AppHeader({
   view,
@@ -26,6 +21,7 @@ export default function AppHeader({
 }: AppHeaderProps) {
   const [showNewTaskModal, setShowNewTaskModal] = React.useState(false);
   const [showNewMemberModal, setShowNewMemberModal] = React.useState(false);
+  const { user } = useUser();
 
   return (
     <>
@@ -62,10 +58,17 @@ export default function AppHeader({
         )}
       </header>
       <NewTaskDialog open={showNewTaskModal} onOpenChange={setShowNewTaskModal} />
-      <NewMemberDialog
+      {user && <NewMemberDialog
         open={showNewMemberModal}
         onOpenChange={setShowNewMemberModal}
-      />
+        user={user}
+      />}
     </>
   );
 }
+
+const viewTitles: Record<View, string> = {
+  board: 'Tablero de Tareas',
+  planning: 'Centro de Comando',
+  team: 'Gestión de Equipo',
+};
