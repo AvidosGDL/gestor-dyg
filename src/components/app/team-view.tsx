@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Card,
   CardContent,
@@ -25,7 +25,11 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { PlusCircle, Trash2 } from 'lucide-react';
-import { initialMembers, type TeamMember } from '@/app/teams/members';
+import { type TeamMember } from '@/lib/types';
+import { useCollection, useUser, useFirestore } from '@/firebase';
+import { addDoc, collection, deleteDoc, doc } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 const memberSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
@@ -36,7 +40,13 @@ const memberSchema = z.object({
 type MemberFormValues = z.infer<typeof memberSchema>;
 
 export default function TeamView() {
-  const [members, setMembers] = useState<TeamMember[]>(initialMembers);
+  const { user } = useUser();
+  const firestore = useFirestore();
+
+  const collectionPath = user ? `users/${user.uid}/teamMembers` : null;
+  const { data: members, loading } = useCollection<TeamMember>(collectionPath);
+  const membersCollection = collection(firestore, collectionPath || 'dummy_path');
+
   const {
     register,
     handleSubmit,
@@ -47,17 +57,31 @@ export default function TeamView() {
   });
 
   const onSubmit: SubmitHandler<MemberFormValues> = (data) => {
-    const newMember: TeamMember = {
-      id: (members.length + 1).toString(),
+    const newMember = {
       ...data,
       avatarUrl: `https://i.pravatar.cc/150?u=${data.email}`,
     };
-    setMembers([...members, newMember]);
+    addDoc(membersCollection, newMember).catch(async (serverError) => {
+      const permissionError = new FirestorePermissionError({
+        path: membersCollection.path,
+        operation: 'create',
+        requestResourceData: newMember,
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    });
     reset();
   };
 
   const deleteMember = (id: string) => {
-    setMembers(members.filter((member) => member.id !== id));
+    if (!collectionPath) return;
+    const docRef = doc(firestore, collectionPath, id);
+    deleteDoc(docRef).catch(async (serverError) => {
+      const permissionError = new FirestorePermissionError({
+        path: docRef.path,
+        operation: 'delete',
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    });
   };
 
   return (
@@ -80,7 +104,12 @@ export default function TeamView() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {members.map((member) => (
+                {loading && (
+                    <TableRow>
+                        <TableCell colSpan={3} className="text-center">Cargando miembros...</TableCell>
+                    </TableRow>
+                )}
+                {!loading && members && members.map((member) => (
                   <TableRow key={member.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -112,6 +141,11 @@ export default function TeamView() {
                     </TableCell>
                   </TableRow>
                 ))}
+                 {!loading && (!members || members.length === 0) && (
+                    <TableRow>
+                        <TableCell colSpan={3} className="text-center">No hay miembros en el equipo todavía.</TableCell>
+                    </TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -133,6 +167,7 @@ export default function TeamView() {
                   id="name"
                   placeholder="Ej. Juan Pérez"
                   {...register('name')}
+                  disabled={!user}
                 />
                 {errors.name && (
                   <p className="text-sm text-destructive">
@@ -147,6 +182,7 @@ export default function TeamView() {
                   type="email"
                   placeholder="juan.perez@tuempresa.com"
                   {...register('email')}
+                  disabled={!user}
                 />
                 {errors.email && (
                   <p className="text-sm text-destructive">
@@ -160,6 +196,7 @@ export default function TeamView() {
                   id="role"
                   placeholder="Ej. Diseñador Gráfico"
                   {...register('role')}
+                  disabled={!user}
                 />
                 {errors.role && (
                   <p className="text-sm text-destructive">
@@ -167,7 +204,7 @@ export default function TeamView() {
                   </p>
                 )}
               </div>
-              <Button type="submit" className="w-full">
+              <Button type="submit" className="w-full" disabled={!user}>
                 Agregar Miembro
               </Button>
             </form>

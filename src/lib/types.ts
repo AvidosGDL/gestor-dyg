@@ -19,3 +19,11 @@ export interface Task {
   value: number;
   probability: number;
 }
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  avatarUrl: string;
+}

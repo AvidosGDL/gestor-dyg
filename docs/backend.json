@@ -40,6 +40,18 @@
         "probability": { "type": "number" }
       },
       "required": ["title", "status", "priority", "progress", "value", "probability"]
+    },
+    "TeamMember": {
+      "title": "Team Member",
+      "description": "Represents a member of the user's team.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string" },
+        "avatarUrl": { "type": "string", "format": "uri" }
+      },
+      "required": ["name", "email", "role"]
     }
   },
   "auth": {
@@ -57,6 +69,12 @@
         "$ref": "#/backend/entities/Task"
       },
       "description": "Stores the tasks for a specific user."
+    },
+    "/users/{userId}/teamMembers/{memberId}": {
+      "schema": {
+        "$ref": "#/backend/entities/TeamMember"
+      },
+      "description": "Stores the team members for a specific user."
     }
   }
 }
