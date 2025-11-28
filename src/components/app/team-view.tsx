@@ -9,11 +9,6 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useForm, type SubmitHandler } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
 import {
   Table,
   TableBody,
@@ -24,7 +19,7 @@ import {
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Trash2, Edit, Loader2 } from 'lucide-react';
+import { Trash2, Edit, Loader2 } from 'lucide-react';
 import { type TeamMember } from '@/lib/types';
 import { useCollection, useUser, useFirestore } from '@/firebase';
 import { addDoc, collection, deleteDoc, doc, updateDoc } from 'firebase/firestore';
@@ -39,6 +34,11 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { useForm, type SubmitHandler } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 
 const memberSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
@@ -156,40 +156,6 @@ export default function TeamView() {
   const [isEditMemberDialogOpen, setIsEditMemberDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<MemberFormValues>({
-    resolver: zodResolver(memberSchema),
-  });
-
-  const onSubmit: SubmitHandler<MemberFormValues> = async (data) => {
-    if (!collectionPath) return;
-
-    const newMember = {
-      ...data,
-      avatarUrl: `https://i.pravatar.cc/150?u=${data.email}`,
-    };
-    try {
-      const membersCollection = collection(firestore, collectionPath);
-      await addDoc(membersCollection, newMember);
-      toast({
-        title: 'Miembro Agregado',
-        description: `${newMember.name} ha sido añadido al equipo.`,
-      });
-      reset();
-    } catch (serverError) {
-      const permissionError = new FirestorePermissionError({
-        path: collectionPath,
-        operation: 'create',
-        requestResourceData: newMember,
-      });
-      errorEmitter.emit('permission-error', permissionError);
-    }
-  };
-
   const editMember = (member: TeamMember) => {
     setSelectedMember(member);
     setIsEditMemberDialogOpen(true);
@@ -230,161 +196,94 @@ export default function TeamView() {
   };
 
   const isLoading = userLoading || membersLoading;
-  const isFormDisabled = !user || isSubmitting;
 
   return (
     <>
-      <div className="grid md:grid-cols-3 gap-6 h-full">
-        <div className="md:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Miembros del Equipo</CardTitle>
-              <CardDescription>
-                Aquí puedes ver y administrar los miembros de tu equipo.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
+      <div className="h-full">
+        <Card>
+          <CardHeader>
+            <CardTitle>Miembros del Equipo</CardTitle>
+            <CardDescription>
+              Aquí puedes ver y administrar los miembros de tu equipo.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Miembro</TableHead>
+                  <TableHead>Rol</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading && (
                   <TableRow>
-                    <TableHead>Miembro</TableHead>
-                    <TableHead>Rol</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
+                    <TableCell colSpan={3} className="text-center">
+                      <div className="flex justify-center items-center p-4">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      </div>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading && (
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-center">
-                        <div className="flex justify-center items-center p-4">
-                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                )}
+                {!isLoading &&
+                  members &&
+                  members.map((member) => (
+                    <TableRow key={member.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar>
+                            <AvatarImage
+                              src={member.avatarUrl}
+                              alt={member.name}
+                            />
+                            <AvatarFallback>
+                              {member.name.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">{member.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {member.email}
+                            </p>
+                          </div>
                         </div>
                       </TableCell>
-                    </TableRow>
-                  )}
-                  {!isLoading &&
-                    members &&
-                    members.map((member) => (
-                      <TableRow key={member.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar>
-                              <AvatarImage
-                                src={member.avatarUrl}
-                                alt={member.name}
-                              />
-                              <AvatarFallback>
-                                {member.name.charAt(0).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <p className="font-medium">{member.name}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {member.email}
-                              </p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{member.role}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => editMember(member)}
-                          >
-                            <Edit className="h-4 w-4 text-muted-foreground" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => deleteMember(member.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  {!isLoading && (!members || members.length === 0) && (
-                    <TableRow>
-                      <TableCell
-                        colSpan={3}
-                        className="text-center py-10 text-muted-foreground"
-                      >
-                        No hay miembros en el equipo todavía.
+                      <TableCell>
+                        <Badge variant="secondary">{member.role}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => editMember(member)}
+                        >
+                          <Edit className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteMember(member.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                        </Button>
                       </TableCell>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
-        <div>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <PlusCircle className="h-5 w-5" />
-                Agregar Nuevo Miembro
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nombre Completo</Label>
-                  <Input
-                    id="name"
-                    placeholder="Ej. Juan Pérez"
-                    {...register('name')}
-                    disabled={isFormDisabled}
-                  />
-                  {errors.name && (
-                    <p className="text-sm text-destructive">
-                      {errors.name.message}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Correo Electrónico</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="juan.perez@tuempresa.com"
-                    {...register('email')}
-                    disabled={isFormDisabled}
-                  />
-                  {errors.email && (
-                    <p className="text-sm text-destructive">
-                      {errors.email.message}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">Rol</Label>
-                  <Input
-                    id="role"
-                    placeholder="Ej. Diseñador Gráfico"
-                    {...register('role')}
-                    disabled={isFormDisabled}
-                  />
-                  {errors.role && (
-                    <p className="text-sm text-destructive">
-                      {errors.role.message}
-                    </p>
-                  )}
-                </div>
-                <Button type="submit" className="w-full" disabled={isFormDisabled}>
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Agregar Miembro
-                </Button>
-                 {!user && !userLoading && (
-                  <p className="text-xs text-center text-muted-foreground">Debes iniciar sesión para agregar miembros.</p>
+                  ))}
+                {!isLoading && (!members || members.length === 0) && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={3}
+                      className="text-center py-10 text-muted-foreground"
+                    >
+                      No hay miembros en el equipo todavía. Haz clic en "Nuevo Miembro" para agregar uno.
+                    </TableCell>
+                  </TableRow>
                 )}
-              </form>
-            </CardContent>
-          </Card>
-        </div>
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       </div>
       <EditMemberDialog
         isOpen={isEditMemberDialogOpen}
