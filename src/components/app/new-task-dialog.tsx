@@ -23,7 +23,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useTasks } from '@/contexts/tasks-context';
-import { DollarSign, Users } from 'lucide-react';
+import { Percent, Users } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { TaskStatus } from '@/lib/types';
@@ -33,8 +33,7 @@ import { Textarea } from '../ui/textarea';
 const taskSchema = z.object({
   title: z.string().min(1, 'El título es requerido'),
   client: z.string().optional(),
-  value: z.coerce.number().optional().default(0),
-  probability: z.coerce.number().min(0).max(100),
+  progress: z.coerce.number().min(0).max(100),
   priority: z.enum(['low', 'medium', 'high']),
   dueDate: z.string().optional(),
   delegateTo: z.string().optional(),
@@ -47,8 +46,7 @@ type TaskFormValues = z.infer<typeof taskSchema>;
 const defaultValues: Partial<TaskFormValues> = {
   title: '',
   client: '',
-  value: 0,
-  probability: 50,
+  progress: 0,
   priority: 'medium',
   dueDate: '',
   delegateTo: '',
@@ -73,8 +71,8 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
   const onSubmit = (data: TaskFormValues) => {
     addTask(data);
     toast({
-        title: "Nueva oportunidad creada",
-        description: `"${data.title}" ha sido añadido a tu pipeline.`,
+        title: "Nueva tarea creada",
+        description: `"${data.title}" ha sido añadida a tu lista.`,
     });
     onOpenChange(false);
   };
@@ -89,9 +87,9 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Agregar Nueva Oportunidad</DialogTitle>
+          <DialogTitle>Agregar Nueva Tarea</DialogTitle>
           <DialogDescription>
-            Rellena los detalles de la nueva tarea o negocio.
+            Rellena los detalles de la nueva tarea o pendiente.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -101,25 +99,25 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Título de la Tarea / Negocio</FormLabel>
+                  <FormLabel>Título de la Tarea</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ej. Cerrar venta con Coca-Cola" {...field} />
+                    <Input placeholder="Ej. Revisar el diseño del landing page" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
+               <FormField
                 control={form.control}
                 name="client"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Cliente / Objetivo</FormLabel>
+                    <FormLabel>Proyecto / Cliente</FormLabel>
                     <FormControl>
                       <div className="relative">
                         <Users size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <Input placeholder="Empresa SA" className="pl-9" {...field} />
+                        <Input placeholder="Nombre del Proyecto" className="pl-9" {...field} />
                       </div>
                     </FormControl>
                   </FormItem>
@@ -127,27 +125,10 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
               />
               <FormField
                 control={form.control}
-                name="value"
+                name="progress"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Valor ($)</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <Input type="number" placeholder="0.00" className="pl-9" {...field} />
-                      </div>
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="probability"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Probabilidad (%) - {field.value}%</FormLabel>
+                    <FormLabel>Progreso (%) - {field.value}%</FormLabel>
                     <FormControl>
                       <Slider
                         min={0} max={100} step={5}
@@ -158,7 +139,9 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                   </FormItem>
                 )}
               />
-              <FormField
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <FormField
                 control={form.control}
                 name="priority"
                 render={({ field }) => (
@@ -179,33 +162,31 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                   </FormItem>
                 )}
               />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="dueDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Fecha Compromiso</FormLabel>
+                    <FormLabel>Fecha Límite</FormLabel>
                     <FormControl>
                       <Input type="date" {...field} />
                     </FormControl>
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="delegateTo"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Delegar A</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Nombre..." {...field} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
             </div>
+            <FormField
+              control={form.control}
+              name="delegateTo"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Delegar A</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Nombre del responsable..." {...field} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
              <FormField
                 control={form.control}
                 name="status"

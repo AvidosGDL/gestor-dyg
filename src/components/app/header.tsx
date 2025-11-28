@@ -23,7 +23,7 @@ export default function AppHeader({
       <header className="h-16 bg-card border-b flex items-center justify-between px-4 md:px-8 flex-shrink-0">
         <div className="flex items-center gap-4">
           <h1 className="text-xl font-bold text-foreground">
-            {view === 'board' ? 'Tablero de Negocios' : 'Centro de Comando'}
+            {view === 'board' ? 'Tablero de Tareas' : 'Centro de Comando'}
           </h1>
           {activeTaskForPomodoro && (
             <div className="hidden md:flex items-center gap-2 bg-accent/10 text-accent-foreground/80 px-3 py-1 rounded-full text-xs font-bold border border-accent/20 animate-pulse">
@@ -38,7 +38,7 @@ export default function AppHeader({
           className="shadow-sm transition-transform active:scale-95"
         >
           <Plus size={18} />
-          <span className="hidden sm:inline">Nuevo Negocio/Tarea</span>
+          <span className="hidden sm:inline">Nueva Tarea</span>
         </Button>
       </header>
       <NewTaskDialog open={showModal} onOpenChange={setShowModal} />

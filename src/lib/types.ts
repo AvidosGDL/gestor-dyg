@@ -10,8 +10,7 @@ export interface Task {
   id: number;
   title: string;
   client: string;
-  value: number;
-  probability: number;
+  progress: number;
   dueDate: string;
   status: TaskStatus;
   priority: TaskPriority;

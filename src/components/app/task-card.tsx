@@ -25,18 +25,10 @@ const getPriorityColor = (p: Task['priority']) => {
   return '#3b82f6'; // blue-500
 };
 
-const getProbabilityColor = (prob: number) => {
+const getProgressColor = (prob: number) => {
   if (prob >= 80) return 'bg-emerald-500';
   if (prob >= 50) return 'bg-amber-500';
-  return 'bg-rose-500';
-};
-
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency: 'MXN',
-    maximumFractionDigits: 0,
-  }).format(amount);
+  return 'bg-blue-500';
 };
 
 export default function TaskCard({ task, setActiveTaskForPomodoro }: TaskCardProps) {
@@ -77,28 +69,22 @@ export default function TaskCard({ task, setActiveTaskForPomodoro }: TaskCardPro
 
         <div className="flex items-center text-sm text-muted-foreground mb-3 gap-2">
           <Briefcase size={14} />
-          <span className="font-medium">{task.client || 'Sin Cliente'}</span>
+          <span className="font-medium">{task.client || 'Sin Proyecto'}</span>
         </div>
 
-        <div className="bg-muted/50 rounded-lg p-2 mb-3 grid grid-cols-2 gap-2 text-xs">
+        <div className="bg-muted/50 rounded-lg p-2 mb-3 grid grid-cols-1 gap-2 text-xs">
           <div>
-            <span className="text-muted-foreground block mb-1">Valor Est.</span>
-            <span className="font-mono font-bold text-foreground">
-              {formatCurrency(task.value)}
-            </span>
-          </div>
-          <div>
-            <span className="text-muted-foreground block mb-1">Probabilidad</span>
-            <div className="flex items-center gap-1.5">
-              <div className="w-full bg-border h-1.5 rounded-full overflow-hidden">
-                <div
-                  className={`h-full ${getProbabilityColor(task.probability)}`}
-                  style={{ width: `${task.probability}%` }}
-                ></div>
-              </div>
-              <span className="font-bold text-foreground text-right w-8">
-                {task.probability}%
+            <div className="flex justify-between items-center mb-1">
+              <span className="text-muted-foreground">Progreso</span>
+              <span className="font-bold text-foreground text-right">
+                {task.progress}%
               </span>
+            </div>
+            <div className="w-full bg-border h-1.5 rounded-full overflow-hidden">
+              <div
+                className={`h-full ${getProgressColor(task.progress)}`}
+                style={{ width: `${task.progress}%` }}
+              ></div>
             </div>
           </div>
         </div>
@@ -132,8 +118,8 @@ export default function TaskCard({ task, setActiveTaskForPomodoro }: TaskCardPro
         
         {task.status !== 'backlog' && task.status !== 'done' && (
              <div className="mt-3 pt-3 border-t flex justify-between text-xs text-muted-foreground">
-                <Button variant="link" size="sm" className="p-0 h-auto" disabled={task.status === 'prospecting'} onClick={() => handleStatusChange('prospecting')}>← Prospecto</Button>
-                <Button variant="link" size="sm" className="p-0 h-auto" disabled={task.status === 'negotiation'} onClick={() => handleStatusChange('negotiation')}>Negociar →</Button>
+                <Button variant="link" size="sm" className="p-0 h-auto" disabled={task.status === 'prospecting'} onClick={() => handleStatusChange('prospecting')}>← Pendiente</Button>
+                <Button variant="link" size="sm" className="p-0 h-auto" disabled={task.status === 'negotiation'} onClick={() => handleStatusChange('negotiation')}>En Progreso →</Button>
                 <Button variant="link" size="sm" className="p-0 h-auto" disabled={task.status === 'closing'} onClick={() => handleStatusChange('closing')}>Cierre →</Button>
             </div>
         )}

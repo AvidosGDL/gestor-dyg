@@ -12,10 +12,10 @@ interface BoardViewProps {
 }
 
 const columns: { id: TaskStatus; label: string; color: string }[] = [
-  { id: 'prospecting', label: 'Prospectando / Ideas', color: 'border-t-blue-500' },
-  { id: 'negotiation', label: 'En Negociación', color: 'border-t-amber-500' },
+  { id: 'prospecting', label: 'Pendiente', color: 'border-t-blue-500' },
+  { id: 'negotiation', label: 'En Progreso', color: 'border-t-amber-500' },
   { id: 'closing', label: 'Cierre / Urgente', color: 'border-t-rose-500' },
-  { id: 'done', label: 'Cerrado / Ganado', color: 'border-t-emerald-500' },
+  { id: 'done', label: 'Completado', color: 'border-t-emerald-500' },
 ];
 
 const TaskColumn = ({
@@ -32,13 +32,6 @@ const TaskColumn = ({
   setActiveTaskForPomodoro: (task: Task | null) => void;
 }) => {
   const columnTasks = tasks.filter((t) => t.status === status);
-  const columnTotal = columnTasks.reduce((acc, curr) => acc + curr.value, 0);
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('es-MX', {
-      style: 'currency',
-      currency: 'MXN',
-      maximumFractionDigits: 0,
-    }).format(amount);
 
   return (
     <div className="min-w-[320px] w-[320px] flex flex-col bg-muted/50 rounded-xl">
@@ -50,9 +43,6 @@ const TaskColumn = ({
           <span className="bg-muted text-muted-foreground text-xs px-2 py-1 rounded-full font-medium">
             {columnTasks.length}
           </span>
-        </div>
-        <div className="text-xs text-muted-foreground font-mono">
-          Potencial: {formatCurrency(columnTotal)}
         </div>
       </div>
       <ScrollArea className="flex-1">

@@ -21,48 +21,44 @@ interface PlanningViewProps {
   setActiveTaskForPomodoro: (task: Task | null) => void;
 }
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency: 'MXN',
-    maximumFractionDigits: 0,
-  }).format(amount);
-};
-
 const PipelineSummary = () => {
   const { tasks } = useTasks();
 
-  const totalValue = useMemo(() =>
-    tasks
-      .filter((t) => t.status !== 'done' && t.status !== 'backlog')
-      .reduce((acc, c) => acc + c.value, 0)
+  const completedTasks = useMemo(() =>
+    tasks.filter((t) => t.status === 'done').length
+  , [tasks]);
+  
+  const totalTasks = useMemo(() =>
+    tasks.filter((t) => t.status !== 'backlog').length
   , [tasks]);
 
-  const weightedValue = useMemo(() =>
-    tasks
-      .filter((t) => t.status !== 'done')
-      .reduce((acc, c) => acc + c.value * (c.probability / 100), 0)
-  , [tasks]);
+  const overallProgress = useMemo(() => {
+    const activeTasks = tasks.filter((t) => t.status !== 'done' && t.status !== 'backlog');
+    if (activeTasks.length === 0) return 0;
+    const totalProgress = activeTasks.reduce((acc, c) => acc + c.progress, 0);
+    return Math.round(totalProgress / activeTasks.length);
+  }, [tasks]);
+
 
   return (
     <Card className="bg-gradient-to-br from-primary to-purple-700 text-primary-foreground shadow-lg">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <TrendingUp />
-          Resumen de Pipeline
+          Resumen de Tareas
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <p className="text-sm text-primary-foreground/80">Valor Total en Juego</p>
-          <p className="text-3xl font-bold">{formatCurrency(totalValue)}</p>
+          <p className="text-sm text-primary-foreground/80">Progreso General de Tareas Activas</p>
+          <p className="text-3xl font-bold">{overallProgress}%</p>
         </div>
         <div>
           <p className="text-sm text-primary-foreground/80">
-            Valor Ponderado (Realista)
+            Tareas Completadas
           </p>
           <p className="text-xl font-bold opacity-90">
-            {formatCurrency(weightedValue)}
+            {completedTasks} de {totalTasks}
           </p>
         </div>
       </CardContent>
@@ -94,8 +90,12 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
   const handlePrioritize = async () => {
     setIsPrioritizing(true);
     try {
-      const prioritized = await prioritizeTasks(tasks);
-      setTasks(prioritized);
+      const tasksToPrioritize = tasks.map(t => ({...t, value: 0, probability: 0}));
+      const prioritized = await prioritizeTasks(tasksToPrioritize);
+      setTasks(prioritized.map(t => {
+        const {value, probability, ...rest} = t;
+        return rest;
+      }));
       toast({
         title: "Tareas priorizadas con IA",
         description: "El orden de tus tareas ha sido optimizado.",
@@ -138,7 +138,7 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
                       <Checkbox id={`task-${task.id}`} onCheckedChange={() => updateTask(task.id, { status: 'done' })} />
                       <div>
                         <label htmlFor={`task-${task.id}`} className="font-medium text-foreground cursor-pointer">{task.title}</label>
-                        <p className="text-xs text-destructive font-bold">{formatCurrency(task.value)} - {task.client}</p>
+                        <p className="text-xs text-destructive font-bold">{task.client}</p>
                       </div>
                     </div>
                     <Badge variant="destructive">¡Prioridad!</Badge>
