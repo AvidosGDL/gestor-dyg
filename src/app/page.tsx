@@ -92,37 +92,10 @@ function Dashboard() {
   );
 }
 
-function AuthWrapper() {
-  const { user, loading } = useUser();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
-    }
-  }, [user, loading, router]);
-
-  if (loading || !user) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <div className="flex flex-col items-center gap-4">
-            <div className="w-16 h-16 bg-gradient-to-tr from-primary to-accent rounded-lg flex items-center justify-center font-bold text-white text-3xl">
-              G
-            </div>
-          <span className="text-muted-foreground">Cargando...</span>
-        </div>
-      </div>
-    );
-  }
-
-  return <Dashboard />;
-}
-
-
 export default function Home() {
   return (
     <FirebaseClientProvider>
-      <AuthWrapper />
+      <Dashboard />
     </FirebaseClientProvider>
   );
 }
