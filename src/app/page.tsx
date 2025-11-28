@@ -41,9 +41,10 @@ export default function Home() {
                 <div className="w-8 h-8 bg-gradient-to-tr from-primary to-accent rounded-lg flex items-center justify-center font-bold">
                   G
                 </div>
-                <span className="font-bold text-lg">
-                  Gesto Pro Roberto DO
-                </span>
+                <div>
+                  <span className="font-bold text-lg block">Gestor Pro</span>
+                  <span className="font-semibold text-sm block">Roberto DO IT</span>
+                </div>
               </div>
               <SidebarNav view={view} setView={setView} />
               <div className="p-4 mt-auto">
