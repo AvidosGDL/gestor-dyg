@@ -42,7 +42,7 @@ export default function Home() {
                   G
                 </div>
                 <span className="font-bold text-lg">
-                  Gestor Pro
+                  Gesto Pro Roberto DO
                 </span>
               </div>
               <SidebarNav view={view} setView={setView} />
