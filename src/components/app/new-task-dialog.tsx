@@ -23,7 +23,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useTasks } from '@/contexts/tasks-context';
-import { Percent, Users } from 'lucide-react';
+import { DollarSign, Percent, Users } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { TaskStatus } from '@/lib/types';
@@ -39,6 +39,8 @@ const taskSchema = z.object({
   delegateTo: z.string().optional(),
   status: z.enum(['backlog', 'prospecting', 'negotiation', 'closing', 'done']),
   description: z.string().optional(),
+  value: z.coerce.number().min(0),
+  probability: z.coerce.number().min(0).max(100),
 });
 
 type TaskFormValues = z.infer<typeof taskSchema>;
@@ -52,6 +54,8 @@ const defaultValues: Partial<TaskFormValues> = {
   delegateTo: '',
   status: 'backlog',
   description: '',
+  value: 0,
+  probability: 50,
 };
 
 interface NewTaskDialogProps {
@@ -129,6 +133,39 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Progreso (%) - {field.value}%</FormLabel>
+                    <FormControl>
+                      <Slider
+                        min={0} max={100} step={5}
+                        defaultValue={[field.value]}
+                        onValueChange={(value) => field.onChange(value[0])}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="value"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Potencial del Negocio ($)</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        <Input type="number" placeholder="Valor en USD" className="pl-9" {...field} />
+                      </div>
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="probability"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Probabilidad de Éxito - {field.value}%</FormLabel>
                     <FormControl>
                       <Slider
                         min={0} max={100} step={5}

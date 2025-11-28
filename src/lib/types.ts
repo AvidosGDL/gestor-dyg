@@ -16,4 +16,6 @@ export interface Task {
   priority: TaskPriority;
   delegateTo: string;
   description: string;
+  value: number;
+  probability: number;
 }

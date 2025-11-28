@@ -76,9 +76,15 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
     return [...tasks]
       .filter((t) => t.status !== 'done')
       .sort((a, b) => {
+        // Sort by value (potential) descending
+        if (b.value !== a.value) return b.value - a.value;
+
+        // Then by priority
         const priorityVal = { high: 3, medium: 2, low: 1 };
         if (priorityVal[b.priority] !== priorityVal[a.priority])
           return priorityVal[b.priority] - priorityVal[a.priority];
+        
+        // Then by due date
         if (!a.dueDate) return 1;
         if (!b.dueDate) return -1;
         return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
@@ -90,12 +96,9 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
   const handlePrioritize = async () => {
     setIsPrioritizing(true);
     try {
-      const tasksToPrioritize = tasks.map(t => ({...t, value: 0, probability: 0}));
+      const tasksToPrioritize = tasks.map(t => ({...t}));
       const prioritized = await prioritizeTasks(tasksToPrioritize);
-      setTasks(prioritized.map(t => {
-        const {value, probability, ...rest} = t;
-        return rest;
-      }));
+      setTasks(prioritized);
       toast({
         title: "Tareas priorizadas con IA",
         description: "El orden de tus tareas ha sido optimizado.",
@@ -148,7 +151,7 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
               </div>
             </div>
             <div>
-              <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-4">Próximos Pendientes (Backlog Priorizado)</h4>
+              <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-4">Próximos Pendientes (Backlog Priorizado por Potencial)</h4>
               <div className="space-y-2">
                 {sortedTasks.filter(t => !t.dueDate || t.dueDate > today).slice(0, 5).map(task => (
                   <div key={task.id} className="flex items-center justify-between p-3 bg-card border hover:border-primary/50 rounded-lg transition-colors">
@@ -156,7 +159,7 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
                       <div className={`w-2 h-2 rounded-full ${task.priority === 'high' ? 'bg-destructive' : task.priority === 'medium' ? 'bg-yellow-500' : 'bg-primary'}`}></div>
                       <div>
                         <p className="font-medium text-foreground">{task.title}</p>
-                        <p className="text-xs text-muted-foreground">{task.client} • {task.dueDate ? new Date(task.dueDate).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : 'Sin fecha'}</p>
+                        <p className="text-xs text-muted-foreground">${task.value.toLocaleString()} • {task.client} • {task.dueDate ? new Date(task.dueDate).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : 'Sin fecha'}</p>
                       </div>
                     </div>
                     <Button variant="link" size="sm" onClick={() => updateTask(task.id, { status: 'prospecting' })}>Mover a Tablero</Button>

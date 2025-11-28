@@ -4,6 +4,8 @@ import React from 'react';
 import {
   Briefcase,
   Calendar,
+  DollarSign,
+  Percent,
   Timer,
   Trash2,
 } from 'lucide-react';
@@ -30,6 +32,12 @@ const getProgressColor = (prob: number) => {
   if (prob >= 50) return 'bg-amber-500';
   return 'bg-blue-500';
 };
+
+const getPotentialColor = (value: number) => {
+    if (value >= 10000) return 'bg-purple-500';
+    if (value >= 5000) return 'bg-indigo-500';
+    return 'bg-sky-500';
+}
 
 export default function TaskCard({ task, setActiveTaskForPomodoro }: TaskCardProps) {
   const { deleteTask, updateTask } = useTasks();
@@ -72,10 +80,10 @@ export default function TaskCard({ task, setActiveTaskForPomodoro }: TaskCardPro
           <span className="font-medium">{task.client || 'Sin Proyecto'}</span>
         </div>
 
-        <div className="bg-muted/50 rounded-lg p-2 mb-3 grid grid-cols-1 gap-2 text-xs">
+        <div className="bg-muted/50 rounded-lg p-2 mb-3 grid grid-cols-1 gap-3 text-xs">
           <div>
             <div className="flex justify-between items-center mb-1">
-              <span className="text-muted-foreground">Progreso</span>
+              <span className="text-muted-foreground flex items-center gap-1"><Percent size={12} /> Progreso</span>
               <span className="font-bold text-foreground text-right">
                 {task.progress}%
               </span>
@@ -84,6 +92,34 @@ export default function TaskCard({ task, setActiveTaskForPomodoro }: TaskCardPro
               <div
                 className={`h-full ${getProgressColor(task.progress)}`}
                 style={{ width: `${task.progress}%` }}
+              ></div>
+            </div>
+          </div>
+           <div>
+            <div className="flex justify-between items-center mb-1">
+              <span className="text-muted-foreground flex items-center gap-1"><DollarSign size={12} /> Potencial</span>
+              <span className="font-bold text-foreground text-right">
+                ${task.value.toLocaleString()}
+              </span>
+            </div>
+            <div className="w-full bg-border h-1.5 rounded-full overflow-hidden">
+              <div
+                className={`h-full ${getPotentialColor(task.value)}`}
+                style={{ width: `${Math.min((task.value / 20000) * 100, 100)}%` }}
+              ></div>
+            </div>
+          </div>
+           <div>
+            <div className="flex justify-between items-center mb-1">
+              <span className="text-muted-foreground flex items-center gap-1">Probabilidad</span>
+              <span className="font-bold text-foreground text-right">
+                {task.probability}%
+              </span>
+            </div>
+            <div className="w-full bg-border h-1.5 rounded-full overflow-hidden">
+              <div
+                className={`h-full ${getProgressColor(task.probability)}`}
+                style={{ width: `${task.probability}%` }}
               ></div>
             </div>
           </div>
