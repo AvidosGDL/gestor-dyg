@@ -1,9 +1,9 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import React, { createContext, useContext, useMemo } from 'react';
+import React, { createContext, useContext } from 'react';
 import type { Task } from '@/lib/types';
-import { useCollection, useFirestore, useUser } from '@/firebase';
+import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import {
   collection,
   addDoc,
@@ -32,23 +32,22 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
   const collectionPath = user ? `users/${user.uid}/tasks` : null;
 
+  const tasksCollectionRef = useMemoFirebase(() => {
+    return collectionPath ? collection(firestore, collectionPath) : null;
+  }, [collectionPath, firestore]);
+
   const {
     data: tasks,
     loading,
     error,
-  } = useCollection<Task>(collectionPath);
-
-  const tasksCollection = useMemo(() => {
-    if (!firestore || !collectionPath) return null;
-    return collection(firestore, collectionPath);
-  }, [firestore, collectionPath]);
+  } = useCollection<Task>(tasksCollectionRef);
 
   const addTask = (taskData: Omit<Task, 'id'>) => {
-    if (!tasksCollection) return;
+    if (!tasksCollectionRef) return;
     const newTask = { ...taskData, createdAt: new Date().toISOString() };
-    addDoc(tasksCollection, newTask).catch(async (serverError) => {
+    addDoc(tasksCollectionRef, newTask).catch(async (serverError) => {
       const permissionError = new FirestorePermissionError({
-        path: tasksCollection.path,
+        path: tasksCollectionRef.path,
         operation: 'create',
         requestResourceData: newTask,
       });
@@ -82,27 +81,24 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   };
 
   const setTasks = (newTasks: Task[]) => {
-    if (!firestore || !collectionPath) return;
+    if (!firestore || !tasksCollectionRef) return;
     const batch = writeBatch(firestore);
     
-    // This is a simplified batch update. It deletes old tasks and adds new ones.
-    // A more sophisticated approach would be to diff the arrays.
     tasks?.forEach(task => {
-      const docRef = doc(firestore, collectionPath, task.id);
+      const docRef = doc(firestore, tasksCollectionRef.path, task.id);
       batch.delete(docRef);
     });
 
     newTasks.forEach(task => {
         const { id, ...taskData } = task;
-        // If the task has a numeric ID from old data, we create a new doc
-        const docRef = doc(tasksCollection);
+        const docRef = doc(tasksCollectionRef);
         batch.set(docRef, taskData);
     });
 
     batch.commit().catch(async (serverError) => {
          const permissionError = new FirestorePermissionError({
-            path: collectionPath,
-            operation: 'update', // or a more generic 'write'
+            path: tasksCollectionRef.path,
+            operation: 'write', 
             requestResourceData: newTasks
         });
         errorEmitter.emit('permission-error', permissionError);

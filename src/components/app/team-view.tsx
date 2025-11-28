@@ -21,7 +21,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Trash2, Edit, Loader2 } from 'lucide-react';
 import { type TeamMember } from '@/lib/types';
-import { useCollection, useUser, useFirestore } from '@/firebase';
+import { useCollection, useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -162,8 +162,12 @@ export default function TeamView() {
   const { toast } = useToast();
 
   const collectionPath = user ? `users/${user.uid}/teamMembers` : null;
+  const membersCollectionRef = useMemoFirebase(() => {
+    return collectionPath ? collection(firestore, collectionPath) : null;
+  }, [collectionPath, firestore]);
+  
   const { data: members, loading: membersLoading } =
-    useCollection<TeamMember>(collectionPath);
+    useCollection<TeamMember>(membersCollectionRef);
 
   const [isEditMemberDialogOpen, setIsEditMemberDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
