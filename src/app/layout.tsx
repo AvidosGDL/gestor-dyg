@@ -3,6 +3,8 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
+import { FirebaseProvider } from '@/firebase/provider';
+import { FirebaseErrorListener } from '@/components/firebase-error-listener';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
@@ -27,7 +29,10 @@ export default function RootLayout({
         />
       </head>
       <body className={cn('font-sans antialiased', inter.variable)}>
-        {children}
+        <FirebaseProvider>
+          {children}
+          <FirebaseErrorListener />
+        </FirebaseProvider>
         <Toaster />
       </body>
     </html>
