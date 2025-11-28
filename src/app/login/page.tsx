@@ -26,13 +26,13 @@ function Login() {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (user) {
+    if (!loading && user) {
       router.push('/');
     }
-  }, [user, router]);
+  }, [user, loading, router]);
   
   if (loading || user) {
-    return <div className="flex items-center justify-center min-h-screen">Cargando...</div>;
+    return <div className="flex items-center justify-center min-h-screen bg-background">Cargando...</div>;
   }
 
   const handleAuth = async (e: React.FormEvent, action: 'signIn' | 'signUp') => {

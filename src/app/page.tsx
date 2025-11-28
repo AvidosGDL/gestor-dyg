@@ -104,8 +104,13 @@ function AuthWrapper() {
 
   if (loading || !user) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <Skeleton className="h-24 w-24 rounded-full" />
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="flex flex-col items-center gap-4">
+            <div className="w-16 h-16 bg-gradient-to-tr from-primary to-accent rounded-lg flex items-center justify-center font-bold text-white text-3xl">
+              G
+            </div>
+          <span className="text-muted-foreground">Cargando...</span>
+        </div>
       </div>
     );
   }
