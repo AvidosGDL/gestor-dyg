@@ -166,7 +166,7 @@ export default function NewMemberDialog({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSubmitting || !user}>
+            <Button type="submit" disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Agregar Miembro
             </Button>
