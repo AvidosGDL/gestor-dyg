@@ -27,8 +27,8 @@ import { DollarSign, Users } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { TaskStatus } from '@/lib/types';
-import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { Textarea } from '../ui/textarea';
 
 const taskSchema = z.object({
   title: z.string().min(1, 'El título es requerido'),
@@ -214,7 +214,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                     <FormLabel>Estado Inicial</FormLabel>
                     <FormControl>
                         <div className="flex gap-2 flex-wrap">
-                        {(['backlog', 'prospecting', 'negotiation', 'closing'] as TaskStatus[]).map(status => (
+                        {(['backlog', 'prospecting', 'negotiation', 'closing'] as (TaskStatus | 'backlog')[]).map(status => (
                             <Button
                             type="button"
                             key={status}
