@@ -27,7 +27,7 @@ function Login() {
 
   useEffect(() => {
     if (user) {
-      router.push('/admin');
+      router.push('/');
     }
   }, [user, router]);
   
@@ -45,7 +45,7 @@ function Login() {
         await createUserWithEmailAndPassword(auth, email, password);
       }
       toast({ title: 'Éxito', description: `Has ${action === 'signIn' ? 'iniciado sesión' : 'creado una cuenta'}.` });
-      router.push('/admin');
+      router.push('/');
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -62,7 +62,7 @@ function Login() {
     try {
       await signInWithPopup(auth, provider);
       toast({ title: 'Éxito', description: 'Has iniciado sesión con Google.' });
-      router.push('/admin');
+      router.push('/');
     } catch (error: any) {
       toast({
         variant: 'destructive',
