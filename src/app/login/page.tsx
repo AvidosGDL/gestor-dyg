@@ -26,6 +26,10 @@ function Login() {
   const { user, loading } = useUser();
   const { toast } = useToast();
 
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+  
   if (user) {
     router.push('/admin');
     return null;
