@@ -1,68 +1,117 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useMemo } from 'react';
 import type { Task } from '@/lib/types';
-import { initialTasks } from '@/lib/initial-tasks';
+import { useCollection, useFirestore, useUser } from '@/firebase';
+import {
+  collection,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  writeBatch,
+} from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 interface TasksContextType {
   tasks: Task[];
   addTask: (taskData: Omit<Task, 'id'>) => void;
-  updateTask: (id: number, updatedData: Partial<Task>) => void;
-  deleteTask: (id: number) => void;
-  setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
+  updateTask: (id: string, updatedData: Partial<Omit<Task, 'id'>>) => void;
+  deleteTask: (id: string) => void;
+  setTasks: (tasks: Task[]) => void;
+  loading: boolean;
 }
 
 const TasksContext = createContext<TasksContextType | undefined>(undefined);
 
 export function TasksProvider({ children }: { children: ReactNode }) {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const firestore = useFirestore();
+  const { user } = useUser();
 
-  useEffect(() => {
-    try {
-      const savedTasks = window.localStorage.getItem('bizTasks');
-      if (savedTasks) {
-        setTasks(JSON.parse(savedTasks));
-      } else {
-        setTasks(initialTasks);
-      }
-    } catch (error) {
-      console.error('Error reading from localStorage', error);
-      setTasks(initialTasks);
-    }
-    setIsInitialized(true);
-  }, []);
+  const collectionPath = user ? `users/${user.uid}/tasks` : null;
 
-  useEffect(() => {
-    if (isInitialized) {
-      try {
-        window.localStorage.setItem('bizTasks', JSON.stringify(tasks));
-      } catch (error) {
-        console.error('Error writing to localStorage', error);
-      }
-    }
-  }, [tasks, isInitialized]);
+  const {
+    data: tasks,
+    loading,
+    error,
+  } = useCollection<Task>(collectionPath);
+
+  const tasksCollection = useMemo(() => {
+    if (!firestore || !collectionPath) return null;
+    return collection(firestore, collectionPath);
+  }, [firestore, collectionPath]);
 
   const addTask = (taskData: Omit<Task, 'id'>) => {
-    const newTask = { ...taskData, id: Date.now() };
-    setTasks((prevTasks) => [...prevTasks, newTask]);
+    if (!tasksCollection) return;
+    const newTask = { ...taskData, createdAt: new Date().toISOString() };
+    addDoc(tasksCollection, newTask).catch(async (serverError) => {
+      const permissionError = new FirestorePermissionError({
+        path: tasksCollection.path,
+        operation: 'create',
+        requestResourceData: newTask,
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    });
   };
 
-  const updateTask = (id: number, updatedData: Partial<Task>) => {
-    setTasks((prevTasks) =>
-      prevTasks.map((task) =>
-        task.id === id ? { ...task, ...updatedData } : task
-      )
-    );
+  const updateTask = (id: string, updatedData: Partial<Omit<Task, 'id'>>) => {
+    if (!firestore || !collectionPath) return;
+    const docRef = doc(firestore, collectionPath, id);
+    updateDoc(docRef, updatedData).catch(async (serverError) => {
+      const permissionError = new FirestorePermissionError({
+        path: docRef.path,
+        operation: 'update',
+        requestResourceData: updatedData,
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    });
   };
 
-  const deleteTask = (id: number) => {
-    setTasks((prevTasks) => prevTasks.filter((task) => task.id !== id));
+  const deleteTask = (id: string) => {
+    if (!firestore || !collectionPath) return;
+    const docRef = doc(firestore, collectionPath, id);
+    deleteDoc(docRef).catch(async (serverError) => {
+      const permissionError = new FirestorePermissionError({
+        path: docRef.path,
+        operation: 'delete',
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    });
   };
-  
+
+  const setTasks = (newTasks: Task[]) => {
+    if (!firestore || !collectionPath) return;
+    const batch = writeBatch(firestore);
+    
+    // This is a simplified batch update. It deletes old tasks and adds new ones.
+    // A more sophisticated approach would be to diff the arrays.
+    tasks?.forEach(task => {
+      const docRef = doc(firestore, collectionPath, task.id);
+      batch.delete(docRef);
+    });
+
+    newTasks.forEach(task => {
+        const { id, ...taskData } = task;
+        // If the task has a numeric ID from old data, we create a new doc
+        const docRef = doc(tasksCollection);
+        batch.set(docRef, taskData);
+    });
+
+    batch.commit().catch(async (serverError) => {
+         const permissionError = new FirestorePermissionError({
+            path: collectionPath,
+            operation: 'update', // or a more generic 'write'
+            requestResourceData: newTasks
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
+  };
+
   const contextValue = {
-    tasks,
+    tasks: tasks || [],
+    loading,
     setTasks,
     addTask,
     updateTask,
@@ -70,9 +119,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <TasksContext.Provider value={contextValue}>
-      {children}
-    </TasksContext.Provider>
+    <TasksContext.Provider value={contextValue}>{children}</TasksContext.Provider>
   );
 }
 

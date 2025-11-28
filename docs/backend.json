@@ -22,6 +22,24 @@
         }
       },
       "required": ["displayName", "email"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Represents a single task in the task manager.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "client": { "type": "string" },
+        "progress": { "type": "number" },
+        "dueDate": { "type": "string", "format": "date" },
+        "status": { "type": "string", "enum": ["backlog", "prospecting", "negotiation", "closing", "done"] },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+        "delegateTo": { "type": "string" },
+        "description": { "type": "string" },
+        "value": { "type": "number" },
+        "probability": { "type": "number" }
+      },
+      "required": ["title", "status", "priority", "progress", "value", "probability"]
     }
   },
   "auth": {
@@ -33,6 +51,12 @@
         "$ref": "#/backend/entities/UserProfile"
       },
       "description": "Stores public information about a user."
+    },
+    "/users/{userId}/tasks/{taskId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Task"
+      },
+      "description": "Stores the tasks for a specific user."
     }
   }
 }

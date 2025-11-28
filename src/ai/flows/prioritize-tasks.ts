@@ -12,7 +12,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const TaskSchema = z.object({
-  id: z.number().describe('The unique identifier of the task.'),
+  id: z.string().describe('The unique identifier of the task.'),
   title: z.string().describe('The title of the task.'),
   client: z.string().describe('The project or client associated with the task.'),
   progress: z.number().describe('The completion progress of the task as a percentage (0-100).'),

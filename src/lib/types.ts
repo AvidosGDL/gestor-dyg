@@ -7,7 +7,7 @@ export type TaskStatus =
 export type TaskPriority = 'low' | 'medium' | 'high';
 
 export interface Task {
-  id: number;
+  id: string; // Changed from number to string for Firestore compatibility
   title: string;
   client: string;
   progress: number;

@@ -26,7 +26,7 @@ import { useTasks } from '@/contexts/tasks-context';
 import { DollarSign, Percent, Users } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { TaskStatus } from '@/lib/types';
+import type { Task, TaskStatus } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '../ui/textarea';
 
@@ -45,7 +45,7 @@ const taskSchema = z.object({
 
 type TaskFormValues = z.infer<typeof taskSchema>;
 
-const defaultValues: Partial<TaskFormValues> = {
+const defaultValues: Omit<Task, 'id'> = {
   title: '',
   client: '',
   progress: 0,
