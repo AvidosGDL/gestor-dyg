@@ -38,7 +38,7 @@ export default function SidebarNav({ view, setView }: SidebarNavProps) {
             tooltip={item.label}
           >
             <item.icon size={20} />
-            <span className="hidden lg:inline">{item.label}</span>
+            <span>{item.label}</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
       ))}

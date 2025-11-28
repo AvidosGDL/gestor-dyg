@@ -41,13 +41,13 @@ export default function Home() {
                 <div className="w-8 h-8 bg-gradient-to-tr from-primary to-accent rounded-lg flex items-center justify-center font-bold">
                   G
                 </div>
-                <span className="font-bold text-lg hidden lg:block">
+                <span className="font-bold text-lg">
                   Gestor Pro
                 </span>
               </div>
               <SidebarNav view={view} setView={setView} />
               <div className="p-4 mt-auto">
-                <div className="bg-sidebar-accent rounded-xl p-4 hidden lg:block space-y-4">
+                <div className="bg-sidebar-accent rounded-xl p-4 space-y-4">
                   <div>
                     <h5 className="text-xs font-bold text-muted-foreground uppercase mb-2">
                       Consejo Productividad
