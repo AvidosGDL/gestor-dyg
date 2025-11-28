@@ -1,17 +1,18 @@
 'use client';
 
-import { useUser } from '@/firebase';
+import { useUser, useAuth } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { getAuth, signOut } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
+import { FirebaseClientProvider } from '@/firebase/client-provider';
 
 const ADMIN_UIDS = ['fKZUAAXTENPcUeEA4tUXFEV4xbr1'];
 
-export default function AdminPage() {
+function Admin() {
   const { user, loading } = useUser();
   const router = useRouter();
-  const auth = getAuth();
+  const auth = useAuth();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -20,22 +21,24 @@ export default function AdminPage() {
   }, [user, loading, router]);
 
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        Cargando...
+      </div>
+    );
   }
 
   if (!user) {
     return null;
   }
 
-  const isAuthorized = user && ADMIN_UIDS.includes(user.uid);
+  const isAuthorized = ADMIN_UIDS.includes(user.uid);
 
   if (!isAuthorized) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
         <h1 className="text-2xl font-bold mb-4">Acceso Denegado</h1>
-        <p className="mb-4">
-          No tienes permiso para ver esta página.
-        </p>
+        <p className="mb-4">No tienes permiso para ver esta página.</p>
         <Button onClick={() => signOut(auth)}>Cerrar Sesión</Button>
       </div>
     );
@@ -50,5 +53,13 @@ export default function AdminPage() {
       <p>¡Bienvenido, {user.email}!</p>
       {/* Admin content goes here */}
     </div>
+  );
+}
+
+export default function AdminPage() {
+  return (
+    <FirebaseClientProvider>
+      <Admin />
+    </FirebaseClientProvider>
   );
 }
