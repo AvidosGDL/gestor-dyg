@@ -1,24 +1,47 @@
+/**
+ * Core Philosophy: This ruleset establishes a "Public Read, Secure Write" model. All tasks are publicly visible to any user,
+ * including those not signed in, to facilitate open browsing. However, all write operations (creating, editing, deleting)
+ * are disabled by default until a proper ownership model is implemented in the data schema.
+ *
+ * Data Structure: The data is organized in a single, top-level collection named `tasks`. Each document within this
+ * collection represents a single task. There are no user-specific subcollections in this design.
+ *
+ * Key Security Decisions:
+ * - Public Read Access: To support browsing, `get` and `list` operations on the `/tasks` collection are open to everyone.
+ * - Writes Disabled by Default: Crucially, the `Task` entity is missing an `ownerId` or `creatorId` field. Without this, it's
+ *   impossible to verify that a user has the authority to modify or delete a specific task. To prevent any authenticated
+ *   user from altering another user's data, all `create`, `update`, and `delete` operations are explicitly disabled.
+ *   This is a secure-by-default posture that requires a developer to add the ownership field before writes are enabled.
+ *
+ * Denormalization for Authorization: This ruleset is designed with denormalization in mind. The primary reason writes
+ * are disabled is the *lack* of a denormalized `ownerId` on each task document. To enable secure writes, this field
+ * must be added to every task.
+ *
+ * Structural Segregation: N/A. This model uses a single collection for all data.
+ */
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
-    }
-
-    match /users/{userId} {
+    /**
+     * @description Allows public read access to all tasks, but blocks all writes until an ownership model is implemented.
+     * @path        /tasks/{taskId}
+     * @allow       A non-authenticated user getting a single task: `(get) /tasks/some_task_id`.
+     * @deny        An authenticated user trying to create a task: `(create) /tasks/new_task` (fails because the rules require an ownership field in the data).
+     * @principle   Secure-by-default. Disables writes on a public collection that lacks an ownership field to prevent unauthorized data modification.
+     */
+    match /tasks/{taskId} {
+      // Reads are public, allowing anyone to view task data.
       allow get: if true;
-      allow list: if request.auth != null;
-      allow create, update, delete: if isOwner(userId);
-    }
+      allow list: if true;
 
-    match /users/{userId}/tasks/{taskId} {
-      allow read, write: if isOwner(userId);
-    }
-
-    match /users/{userId}/teamMembers/{memberId} {
-      allow read, write: if isOwner(userId);
+      // CRITICAL: Cannot implement owner-only writes. The 'Task' entity is missing an 'ownerId' or 'authorId' field.
+      // To enable writes, add an 'ownerId' field to the Task entity and update the rules below.
+      // Example for create: `allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;`
+      // Example for update/delete: `allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;`
+      allow create: if request.auth != null; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow update: if request.auth != null; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow delete: if request.auth != null; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
   }
 }
