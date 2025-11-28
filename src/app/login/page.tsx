@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   signInWithEmailAndPassword,
@@ -25,13 +25,14 @@ function Login() {
   const { user, loading } = useUser();
   const { toast } = useToast();
 
-  if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Cargando...</div>;
-  }
+  useEffect(() => {
+    if (user) {
+      router.push('/admin');
+    }
+  }, [user, router]);
   
-  if (user) {
-    router.push('/admin');
-    return null;
+  if (loading || user) {
+    return <div className="flex items-center justify-center min-h-screen">Cargando...</div>;
   }
 
   const handleAuth = async (e: React.FormEvent, action: 'signIn' | 'signUp') => {

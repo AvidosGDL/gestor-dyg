@@ -1,11 +1,12 @@
 'use client';
 
-import { useUser, useAuth } from '@/firebase';
+import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { signOut } from 'firebase/auth';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
+import { useAuth } from '@/firebase';
 
 const ADMIN_UIDS = ['fKZUAAXTENPcUeEA4tUXFEV4xbr1'];
 
