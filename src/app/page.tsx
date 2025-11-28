@@ -34,22 +34,22 @@ export default function Home() {
           <Sidebar
             variant="sidebar"
             collapsible="icon"
-            className="bg-sidebar text-sidebar-foreground"
+            className="bg-sidebar text-sidebar-foreground z-20"
           >
             <div className="flex h-full flex-col">
               <div className="p-4 lg:p-6 flex items-center gap-3 text-white">
                 <div className="w-8 h-8 bg-gradient-to-tr from-primary to-accent rounded-lg flex items-center justify-center font-bold">
                   G
                 </div>
-                <div>
+                <div className="group-data-[collapsible=icon]:hidden">
                   <span className="font-bold text-lg block">Gestor Pro</span>
                   <span className="font-semibold text-sm block">Roberto DO IT</span>
                 </div>
               </div>
               <SidebarNav view={view} setView={setView} />
               <div className="p-4 mt-auto">
-                <div className="bg-sidebar-accent rounded-xl p-4 space-y-4">
-                  <div>
+                <div className="bg-sidebar-accent rounded-xl p-4 space-y-4 flex flex-col items-center group-data-[collapsible=icon]:p-2">
+                  <div className="group-data-[collapsible=icon]:hidden">
                     <h5 className="text-xs font-bold text-muted-foreground uppercase mb-2">
                       Consejo Productividad
                     </h5>
