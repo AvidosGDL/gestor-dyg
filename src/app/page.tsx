@@ -6,6 +6,7 @@ import {
   SidebarProvider,
   Sidebar,
   SidebarInset,
+  SidebarTrigger,
 } from '@/components/ui/sidebar';
 
 import { TasksProvider } from '@/contexts/tasks-context';
@@ -15,8 +16,10 @@ import SidebarNav from '@/components/app/sidebar-nav';
 import AppHeader from '@/components/app/header';
 import type { Task } from '@/lib/types';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
+import TeamView from '@/components/app/team-view';
+import { ThemeToggle } from '@/components/theme-toggle';
 
-export type View = 'board' | 'planning';
+export type View = 'board' | 'planning' | 'team';
 
 export default function Home() {
   const [view, setView] = useState<View>('board');
@@ -44,13 +47,16 @@ export default function Home() {
               </div>
               <SidebarNav view={view} setView={setView} />
               <div className="p-4 mt-auto">
-                <div className="bg-sidebar-accent rounded-xl p-4 hidden lg:block">
-                  <h5 className="text-xs font-bold text-muted-foreground uppercase mb-2">
-                    Consejo Productividad
-                  </h5>
-                  <p className="text-xs text-sidebar-foreground/80 italic">
-                    "Si tarda menos de 2 minutos, hazlo ahora. Si no, ponlo en el backlog."
-                  </p>
+                <div className="bg-sidebar-accent rounded-xl p-4 hidden lg:block space-y-4">
+                  <div>
+                    <h5 className="text-xs font-bold text-muted-foreground uppercase mb-2">
+                      Consejo Productividad
+                    </h5>
+                    <p className="text-xs text-sidebar-foreground/80 italic">
+                      "Si tarda menos de 2 minutos, hazlo ahora. Si no, ponlo en el backlog."
+                    </p>
+                  </div>
+                  <ThemeToggle />
                 </div>
               </div>
             </div>
@@ -63,13 +69,17 @@ export default function Home() {
             />
 
             <main className="flex-1 overflow-hidden p-4 md:p-6 bg-background">
-              {view === 'board' ? (
+              {view === 'board' && (
                 <BoardView setActiveTaskForPomodoro={setActiveTaskForPomodoro} />
-              ) : (
+              )}
+              {view === 'planning' && (
                 <PlanningView
                   activeTaskForPomodoro={activeTaskForPomodoro}
                   setActiveTaskForPomodoro={setActiveTaskForPomodoro}
                 />
+              )}
+              {view === 'team' && (
+                <TeamView />
               )}
             </main>
           </SidebarInset>

@@ -1,3 +1,4 @@
+'use client';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
@@ -5,13 +6,9 @@ import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseProvider } from '@/firebase/provider';
 import { FirebaseErrorListener } from '@/components/firebase-error-listener';
+import { ThemeProvider } from '@/components/theme-provider';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
-
-export const metadata: Metadata = {
-  title: 'TaskMaster Pro',
-  description: 'A powerful system for managing activities and tasks.',
-};
 
 export default function RootLayout({
   children,
@@ -29,11 +26,18 @@ export default function RootLayout({
         />
       </head>
       <body className={cn('font-sans antialiased', inter.variable)}>
-        <FirebaseProvider>
-          {children}
-          <FirebaseErrorListener />
-        </FirebaseProvider>
-        <Toaster />
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <FirebaseProvider>
+            {children}
+            <FirebaseErrorListener />
+          </FirebaseProvider>
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );
