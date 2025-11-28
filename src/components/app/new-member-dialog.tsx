@@ -26,6 +26,7 @@ const memberSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
   email: z.string().email('El correo electrónico no es válido'),
   role: z.string().min(1, 'El rol es requerido'),
+  phone: z.string().optional(),
 });
 
 type MemberFormValues = z.infer<typeof memberSchema>;
@@ -54,6 +55,7 @@ export default function NewMemberDialog({
       name: '',
       email: '',
       role: '',
+      phone: '',
     },
   });
 
@@ -142,6 +144,18 @@ export default function NewMemberDialog({
             />
             {errors.role && (
               <p className="text-sm text-destructive">{errors.role.message}</p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="phone">Teléfono</Label>
+            <Input
+              id="phone"
+              placeholder="Ej. +1 234 567 890"
+              {...register('phone')}
+              disabled={isSubmitting}
+            />
+            {errors.phone && (
+              <p className="text-sm text-destructive">{errors.phone.message}</p>
             )}
           </div>
           <DialogFooter>

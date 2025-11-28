@@ -26,4 +26,5 @@ export interface TeamMember {
   email: string;
   role: string;
   avatarUrl: string;
+  phone?: string;
 }

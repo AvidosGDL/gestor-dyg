@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Trash2, Edit, Loader2 } from 'lucide-react';
 import { type TeamMember } from '@/lib/types';
 import { useCollection, useUser, useFirestore } from '@/firebase';
-import { addDoc, collection, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import {
@@ -44,6 +44,7 @@ const memberSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
   email: z.string().email('El correo electrónico no es válido'),
   role: z.string().min(1, 'El rol es requerido'),
+  phone: z.string().optional(),
 });
 
 type MemberFormValues = z.infer<typeof memberSchema>;
@@ -123,6 +124,17 @@ function EditMemberDialog({
             />
             {errors.role && (
               <p className="text-sm text-destructive">{errors.role.message}</p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-phone">Teléfono</Label>
+            <Input
+              id="edit-phone"
+              placeholder="Ej. +1 234 567 890"
+              {...register('phone')}
+            />
+            {errors.phone && (
+              <p className="text-sm text-destructive">{errors.phone.message}</p>
             )}
           </div>
           <DialogFooter>
@@ -213,13 +225,14 @@ export default function TeamView() {
                 <TableRow>
                   <TableHead>Miembro</TableHead>
                   <TableHead>Rol</TableHead>
+                  <TableHead>Teléfono</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading && (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center">
+                    <TableCell colSpan={4} className="text-center">
                       <div className="flex justify-center items-center p-4">
                         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                       </div>
@@ -252,6 +265,9 @@ export default function TeamView() {
                       <TableCell>
                         <Badge variant="secondary">{member.role}</Badge>
                       </TableCell>
+                      <TableCell>
+                        <span className="text-muted-foreground">{member.phone || '-'}</span>
+                      </TableCell>
                       <TableCell className="text-right">
                         <Button
                           variant="ghost"
@@ -273,7 +289,7 @@ export default function TeamView() {
                 {!isLoading && (!members || members.length === 0) && (
                   <TableRow>
                     <TableCell
-                      colSpan={3}
+                      colSpan={4}
                       className="text-center py-10 text-muted-foreground"
                     >
                       No hay miembros en el equipo todavía. Haz clic en "Nuevo Miembro" para agregar uno.
