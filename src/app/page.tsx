@@ -85,16 +85,11 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    // Wait until the loading is finished
-    if (!isUserLoading) {
-      // If there is no user, redirect to login
-      if (!user) {
-        router.push('/login');
-      }
+    if (!isUserLoading && !user) {
+      router.push('/login');
     }
   }, [user, isUserLoading, router]);
-
-  // If it's loading, show a loading screen
+  
   if (isUserLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
@@ -104,19 +99,17 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  
-  // If there is a user, show the children (the Dashboard)
+
   if (user) {
     return <>{children}</>;
   }
-
-  // If no user and not loading (i.e., redirecting), show a loading screen to prevent flicker
+  
   return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="space-y-4 w-full max-w-sm">
-           <p className="text-center text-muted-foreground">Cargando...</p>
-        </div>
+    <div className="flex items-center justify-center min-h-screen bg-background">
+      <div className="space-y-4 w-full max-w-sm">
+         <p className="text-center text-muted-foreground">Cargando...</p>
       </div>
+    </div>
   );
 }
 
