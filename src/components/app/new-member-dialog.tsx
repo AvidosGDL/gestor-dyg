@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ImageUp } from 'lucide-react';
 import { useFirestore } from '@/firebase';
 import { addDoc, collection } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -34,7 +34,7 @@ const memberSchema = z.object({
 
 type MemberFormValues = z.infer<typeof memberSchema>;
 
-const AVATAR_OPTIONS = 8;
+const AVATAR_OPTIONS = 7;
 const avatarCollection = 'lorelei';
 
 const generateAvatarUrl = (seed: string) => `https://api.dicebear.com/8.x/${avatarCollection}/svg?seed=${seed}`;
@@ -52,7 +52,8 @@ export default function NewMemberDialog({
 }: NewMemberDialogProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
-  const [avatarSeed, setAvatarSeed] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [customAvatarPreview, setCustomAvatarPreview] = useState<string | null>(null);
   
   const avatarOptions = React.useMemo(() => {
     return Array.from({ length: AVATAR_OPTIONS }, (_, i) => generateAvatarUrl(`avatar-${i}`));
@@ -74,8 +75,22 @@ export default function NewMemberDialog({
   useEffect(() => {
     if (!open) {
       reset({ name: '', email: '', role: '', phone: '', avatarUrl: '' });
+      setCustomAvatarPreview(null);
     }
   }, [open, reset]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        setCustomAvatarPreview(dataUrl);
+        setValue('avatarUrl', dataUrl, { shouldValidate: true });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const onSubmit: SubmitHandler<MemberFormValues> = (data) => {
     if (!user) {
@@ -124,7 +139,10 @@ export default function NewMemberDialog({
                     <button
                         key={index}
                         type="button"
-                        onClick={() => setValue('avatarUrl', url, { shouldValidate: true })}
+                        onClick={() => {
+                          setValue('avatarUrl', url, { shouldValidate: true });
+                          setCustomAvatarPreview(null);
+                        }}
                         className={cn(
                             "rounded-full p-1 transition-all",
                             selectedAvatarUrl === url 
@@ -137,6 +155,33 @@ export default function NewMemberDialog({
                         </Avatar>
                     </button>
                 ))}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className={cn(
+                    "rounded-full p-1 transition-all flex items-center justify-center bg-muted hover:bg-border",
+                    customAvatarPreview && selectedAvatarUrl === customAvatarPreview
+                      ? 'ring-2 ring-primary ring-offset-2'
+                      : 'ring-1 ring-transparent hover:ring-primary/50'
+                  )}
+                >
+                  <Avatar className="h-16 w-16">
+                    {customAvatarPreview ? (
+                      <AvatarImage src={customAvatarPreview} alt="Avatar personalizado" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <ImageUp className="w-8 h-8 text-muted-foreground" />
+                      </div>
+                    )}
+                  </Avatar>
+                </button>
+                <Input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/png, image/jpeg, image/gif"
+                  onChange={handleFileChange}
+                />
             </div>
             {errors.avatarUrl && (
               <p className="text-sm text-destructive">{errors.avatarUrl.message}</p>

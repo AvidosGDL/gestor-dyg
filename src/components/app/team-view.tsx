@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Card,
   CardContent,
@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Edit, Loader2 } from 'lucide-react';
+import { Trash2, Edit, Loader2, ImageUp } from 'lucide-react';
 import { type TeamMember } from '@/lib/types';
 import { useCollection, useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, deleteDoc, doc, updateDoc } from 'firebase/firestore';
@@ -41,7 +41,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { cn } from '@/lib/utils';
 
-const AVATAR_OPTIONS = 8;
+const AVATAR_OPTIONS = 7;
 const avatarCollection = 'lorelei';
 const generateAvatarUrl = (seed: string) => `https://api.dicebear.com/8.x/${avatarCollection}/svg?seed=${seed}`;
 
@@ -66,6 +66,9 @@ function EditMemberDialog({
   onOpenChange: (isOpen: boolean) => void;
   onSave: (id: string, data: MemberFormValues) => void;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [customAvatarPreview, setCustomAvatarPreview] = useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
@@ -84,10 +87,28 @@ function EditMemberDialog({
   }, []);
 
   React.useEffect(() => {
-    if (member) {
+    if (member && isOpen) {
       reset(member);
+      if (!avatarOptions.includes(member.avatarUrl)) {
+        setCustomAvatarPreview(member.avatarUrl);
+      } else {
+        setCustomAvatarPreview(null);
+      }
     }
-  }, [member, reset]);
+  }, [member, isOpen, reset, avatarOptions]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        setCustomAvatarPreview(dataUrl);
+        setValue('avatarUrl', dataUrl, { shouldValidate: true });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSave: SubmitHandler<MemberFormValues> = (data) => {
     if (member) {
@@ -112,7 +133,10 @@ function EditMemberDialog({
                 <button
                   key={index}
                   type="button"
-                  onClick={() => setValue('avatarUrl', url, { shouldValidate: true })}
+                  onClick={() => {
+                    setValue('avatarUrl', url, { shouldValidate: true });
+                    setCustomAvatarPreview(null);
+                  }}
                   className={cn(
                     "rounded-full p-1 transition-all",
                     selectedAvatarUrl === url
@@ -125,6 +149,33 @@ function EditMemberDialog({
                   </Avatar>
                 </button>
               ))}
+               <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className={cn(
+                    "rounded-full p-1 transition-all flex items-center justify-center bg-muted hover:bg-border",
+                    customAvatarPreview && selectedAvatarUrl === customAvatarPreview
+                      ? 'ring-2 ring-primary ring-offset-2'
+                      : 'ring-1 ring-transparent hover:ring-primary/50'
+                  )}
+                >
+                  <Avatar className="h-16 w-16">
+                    {customAvatarPreview ? (
+                      <AvatarImage src={customAvatarPreview} alt="Avatar personalizado" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <ImageUp className="w-8 h-8 text-muted-foreground" />
+                      </div>
+                    )}
+                  </Avatar>
+                </button>
+                <Input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/png, image/jpeg, image/gif"
+                  onChange={handleFileChange}
+                />
             </div>
             {errors.avatarUrl && (
               <p className="text-sm text-destructive">{errors.avatarUrl.message}</p>
