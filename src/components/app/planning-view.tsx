@@ -5,6 +5,7 @@ import {
   Calendar,
   TrendingUp,
   Sparkles,
+  Edit,
 } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task } from '@/lib/types';
@@ -15,6 +16,8 @@ import { Button } from '@/components/ui/button';
 import { prioritizeTasks } from '@/ai/flows/prioritize-tasks';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import EditTaskDialog from './edit-task-dialog';
+
 
 interface PlanningViewProps {
   activeTaskForPomodoro: Task | null;
@@ -71,6 +74,18 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
   const { tasks, setTasks, updateTask } = useTasks();
   const [isPrioritizing, setIsPrioritizing] = useState(false);
   const { toast } = useToast();
+  const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  const handleEditTask = (task: Task) => {
+    setTaskToEdit(task);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    setIsEditDialogOpen(false);
+    setTaskToEdit(null);
+  };
 
   const sortedTasks = useMemo(() => {
     return [...tasks]
@@ -116,6 +131,7 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
   };
 
   return (
+    <>
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
       <div className="lg:col-span-2 space-y-6 overflow-y-auto pr-2">
         <Card>
@@ -144,7 +160,12 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
                         <p className="text-xs text-destructive font-bold">{task.client}</p>
                       </div>
                     </div>
-                    <Badge variant="destructive">¡Prioridad!</Badge>
+                     <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditTask(task)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Badge variant="destructive">¡Prioridad!</Badge>
+                    </div>
                   </div>
                 ))}
                 {sortedTasks.filter(t => t.dueDate && t.dueDate <= today).length === 0 && <p className="text-muted-foreground italic text-sm py-4 text-center">Nada vence hoy. ¡Excelente!</p>}
@@ -162,7 +183,12 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
                         <p className="text-xs text-muted-foreground">${task.value.toLocaleString()} • {task.client} • {task.dueDate ? new Date(task.dueDate).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : 'Sin fecha'}</p>
                       </div>
                     </div>
-                    <Button variant="link" size="sm" onClick={() => updateTask(task.id, { status: 'en-progreso' })}>Mover a En Progreso</Button>
+                    <div className="flex items-center gap-2">
+                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditTask(task)}>
+                          <Edit className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      <Button variant="link" size="sm" onClick={() => updateTask(task.id, { status: 'en-progreso' })}>Mover a En Progreso</Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -177,5 +203,13 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
         <PipelineSummary />
       </div>
     </div>
+     {taskToEdit && (
+        <EditTaskDialog
+          open={isEditDialogOpen}
+          onOpenChange={handleCloseDialog}
+          task={taskToEdit}
+        />
+      )}
+    </>
   );
 }
