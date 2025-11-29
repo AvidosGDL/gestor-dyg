@@ -12,6 +12,7 @@ interface BoardViewProps {
 }
 
 const columns: { id: TaskStatus; label: string; color: string }[] = [
+  { id: 'backlog', label: 'Backlog', color: 'border-t-gray-400' },
   { id: 'prospecting', label: 'Pendiente', color: 'border-t-blue-500' },
   { id: 'negotiation', label: 'En Progreso', color: 'border-t-amber-500' },
   { id: 'closing', label: 'Cierre / Urgente', color: 'border-t-rose-500' },
