@@ -23,10 +23,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useTasks } from '@/contexts/tasks-context';
-import { DollarSign, Percent, Users, Paperclip, X } from 'lucide-react';
+import { DollarSign, Percent, Users, Paperclip, X, Timer, Play, Square, History } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Task, TaskStatus } from '@/lib/types';
+import type { Task, TaskStatus, FocusSession } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '../ui/textarea';
 import { Badge } from '../ui/badge';
@@ -60,6 +60,13 @@ interface EditTaskDialogProps {
   task: Task;
 }
 
+const formatTime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
+
 export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDialogProps) {
   const { updateTask } = useTasks();
   const form = useForm<TaskFormValues>({
@@ -71,14 +78,59 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const watchedStatus = form.watch('status');
 
+  const [isTracking, setIsTracking] = useState(false);
+  const [sessionStart, setSessionStart] = useState<Date | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+
+  const totalTime = useMemo(() => {
+    return task.focusSessions?.reduce((acc, session) => acc + session.duration, 0) || 0;
+  }, [task.focusSessions]);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isTracking && sessionStart) {
+      timer = setInterval(() => {
+        setElapsedTime(Math.floor((new Date().getTime() - sessionStart.getTime()) / 1000));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [isTracking, sessionStart]);
+
+  const handleToggleTracking = () => {
+    if (isTracking) {
+      // Detener
+      const newSession: FocusSession = {
+        date: sessionStart!.toISOString(),
+        duration: elapsedTime / 60, // guardar en minutos
+      };
+      const updatedSessions = [...(task.focusSessions || []), newSession];
+      updateTask(task.id, { focusSessions: updatedSessions });
+      toast({
+        title: "Sesión guardada",
+        description: `Se han añadido ${Math.floor(newSession.duration)} minutos a la tarea.`,
+      });
+      setIsTracking(false);
+      setSessionStart(null);
+      setElapsedTime(0);
+    } else {
+      // Iniciar
+      setIsTracking(true);
+      setSessionStart(new Date());
+    }
+  };
+
+
   useEffect(() => {
     if (task && open) {
         form.reset({
             ...task,
-            dueDate: task.dueDate ? task.dueDate.split('T')[0] : '', // Format date for input
+            dueDate: task.dueDate ? task.dueDate.split('T')[0] : '',
             completionComment: task.completionComment || '',
         });
-        setAttachedFiles([]); // Reset files on open
+        setAttachedFiles([]); 
+        setIsTracking(false);
+        setSessionStart(null);
+        setElapsedTime(0);
     }
   }, [task, open, form]);
 
@@ -94,8 +146,6 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
 
 
   const onSubmit = (data: TaskFormValues) => {
-    // Here you would handle file uploads to a service like Firebase Storage
-    // For now, we'll just include metadata in the task update.
     const fileMetadata = attachedFiles.map(file => ({
       name: file.name,
       type: file.type,
@@ -119,13 +169,35 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Editar Tarea</DialogTitle>
-          <DialogDescription>
-            Modifica los detalles de la tarea.
-          </DialogDescription>
+          <div className="flex justify-between items-start">
+            <div>
+              <DialogTitle>Editar Tarea</DialogTitle>
+              <DialogDescription>
+                Modifica los detalles de la tarea.
+              </DialogDescription>
+            </div>
+            <div className="flex items-center gap-4 text-right">
+              <div className="flex flex-col items-center">
+                 <Button variant={isTracking ? "destructive" : "outline"} size="sm" onClick={handleToggleTracking}>
+                  {isTracking ? <Square className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
+                  {isTracking ? 'Detener' : 'Iniciar Trabajo'}
+                </Button>
+                 {isTracking && (
+                  <span className="text-xs font-mono font-bold mt-1 text-destructive animate-pulse">{formatTime(elapsedTime)}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground border-l pl-4">
+                  <History className="h-5 w-5"/>
+                  <div>
+                    <div className="font-bold">{formatTime(Math.floor(totalTime * 60))}</div>
+                    <div className="text-xs">Total Acumulado</div>
+                  </div>
+              </div>
+            </div>
+          </div>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-6 pl-1">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[65vh] overflow-y-auto pr-6 pl-1 pt-4 border-t">
             <FormField
               control={form.control}
               name="title"
