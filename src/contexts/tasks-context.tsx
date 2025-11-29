@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useMemo } from 'react';
 import type { Task } from '@/lib/types';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import {
@@ -11,7 +11,10 @@ import {
   deleteDoc,
   doc,
   writeBatch,
-  serverTimestamp
+  serverTimestamp,
+  query,
+  where,
+  or
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -31,17 +34,24 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const firestore = useFirestore();
   const { user } = useUser();
 
-  const collectionPath = user ? `users/${user.uid}/tasks` : null;
-
   const tasksCollectionRef = useMemoFirebase(() => {
-    return collectionPath ? collection(firestore, collectionPath) : null;
-  }, [collectionPath, firestore]);
+    return firestore ? collection(firestore, 'tasks') : null;
+  }, [firestore]);
+
+  const tasksQuery = useMemoFirebase(() => {
+    if (!user || !tasksCollectionRef) return null;
+    return query(tasksCollectionRef, 
+      or(
+        where('ownerId', '==', user.uid),
+        where('delegateToId', '==', user.uid)
+      )
+    );
+  }, [user, tasksCollectionRef]);
 
   const {
     data: tasks,
     loading,
-    error,
-  } = useCollection<Task>(tasksCollectionRef);
+  } = useCollection<Task>(tasksQuery);
 
   const addTask = (taskData: Omit<Task, 'id'>) => {
     if (!tasksCollectionRef) return;
@@ -57,8 +67,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   };
 
   const updateTask = (id: string, updatedData: Partial<Omit<Task, 'id'>>) => {
-    if (!firestore || !collectionPath) return;
-    const docRef = doc(firestore, collectionPath, id);
+    if (!firestore || !tasksCollectionRef) return;
+    const docRef = doc(firestore, tasksCollectionRef.path, id);
     updateDoc(docRef, updatedData).catch(async (serverError) => {
       const permissionError = new FirestorePermissionError({
         path: docRef.path,
@@ -70,8 +80,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteTask = (id: string) => {
-    if (!firestore || !collectionPath) return;
-    const docRef = doc(firestore, collectionPath, id);
+    if (!firestore || !tasksCollectionRef) return;
+    const docRef = doc(firestore, tasksCollectionRef.path, id);
     deleteDoc(docRef).catch(async (serverError) => {
       const permissionError = new FirestorePermissionError({
         path: docRef.path,
@@ -106,14 +116,14 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const contextValue = {
+  const contextValue = useMemo(() => ({
     tasks: tasks || [],
     loading,
     setTasks,
     addTask,
     updateTask,
     deleteTask,
-  };
+  }), [tasks, loading]);
 
   return (
     <TasksContext.Provider value={contextValue}>{children}</TasksContext.Provider>

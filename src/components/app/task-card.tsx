@@ -11,6 +11,8 @@ import {
   Trash2,
   Clock,
   CheckCircle2,
+  ThumbsUp,
+  ThumbsDown
 } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus } from '@/lib/types';
@@ -69,6 +71,10 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
   const handleStatusChange = (newStatus: TaskStatus) => {
     updateTask(task.id, { status: newStatus });
   }
+  
+  const handleDelegation = (status: 'accepted' | 'rejected') => {
+    updateTask(task.id, { delegationStatus: status });
+  };
 
   const handleCompleteTask = () => {
     updateTask(task.id, { status: 'completado', progress: 100 });
@@ -83,8 +89,9 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
     }, 0);
   }, [task.focusSessions]);
 
-  const delegatedMember = members?.find(m => m.name === task.delegateTo);
-
+  const delegatedMember = members?.find(m => m.id === task.delegateToId);
+  const isDelegatedToCurrentUser = user?.uid === task.delegateToId;
+  const isDelegationPending = task.delegationStatus === 'pending';
 
   return (
     <Card
@@ -92,6 +99,15 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
       style={{ borderLeftColor: getPriorityColor(task.priority) }}
     >
       <CardContent className="p-4">
+        {isDelegatedToCurrentUser && isDelegationPending && (
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center gap-2 rounded-lg transition-opacity opacity-0 group-hover:opacity-100">
+             <p className="text-sm font-bold text-foreground">Tarea delegada por {task.delegatedByName}</p>
+             <div className="flex gap-2">
+                <Button size="sm" onClick={() => handleDelegation('accepted')}><ThumbsUp className="mr-2 h-4 w-4"/> Aceptar</Button>
+                <Button size="sm" variant="outline" onClick={() => handleDelegation('rejected')}><ThumbsDown className="mr-2 h-4 w-4" /> Rechazar</Button>
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-[1fr_auto] items-start gap-x-2">
             <div></div>
             <div className="flex gap-1 justify-self-end">
@@ -189,8 +205,8 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
 
         <div className="flex justify-between items-center text-xs mt-2">
           <div className="flex items-center gap-2">
-            {task.delegateTo ? (
-              <Badge variant="secondary">Delegado: {task.delegateTo}</Badge>
+            {task.delegateToId && delegatedMember ? (
+              <Badge variant="secondary">Delegado: {delegatedMember.name}</Badge>
             ) : (
              totalFocusTimeMs > 0 && (
                 <div className="flex items-center gap-1 text-muted-foreground font-medium">
@@ -219,7 +235,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
           )}
         </div>
         
-        {task.status !== 'completado' && (
+        {task.status !== 'completado' && !isDelegationPending && (
              <div className="mt-3 pt-3 border-t flex justify-between text-xs text-muted-foreground">
                 <Button variant="link" size="sm" className="p-0 h-auto" disabled={task.status === 'pendiente'} onClick={() => handleStatusChange('pendiente')}>← Pendiente</Button>
                 <Button variant="link" size="sm" className="p-0 h-auto" disabled={task.status === 'en-progreso'} onClick={() => handleStatusChange('en-progreso')}>En Progreso →</Button>

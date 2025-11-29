@@ -1,12 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
-import { ListTodo } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { ListTodo, Bell } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus } from '@/lib/types';
 import TaskCard from './task-card';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import EditTaskDialog from './edit-task-dialog';
+import { useUser } from '@/firebase';
+import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
+import { toast } from '@/hooks/use-toast';
 
 interface BoardViewProps {
   setActiveTaskForPomodoro: (task: Task | null) => void;
@@ -71,7 +76,8 @@ const TaskColumn = ({
 };
 
 export default function BoardView({ setActiveTaskForPomodoro }: BoardViewProps) {
-  const { tasks } = useTasks();
+  const { tasks, updateTask } = useTasks();
+  const { user } = useUser();
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
@@ -84,10 +90,72 @@ export default function BoardView({ setActiveTaskForPomodoro }: BoardViewProps) 
     setIsEditDialogOpen(false);
     setTaskToEdit(null);
   };
+  
+  const handleDelegation = (taskId: string, status: 'accepted' | 'rejected') => {
+    updateTask(taskId, { delegationStatus: status });
+    toast({
+      title: `Tarea ${status === 'accepted' ? 'aceptada' : 'rechazada'}`,
+      description: `Has ${status === 'accepted' ? 'aceptado' : 'rechazado'} la tarea.`,
+    })
+  };
+
+  const myTasks = useMemo(() => {
+    if (!user) return [];
+    return tasks.filter(t => (t.ownerId === user.uid && t.delegationStatus !== 'rejected') || (t.delegateToId === user.uid && t.delegationStatus === 'accepted'))
+  }, [tasks, user]);
+
+  const delegatedToMe = useMemo(() => {
+    if(!user) return [];
+    return tasks.filter(t => t.delegateToId === user.uid && t.delegationStatus === 'pending')
+  }, [tasks, user]);
+  
+  const notifications = useMemo(() => {
+    if(!user) return [];
+    return tasks.filter(t => t.ownerId === user.uid && (t.delegationStatus === 'rejected' || (t.status === 'completado' && t.delegateToId !== null)));
+  }, [tasks, user]);
+
+  const dismissNotification = (task: Task) => {
+    if (task.delegationStatus === 'rejected') {
+        updateTask(task.id, { delegateToId: null, delegatedByName: null, delegationStatus: null });
+    }
+    if (task.status === 'completado' && task.delegateToId) {
+        // Here you might want to archive the task or just hide the notification
+        // For simplicity, we'll just ignore it for now or you could add an 'acknowledged' field.
+        console.log("Acknowledging completed task:", task.id);
+    }
+};
+
 
   return (
     <>
-      <div className="h-full">
+      <div className="h-full flex flex-col gap-4">
+        { (delegatedToMe.length > 0 || notifications.length > 0) &&
+          <div className="flex-shrink-0">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2"><Bell size={20} className="text-primary"/> Notificaciones</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {delegatedToMe.map(task => (
+                <div key={task.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <p className="text-sm"><span className="font-bold">{task.delegatedByName}</span> te ha delegado la tarea: <span className="italic">"{task.title}"</span></p>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={() => handleDelegation(task.id, 'accepted')}>Aceptar</Button>
+                    <Button size="sm" variant="outline" onClick={() => handleDelegation(task.id, 'rejected')}>Rechazar</Button>
+                  </div>
+                </div>
+              ))}
+               {notifications.map(task => (
+                  <div key={task.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    {task.delegationStatus === 'rejected' && <p className="text-sm">La tarea <span className="italic">"{task.title}"</span> fue <span className="font-bold text-destructive">rechazada</span>.</p>}
+                    {task.status === 'completado' && task.delegateToId && <p className="text-sm">La tarea delegada <span className="italic">"{task.title}"</span> ha sido <span className="font-bold text-emerald-500">completada</span>.</p>}
+                    <Button size="sm" variant="ghost" onClick={() => dismissNotification(task)}>Descartar</Button>
+                  </div>
+                ))}
+            </CardContent>
+          </Card>
+          </div>
+        }
         <ScrollArea className="h-full whitespace-nowrap">
           <div className="flex gap-4 pb-4 h-full">
             {columns.map((col) => (
@@ -96,7 +164,7 @@ export default function BoardView({ setActiveTaskForPomodoro }: BoardViewProps) 
                 status={col.id}
                 label={col.label}
                 color={col.color}
-                tasks={tasks}
+                tasks={myTasks}
                 setActiveTaskForPomodoro={setActiveTaskForPomodoro}
                 onEditTask={handleEditTask}
               />

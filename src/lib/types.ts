@@ -4,6 +4,7 @@ export type TaskStatus =
   | 'cierre'
   | 'completado';
 export type TaskPriority = 'low' | 'medium' | 'high';
+export type DelegationStatus = 'pending' | 'accepted' | 'rejected' | null;
 
 export interface FocusSession {
   startTime: string; // ISO 8601 string
@@ -25,7 +26,10 @@ export interface Task {
   dueDate: string;
   status: TaskStatus;
   priority: TaskPriority;
-  delegateTo: string;
+  delegateToId: string | null;
+  delegatedByName: string | null;
+  delegationStatus: DelegationStatus;
+  ownerId: string;
   description: string;
   value: number;
   probability: number;

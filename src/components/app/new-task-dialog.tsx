@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -23,12 +23,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useTasks } from '@/contexts/tasks-context';
-import { DollarSign, Percent, Users } from 'lucide-react';
+import { DollarSign, Users } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Task, TaskStatus } from '@/lib/types';
+import type { Task, TaskStatus, TeamMember } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { Textarea } from '../ui/textarea';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
 
 const taskSchema = z.object({
   title: z.string().min(1, 'El título es requerido'),
@@ -36,7 +37,7 @@ const taskSchema = z.object({
   progress: z.coerce.number().min(0).max(100),
   priority: z.enum(['low', 'medium', 'high']),
   dueDate: z.string().optional(),
-  delegateTo: z.string().optional(),
+  delegateToId: z.string().optional(),
   status: z.enum(['pendiente', 'en-progreso', 'cierre', 'completado']),
   description: z.string().optional(),
   value: z.coerce.number().min(0),
@@ -45,13 +46,13 @@ const taskSchema = z.object({
 
 type TaskFormValues = z.infer<typeof taskSchema>;
 
-const defaultValues: Omit<Task, 'id'> = {
+const defaultValues: Omit<Task, 'id' | 'ownerId' | 'delegatedByName' | 'delegationStatus'> = {
   title: '',
   client: '',
   progress: 0,
   priority: 'medium',
   dueDate: '',
-  delegateTo: '',
+  delegateToId: '',
   status: 'pendiente',
   description: '',
   value: 0,
@@ -65,6 +66,9 @@ interface NewTaskDialogProps {
 
 export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps) {
   const { addTask } = useTasks();
+  const { user } = useUser();
+  const firestore = useFirestore();
+  
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskSchema),
     defaultValues,
@@ -72,8 +76,24 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
 
   const { toast } = useToast();
 
+  const collectionPath = user ? `users/${user.uid}/teamMembers` : null;
+  const membersCollectionRef = useMemoFirebase(() => {
+    return collectionPath ? collection(firestore, collectionPath) : null;
+  }, [collectionPath, firestore]);
+  const { data: members } = useCollection<TeamMember>(membersCollectionRef);
+
   const onSubmit = (data: TaskFormValues) => {
-    addTask(data);
+    if (!user) return;
+
+    const delegatedByName = data.delegateToId ? user.displayName : null;
+    const delegationStatus = data.delegateToId ? 'pending' : null;
+
+    addTask({
+      ...data,
+      ownerId: user.uid,
+      delegatedByName,
+      delegationStatus,
+    });
     toast({
         title: "Nueva tarea creada",
         description: `"${data.title}" ha sido añadida a tu lista.`,
@@ -214,13 +234,25 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
             </div>
             <FormField
               control={form.control}
-              name="delegateTo"
+              name="delegateToId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Delegar A</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Nombre del responsable..." {...field} />
-                  </FormControl>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar miembro del equipo..."/>
+                        </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            <SelectItem value="">Nadie / Tarea personal</SelectItem>
+                            {members?.map(member => (
+                              <SelectItem key={member.id} value={member.id}>
+                                {member.name}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </FormItem>
               )}
             />
