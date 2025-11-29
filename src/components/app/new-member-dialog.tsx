@@ -12,27 +12,17 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
+import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Loader2, ImageUp } from 'lucide-react';
-import { useAuth, useFirestore, useUser } from '@/firebase';
+import { useFirestore, useUser } from '@/firebase';
 import { addDoc, collection } from 'firebase/firestore';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
-import { RadioGroup as RadioGroupUI, RadioGroupItem } from '@/components/ui/radio-group';
-
-
-const GoogleIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24">
-    <path fill="#4285F4" d="M21.35 11.1h-9.1v2.7h5.1c-.2 1.7-1.3 3.2-3.2 3.2-2.3 0-4.2-1.9-4.2-4.2s1.9-4.2 4.2-4.2c1.1 0 2 .4 2.7 1l2.1-2.1c-1.2-1.2-2.9-1.9-4.8-1.9-4.1 0-7.4 3.3-7.4 7.4s3.3 7.4 7.4 7.4c4.3 0 7.1-3 7.1-7.1 0-.6-.1-1.1-.2-1.6z"/>
-  </svg>
-);
-
 
 const memberSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
@@ -40,36 +30,7 @@ const memberSchema = z.object({
   role: z.string().min(1, 'El rol es requerido'),
   phone: z.string().optional(),
   avatarUrl: z.string().url('Por favor, selecciona un avatar'),
-  authType: z.enum(['google', 'email'], { required_error: 'Debes seleccionar un tipo de acceso.' }),
-  password: z.string().optional(),
-  confirmPassword: z.string().optional(),
-})
-.refine((data) => {
-    if (data.authType === 'email') {
-        return data.password && data.password.length >= 6;
-    }
-    return true;
-    }, {
-    message: 'La contraseña debe tener al menos 6 caracteres.',
-    path: ['password'],
-})
-.refine((data) => {
-    if (data.authType === 'email') {
-        return data.password === data.confirmPassword;
-    }
-    return true;
-    }, {
-    message: 'Las contraseñas no coinciden.',
-    path: ['confirmPassword'],
-})
-.refine((data) => {
-    if(data.authType === 'google' && !data.email.endsWith('@gmail.com')){
-        return false;
-    }
-    return true;
-}, {
-    message: 'El correo debe ser una cuenta de Gmail.',
-    path: ['email'],
+  authType: z.enum(['google', 'email']).default('email'),
 });
 
 type MemberFormValues = z.infer<typeof memberSchema>;
@@ -91,7 +52,6 @@ export default function NewMemberDialog({
 }: NewMemberDialogProps) {
   const { user } = useUser();
   const firestore = useFirestore();
-  const auth = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [customAvatarPreview, setCustomAvatarPreview] = useState<string | null>(null);
@@ -105,23 +65,25 @@ export default function NewMemberDialog({
     handleSubmit,
     reset,
     setValue,
-    control,
     watch,
     formState: { errors, isSubmitting },
   } = useForm<MemberFormValues>({
     resolver: zodResolver(memberSchema),
     defaultValues: {
-        authType: 'google',
-        email: ''
+      name: '',
+      email: '',
+      role: '',
+      phone: '',
+      avatarUrl: '',
+      authType: 'email',
     }
   });
   
   const selectedAvatarUrl = watch('avatarUrl');
-  const authType = watch('authType');
 
   useEffect(() => {
     if (!open) {
-      reset({ name: '', email: '', role: '', phone: '', avatarUrl: '', authType: 'google', password: '', confirmPassword: '' });
+      reset();
       setCustomAvatarPreview(null);
     }
   }, [open, reset]);
@@ -150,65 +112,33 @@ export default function NewMemberDialog({
     }
 
     try {
-      let finalData = { ...data };
-      if (finalData.authType === 'google' && !finalData.email.endsWith('@gmail.com')) {
-          const username = finalData.email.split('@')[0];
-          finalData.email = `${username}@gmail.com`;
-      }
-
-      let toastDescription = `${finalData.name} ha sido añadido al equipo.`;
-      
-      if (finalData.authType === 'email' && finalData.password) {
-        await createUserWithEmailAndPassword(auth, finalData.email, finalData.password);
-        toastDescription = `${finalData.name} ha sido añadido al equipo y su cuenta ha sido creada.`;
-      } else if (finalData.authType === 'google') {
-        toastDescription = `${finalData.name} ha sido añadido al equipo. Deberá iniciar sesión con Google para acceder.`;
-      }
-
       const collectionPath = `users/${user.uid}/teamMembers`;
-      const { password, confirmPassword, ...memberData } = finalData;
-      const newMember = { ...memberData };
-
       const membersCollection = collection(firestore, collectionPath);
       
+      const authTypeValue = data.email.endsWith('@gmail.com') ? 'google' : 'email';
+      const newMember = { ...data, authType: authTypeValue };
+
+
       addDoc(membersCollection, newMember).catch(async (serverError) => {
           const permissionError = new FirestorePermissionError({
             path: `users/${user.uid}/teamMembers`,
             operation: 'create',
-            requestResourceData: data,
+            requestResourceData: newMember,
           });
           errorEmitter.emit('permission-error', permissionError);
       });
 
       toast({
         title: 'Miembro Agregado',
-        description: toastDescription,
+        description: `${data.name} ha sido añadido al equipo. Deberá registrarse con el correo ${data.email} para acceder.`,
       });
       onOpenChange(false);
 
     } catch (error: any) {
-      let errorMessage = 'Ocurrió un error inesperado.';
-      if (error.code) {
-        switch (error.code) {
-          case 'auth/email-already-in-use':
-            errorMessage = 'Este correo electrónico ya está en uso por otra cuenta.';
-            break;
-          case 'auth/invalid-email':
-            errorMessage = 'El correo electrónico proporcionado no es válido.';
-            break;
-          case 'auth/weak-password':
-            errorMessage = 'La contraseña es demasiado débil.';
-            break;
-          default:
-            errorMessage = error.message;
-            break;
-        }
-      }
-      
       toast({
         variant: 'destructive',
         title: 'Error al agregar miembro',
-        description: errorMessage,
+        description: error.message || 'Ocurrió un error inesperado.',
       });
     }
   };
@@ -217,9 +147,9 @@ export default function NewMemberDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Agregar Nuevo Miembro</DialogTitle>
+          <DialogTitle>Agregar Nuevo Miembro del Equipo</DialogTitle>
           <DialogDescription>
-            Rellena los detalles. Para acceso con Google, el miembro deberá iniciar sesión por su cuenta. Para acceso por correo, se creará una cuenta.
+            Añade los detalles del nuevo miembro. Recibirá una invitación para unirse o se vinculará si ya es usuario.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -292,90 +222,17 @@ export default function NewMemberDialog({
             )}
           </div>
           
-           <div className="space-y-2">
-            <Label>Tipo de Acceso</Label>
-            <RadioGroupUI 
-                defaultValue="google" 
-                className="flex gap-4" 
-                onValueChange={(value) => setValue('authType', value as 'google' | 'email')}
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="google" id="r1" />
-                <Label htmlFor="r1">Acceso con Google</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="email" id="r2" />
-                <Label htmlFor="r2">Correo y Contraseña</Label>
-              </div>
-            </RadioGroupUI>
-             {errors.authType && (
-              <p className="text-sm text-destructive">{errors.authType.message}</p>
-            )}
+          <div className="space-y-2">
+            <Label htmlFor="email">Correo Electrónico</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="juan.perez@tuempresa.com"
+              {...register('email')}
+              disabled={isSubmitting}
+            />
+            {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
           </div>
-
-           {authType === 'google' && (
-              <div className="space-y-2">
-                <Label htmlFor="google-email">Correo Electrónico de Google</Label>
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                    <GoogleIcon/>
-                  </div>
-                   <Controller
-                    name="email"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        id="google-email"
-                        placeholder="usuario.de.google"
-                        className="pl-10 pr-24"
-                        value={field.value.split('@')[0]}
-                        onChange={(e) => field.onChange(`${e.target.value}@gmail.com`)}
-                      />
-                    )}
-                  />
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                    <span className="text-muted-foreground">@gmail.com</span>
-                  </div>
-                </div>
-                {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
-              </div>
-            )}
-
-            {authType === 'email' && (
-              <>
-                <div className="space-y-2">
-                    <Label htmlFor="email">Correo Electrónico</Label>
-                    <Input
-                    id="email"
-                    type="email"
-                    placeholder="juan.perez@tuempresa.com"
-                    {...register('email')}
-                    disabled={isSubmitting}
-                    />
-                    {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="password">Contraseña</Label>
-                    <Input
-                    id="password"
-                    type="password"
-                    {...register('password')}
-                    disabled={isSubmitting}
-                    />
-                    {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirmar Contraseña</Label>
-                    <Input
-                    id="confirmPassword"
-                    type="password"
-                    {...register('confirmPassword')}
-                    disabled={isSubmitting}
-                    />
-                    {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>}
-                </div>
-            </>
-        )}
 
           <div className="space-y-2">
             <Label htmlFor="role">Rol</Label>
@@ -390,7 +247,7 @@ export default function NewMemberDialog({
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="phone">Teléfono</Label>
+            <Label htmlFor="phone">Teléfono (Opcional)</Label>
             <Input
               id="phone"
               placeholder="Ej. +1 234 567 890"
