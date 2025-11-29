@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -16,20 +16,28 @@ import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Loader2 } from 'lucide-react';
-import { useFirestore, useUser } from '@/firebase';
+import { useFirestore } from '@/firebase';
 import { addDoc, collection } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
+import { Avatar, AvatarImage } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
 
 const memberSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
   email: z.string().email('El correo electrónico no es válido'),
   role: z.string().min(1, 'El rol es requerido'),
   phone: z.string().optional(),
+  avatarUrl: z.string().url('Por favor, selecciona un avatar'),
 });
 
 type MemberFormValues = z.infer<typeof memberSchema>;
+
+const AVATAR_OPTIONS = 8;
+const avatarCollection = 'lorelei';
+
+const generateAvatarUrl = (seed: string) => `https://api.dicebear.com/8.x/${avatarCollection}/svg?seed=${seed}`;
 
 interface NewMemberDialogProps {
   open: boolean;
@@ -44,25 +52,28 @@ export default function NewMemberDialog({
 }: NewMemberDialogProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const [avatarSeed, setAvatarSeed] = useState('');
+  
+  const avatarOptions = React.useMemo(() => {
+    return Array.from({ length: AVATAR_OPTIONS }, (_, i) => generateAvatarUrl(`avatar-${i}`));
+  }, []);
 
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<MemberFormValues>({
     resolver: zodResolver(memberSchema),
-    defaultValues: {
-      name: '',
-      email: '',
-      role: '',
-      phone: '',
-    },
   });
+  
+  const selectedAvatarUrl = watch('avatarUrl');
 
   useEffect(() => {
     if (!open) {
-      reset();
+      reset({ name: '', email: '', role: '', phone: '', avatarUrl: '' });
     }
   }, [open, reset]);
 
@@ -77,10 +88,7 @@ export default function NewMemberDialog({
     }
 
     const collectionPath = `users/${user.uid}/teamMembers`;
-    const newMember = {
-      ...data,
-      avatarUrl: `https://i.pravatar.cc/150?u=${data.email}`,
-    };
+    const newMember = { ...data };
 
     const membersCollection = collection(firestore, collectionPath);
     addDoc(membersCollection, newMember).then(() => {
@@ -105,10 +113,36 @@ export default function NewMemberDialog({
         <DialogHeader>
           <DialogTitle>Agregar Nuevo Miembro</DialogTitle>
           <DialogDescription>
-            Rellena los detalles del nuevo miembro del equipo.
+            Rellena los detalles y selecciona un avatar para el nuevo miembro.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
+            <Label>Avatar</Label>
+            <div className="grid grid-cols-4 gap-4">
+                {avatarOptions.map((url, index) => (
+                    <button
+                        key={index}
+                        type="button"
+                        onClick={() => setValue('avatarUrl', url, { shouldValidate: true })}
+                        className={cn(
+                            "rounded-full p-1 transition-all",
+                            selectedAvatarUrl === url 
+                                ? 'ring-2 ring-primary ring-offset-2' 
+                                : 'ring-1 ring-transparent hover:ring-primary/50'
+                        )}
+                    >
+                        <Avatar className="h-16 w-16">
+                            <AvatarImage src={url} alt={`Avatar ${index + 1}`} />
+                        </Avatar>
+                    </button>
+                ))}
+            </div>
+            {errors.avatarUrl && (
+              <p className="text-sm text-destructive">{errors.avatarUrl.message}</p>
+            )}
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="name">Nombre Completo</Label>
             <Input

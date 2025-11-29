@@ -39,12 +39,18 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { cn } from '@/lib/utils';
+
+const AVATAR_OPTIONS = 8;
+const avatarCollection = 'lorelei';
+const generateAvatarUrl = (seed: string) => `https://api.dicebear.com/8.x/${avatarCollection}/svg?seed=${seed}`;
 
 const memberSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
   email: z.string().email('El correo electrónico no es válido'),
   role: z.string().min(1, 'El rol es requerido'),
   phone: z.string().optional(),
+  avatarUrl: z.string().url('Por favor, selecciona un avatar'),
 });
 
 type MemberFormValues = z.infer<typeof memberSchema>;
@@ -64,11 +70,18 @@ function EditMemberDialog({
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<MemberFormValues>({
     resolver: zodResolver(memberSchema),
-    defaultValues: member ?? {},
   });
+
+  const selectedAvatarUrl = watch('avatarUrl');
+
+  const avatarOptions = React.useMemo(() => {
+    return Array.from({ length: AVATAR_OPTIONS }, (_, i) => generateAvatarUrl(`avatar-${i}`));
+  }, []);
 
   React.useEffect(() => {
     if (member) {
@@ -88,10 +101,35 @@ function EditMemberDialog({
         <DialogHeader>
           <DialogTitle>Editar Miembro del Equipo</DialogTitle>
           <DialogDescription>
-            Actualiza los detalles del miembro del equipo.
+            Actualiza los detalles y el avatar del miembro del equipo.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(handleSave)} className="space-y-4">
+          <div className="space-y-2">
+            <Label>Avatar</Label>
+            <div className="grid grid-cols-4 gap-4">
+              {avatarOptions.map((url, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => setValue('avatarUrl', url, { shouldValidate: true })}
+                  className={cn(
+                    "rounded-full p-1 transition-all",
+                    selectedAvatarUrl === url
+                      ? 'ring-2 ring-primary ring-offset-2'
+                      : 'ring-1 ring-transparent hover:ring-primary/50'
+                  )}
+                >
+                  <Avatar className="h-16 w-16">
+                    <AvatarImage src={url} alt={`Avatar ${index + 1}`} />
+                  </Avatar>
+                </button>
+              ))}
+            </div>
+            {errors.avatarUrl && (
+              <p className="text-sm text-destructive">{errors.avatarUrl.message}</p>
+            )}
+          </div>
           <div className="space-y-2">
             <Label htmlFor="edit-name">Nombre Completo</Label>
             <Input
