@@ -25,7 +25,7 @@ export default function LoginPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // If user is already logged in, redirect to home.
+    // If user is already logged in (or loading is finished and user is found), redirect to home.
     if (!isUserLoading && user) {
       router.push('/');
     }
@@ -71,7 +71,8 @@ export default function LoginPage() {
     }
   };
 
-  // While checking auth state, or if a user is found (and redirecting), show a loading state.
+  // While checking auth state, or if a user is found (which will trigger a redirect), show a loading state.
+  // This prevents the login form from flashing briefly for an already logged-in user.
   if (isUserLoading || user) {
     return <div className="flex items-center justify-center min-h-screen bg-background">Cargando...</div>;
   }

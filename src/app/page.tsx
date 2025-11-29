@@ -86,13 +86,18 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // Wait until the loading is finished before checking for a user.
-    if (!isUserLoading && !user) {
-      router.push('/login');
+    // This effect handles the redirection logic.
+    // It waits until the user loading state is settled.
+    if (!isUserLoading) {
+      if (!user) {
+        // If loading is done and there's no user, redirect to login.
+        router.push('/login');
+      }
     }
   }, [user, isUserLoading, router]);
 
-  // While auth state is loading, show a global loading screen.
+  // While checking auth state, show a global loading screen.
+  // This prevents any rendering of the dashboard or login page prematurely.
   if (isUserLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
@@ -104,10 +109,12 @@ export default function Home() {
   }
 
   // If there's a user, render the protected content (the Dashboard).
+  // The effect above ensures we only get here if the user is authenticated.
   if (user) {
     return <Dashboard />;
   }
 
-  // If no user and not loading (which means the redirect is in progress), return null to prevent flicker.
+  // If no user and not loading, the effect will be handling the redirect.
+  // Returning null here prevents a flash of unstyled or incorrect content.
   return null;
 }
