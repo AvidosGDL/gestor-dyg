@@ -84,49 +84,51 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
       className="group relative border-l-4"
       style={{ borderLeftColor: getPriorityColor(task.priority) }}
     >
-      <CardContent className="p-4 relative">
-        <div className="absolute top-4 right-4 flex gap-1 shrink-0 z-10">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-emerald-500"
-              onClick={handleCompleteTask}
-              title="Completar Tarea"
-            >
-              <CheckCircle2 size={16} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-primary"
-              onClick={() => onEdit(task)}
-              title="Editar tarea"
-            >
-              <Edit size={16} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-primary"
-              onClick={() => setActiveTaskForPomodoro(task)}
-              title="Enfocar en esto"
-            >
-              <Timer size={16} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-destructive"
-              onClick={() => deleteTask(task.id)}
-              title="Eliminar tarea"
-            >
-              <Trash2 size={16} />
-            </Button>
+      <CardContent className="p-4">
+          <div className="grid grid-cols-[1fr_auto] items-start gap-x-2">
+              <div/>
+              <div className="flex gap-1 justify-self-end">
+                  <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-emerald-500"
+                      onClick={handleCompleteTask}
+                      title="Completar Tarea"
+                  >
+                      <CheckCircle2 size={16} />
+                  </Button>
+                  <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-primary"
+                      onClick={() => onEdit(task)}
+                      title="Editar tarea"
+                  >
+                      <Edit size={16} />
+                  </Button>
+                  <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-primary"
+                      onClick={() => setActiveTaskForPomodoro(task)}
+                      title="Enfocar en esto"
+                  >
+                      <Timer size={16} />
+                  </Button>
+                  <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      onClick={() => deleteTask(task.id)}
+                      title="Eliminar tarea"
+                  >
+                      <Trash2 size={16} />
+                  </Button>
+              </div>
+              <h4 className="col-span-2 mt-1 font-bold text-foreground break-words min-w-0">
+                  {task.title}
+              </h4>
           </div>
-
-        <h4 className="font-bold text-foreground break-words pr-24 pt-10">
-          {task.title}
-        </h4>
 
         <div className="flex items-center text-sm text-muted-foreground mb-3 gap-2 mt-2">
           <Briefcase size={14} />
