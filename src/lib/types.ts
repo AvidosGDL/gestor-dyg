@@ -6,8 +6,8 @@ export type TaskStatus =
 export type TaskPriority = 'low' | 'medium' | 'high';
 
 export interface FocusSession {
-  date: string; // ISO 8601 string
-  duration: number; // in minutes
+  startTime: string; // ISO 8601 string
+  endTime: string;   // ISO 8601 string
 }
 
 export interface Attachment {

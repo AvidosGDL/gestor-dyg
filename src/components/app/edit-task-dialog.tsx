@@ -23,13 +23,14 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useTasks } from '@/contexts/tasks-context';
-import { DollarSign, Percent, Users, Paperclip, X, Timer, Play, Square, History } from 'lucide-react';
+import { DollarSign, Percent, Users, Paperclip, X, Timer, Play, Square, History, Clock } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Task, TaskStatus, FocusSession } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '../ui/textarea';
 import { Badge } from '../ui/badge';
+import { ScrollArea } from '../ui/scroll-area';
 
 const fileSchema = z.object({
   name: z.string(),
@@ -67,6 +68,21 @@ const formatTime = (seconds: number) => {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
+const formatDuration = (milliseconds: number) => {
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    let result = '';
+    if (hours > 0) result += `${hours}h `;
+    if (minutes > 0) result += `${minutes}m `;
+    if (seconds > 0 || (hours === 0 && minutes === 0)) result += `${seconds}s`;
+
+    return result.trim();
+};
+
+
 export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDialogProps) {
   const { updateTask } = useTasks();
   const form = useForm<TaskFormValues>({
@@ -83,7 +99,12 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
   const [elapsedTime, setElapsedTime] = useState(0);
 
   const totalTime = useMemo(() => {
-    return task.focusSessions?.reduce((acc, session) => acc + session.duration, 0) || 0;
+      if (!task.focusSessions) return 0;
+      return task.focusSessions.reduce((acc, session) => {
+          const start = new Date(session.startTime).getTime();
+          const end = new Date(session.endTime).getTime();
+          return acc + (end - start);
+      }, 0);
   }, [task.focusSessions]);
 
   useEffect(() => {
@@ -99,15 +120,19 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
   const handleToggleTracking = () => {
     if (isTracking) {
       // Detener
+      const endTime = new Date();
       const newSession: FocusSession = {
-        date: sessionStart!.toISOString(),
-        duration: elapsedTime / 60, // guardar en minutos
+        startTime: sessionStart!.toISOString(),
+        endTime: endTime.toISOString(),
       };
       const updatedSessions = [...(task.focusSessions || []), newSession];
       updateTask(task.id, { focusSessions: updatedSessions });
+      
+      const durationMs = endTime.getTime() - sessionStart!.getTime();
+
       toast({
         title: "Sesión guardada",
-        description: `Se han añadido ${Math.floor(newSession.duration)} minutos a la tarea.`,
+        description: `Se ha añadido ${formatDuration(durationMs)} a la tarea.`,
       });
       setIsTracking(false);
       setSessionStart(null);
@@ -189,7 +214,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
               <div className="flex items-center gap-2 text-sm text-muted-foreground border-l pl-4">
                   <History className="h-5 w-5"/>
                   <div>
-                    <div className="font-bold">{formatTime(Math.floor(totalTime * 60))}</div>
+                    <div className="font-bold">{formatTime(Math.floor(totalTime / 1000))}</div>
                     <div className="text-xs">Total Acumulado</div>
                   </div>
               </div>
@@ -284,7 +309,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Prioridad</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValuechange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                         <SelectTrigger>
                             <SelectValue placeholder="Selecciona una prioridad" />
@@ -330,7 +355,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Estado</FormLabel>
-                     <Select onValueChange={field.onChange} defaultValue={field.value}>
+                     <Select onValuechange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                         <SelectTrigger>
                             <SelectValue placeholder="Selecciona un estado" />
@@ -346,6 +371,37 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                   </FormItem>
                 )}
               />
+
+             {task.focusSessions && task.focusSessions.length > 0 && (
+                <div className="space-y-4 pt-4 border-t">
+                    <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        Historial de Actividad
+                    </h4>
+                    <ScrollArea className="max-h-[150px] pr-4">
+                        <div className="space-y-3">
+                        {task.focusSessions.slice().reverse().map((session, index) => {
+                            const start = new Date(session.startTime);
+                            const end = new Date(session.endTime);
+                            const duration = end.getTime() - start.getTime();
+                            return (
+                            <div key={index} className="flex justify-between items-center text-xs p-2 bg-muted/50 rounded-md">
+                                <div>
+                                <p className="font-medium text-foreground">
+                                    {start.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                </p>
+                                <p className="text-muted-foreground">
+                                    {start.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                                </div>
+                                <Badge variant="secondary">{formatDuration(duration)}</Badge>
+                            </div>
+                            );
+                        })}
+                        </div>
+                    </ScrollArea>
+                </div>
+            )}
             
             {watchedStatus === 'completado' && (
               <div className="space-y-4 pt-4 border-t">

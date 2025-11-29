@@ -53,15 +53,16 @@
           "items": {
             "type": "object",
             "properties": {
-              "date": {
+              "startTime": {
                 "type": "string",
                 "format": "date-time"
               },
-              "duration": {
-                "type": "number"
+              "endTime": {
+                "type": "string",
+                "format": "date-time"
               }
             },
-            "required": ["date", "duration"]
+            "required": ["startTime", "endTime"]
           }
         },
         "completionComment": {

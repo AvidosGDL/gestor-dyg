@@ -11,6 +11,7 @@ import {
   deleteDoc,
   doc,
   writeBatch,
+  serverTimestamp
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -44,7 +45,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
   const addTask = (taskData: Omit<Task, 'id'>) => {
     if (!tasksCollectionRef) return;
-    const newTask = { ...taskData, createdAt: new Date().toISOString() };
+    const newTask = { ...taskData };
     addDoc(tasksCollectionRef, newTask).catch(async (serverError) => {
       const permissionError = new FirestorePermissionError({
         path: tasksCollectionRef.path,
