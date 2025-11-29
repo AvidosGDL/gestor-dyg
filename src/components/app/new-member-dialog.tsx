@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useForm, type SubmitHandler } from 'react-hook-form';
+import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Loader2, ImageUp, RadioGroup } from 'lucide-react';
@@ -25,6 +25,14 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { RadioGroup as RadioGroupUI, RadioGroupItem } from '@/components/ui/radio-group';
+
+
+const GoogleIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24">
+    <path fill="#4285F4" d="M21.35 11.1h-9.1v2.7h5.1c-.2 1.7-1.3 3.2-3.2 3.2-2.3 0-4.2-1.9-4.2-4.2s1.9-4.2 4.2-4.2c1.1 0 2 .4 2.7 1l2.1-2.1c-1.2-1.2-2.9-1.9-4.8-1.9-4.1 0-7.4 3.3-7.4 7.4s3.3 7.4 7.4 7.4c4.3 0 7.1-3 7.1-7.1 0-.6-.1-1.1-.2-1.6z"/>
+  </svg>
+);
+
 
 const memberSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
@@ -53,6 +61,15 @@ const memberSchema = z.object({
     }, {
     message: 'Las contraseñas no coinciden.',
     path: ['confirmPassword'],
+})
+.refine((data) => {
+    if(data.authType === 'google' && !data.email.endsWith('@gmail.com')){
+        return false;
+    }
+    return true;
+}, {
+    message: 'El correo debe ser una cuenta de Gmail.',
+    path: ['email'],
 });
 
 type MemberFormValues = z.infer<typeof memberSchema>;
@@ -88,12 +105,14 @@ export default function NewMemberDialog({
     handleSubmit,
     reset,
     setValue,
+    control,
     watch,
     formState: { errors, isSubmitting },
   } = useForm<MemberFormValues>({
     resolver: zodResolver(memberSchema),
     defaultValues: {
         authType: 'google',
+        email: ''
     }
   });
   
@@ -131,12 +150,17 @@ export default function NewMemberDialog({
     }
 
     try {
-        if (data.authType === 'email') {
-            await createUserWithEmailAndPassword(auth, data.email, data.password!);
+        const finalData = { ...data };
+        if (finalData.authType === 'google' && !finalData.email.endsWith('@gmail.com')) {
+            finalData.email = `${finalData.email}@gmail.com`;
+        }
+
+        if (finalData.authType === 'email') {
+            await createUserWithEmailAndPassword(auth, finalData.email, finalData.password!);
         }
 
         const collectionPath = `users/${user.uid}/teamMembers`;
-        const { password, confirmPassword, ...memberData } = data;
+        const { password, confirmPassword, ...memberData } = finalData;
         const newMember = { ...memberData };
 
         const membersCollection = collection(firestore, collectionPath);
@@ -266,22 +290,46 @@ export default function NewMemberDialog({
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="email">Correo Electrónico</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="juan.perez@tuempresa.com"
-              {...register('email')}
-              disabled={isSubmitting}
-            />
-            {errors.email && (
-              <p className="text-sm text-destructive">{errors.email.message}</p>
+           {authType === 'google' && (
+              <div className="space-y-2">
+                <Label htmlFor="google-email">Correo Electrónico de Google</Label>
+                <div className="relative">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                    <GoogleIcon/>
+                  </div>
+                  <Controller
+                    name="email"
+                    control={control}
+                    render={({ field }) => (
+                      <Input
+                        id="google-email"
+                        placeholder="usuario.de.google"
+                        className="pl-10 pr-24"
+                        {...field}
+                      />
+                    )}
+                  />
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                    <span className="text-muted-foreground">@gmail.com</span>
+                  </div>
+                </div>
+                {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+              </div>
             )}
-          </div>
 
-        {authType === 'email' && (
-            <>
+            {authType === 'email' && (
+              <>
+                <div className="space-y-2">
+                    <Label htmlFor="email">Correo Electrónico</Label>
+                    <Input
+                    id="email"
+                    type="email"
+                    placeholder="juan.perez@tuempresa.com"
+                    {...register('email')}
+                    disabled={isSubmitting}
+                    />
+                    {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+                </div>
                 <div className="space-y-2">
                     <Label htmlFor="password">Contraseña</Label>
                     <Input
@@ -304,7 +352,6 @@ export default function NewMemberDialog({
                 </div>
             </>
         )}
-
 
           <div className="space-y-2">
             <Label htmlFor="role">Rol</Label>
