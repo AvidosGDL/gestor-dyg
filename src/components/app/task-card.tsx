@@ -89,7 +89,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
             <h4 className="font-bold text-foreground min-w-0 break-words">
                 {task.title}
             </h4>
-          <div className="flex gap-1">
+          <div className="flex gap-1 shrink-0">
              <Button
               variant="ghost"
               size="icon"
