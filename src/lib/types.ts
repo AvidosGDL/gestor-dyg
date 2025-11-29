@@ -1,9 +1,8 @@
 export type TaskStatus =
-  | 'backlog'
-  | 'prospecting'
-  | 'negotiation'
-  | 'closing'
-  | 'done';
+  | 'pendiente'
+  | 'en-progreso'
+  | 'cierre'
+  | 'completado';
 export type TaskPriority = 'low' | 'medium' | 'high';
 
 export interface Task {

@@ -37,7 +37,7 @@ const taskSchema = z.object({
   priority: z.enum(['low', 'medium', 'high']),
   dueDate: z.string().optional(),
   delegateTo: z.string().optional(),
-  status: z.enum(['backlog', 'prospecting', 'negotiation', 'closing', 'done']),
+  status: z.enum(['pendiente', 'en-progreso', 'cierre', 'completado']),
   description: z.string().optional(),
   value: z.coerce.number().min(0),
   probability: z.coerce.number().min(0).max(100),
@@ -52,7 +52,7 @@ const defaultValues: Omit<Task, 'id'> = {
   priority: 'medium',
   dueDate: '',
   delegateTo: '',
-  status: 'backlog',
+  status: 'pendiente',
   description: '',
   value: 0,
   probability: 50,
@@ -230,21 +230,19 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Estado Inicial</FormLabel>
-                    <FormControl>
-                        <div className="flex gap-2 flex-wrap">
-                        {(['backlog', 'prospecting', 'negotiation', 'closing'] as (TaskStatus | 'backlog')[]).map(status => (
-                            <Button
-                            type="button"
-                            key={status}
-                            onClick={() => field.onChange(status)}
-                            variant={field.value === status ? 'default' : 'outline'}
-                            size="sm"
-                            >
-                            {status.charAt(0).toUpperCase() + status.slice(1)}
-                            </Button>
-                        ))}
-                        </div>
-                    </FormControl>
+                     <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Selecciona un estado" />
+                        </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            <SelectItem value="pendiente">Pendiente</SelectItem>
+                            <SelectItem value="en-progreso">En Progreso</SelectItem>
+                            <SelectItem value="cierre">Cierre</SelectItem>
+                            <SelectItem value="completado">Completado</SelectItem>
+                        </SelectContent>
+                    </Select>
                   </FormItem>
                 )}
               />

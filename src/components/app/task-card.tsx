@@ -136,7 +136,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro }: TaskCardPro
           {task.dueDate && (
             <div
               className={`flex items-center gap-1 ${
-                isPast(new Date(task.dueDate)) && task.status !== 'done'
+                isPast(new Date(task.dueDate)) && task.status !== 'completado'
                   ? 'text-destructive font-bold'
                   : 'text-muted-foreground'
               }`}
@@ -152,11 +152,11 @@ export default function TaskCard({ task, setActiveTaskForPomodoro }: TaskCardPro
           )}
         </div>
         
-        {task.status !== 'backlog' && task.status !== 'done' && (
+        {task.status !== 'completado' && (
              <div className="mt-3 pt-3 border-t flex justify-between text-xs text-muted-foreground">
-                <Button variant="link" size="sm" className="p-0 h-auto" disabled={task.status === 'prospecting'} onClick={() => handleStatusChange('prospecting')}>← Pendiente</Button>
-                <Button variant="link" size="sm" className="p-0 h-auto" disabled={task.status === 'negotiation'} onClick={() => handleStatusChange('negotiation')}>En Progreso →</Button>
-                <Button variant="link" size="sm" className="p-0 h-auto" disabled={task.status === 'closing'} onClick={() => handleStatusChange('closing')}>Cierre →</Button>
+                <Button variant="link" size="sm" className="p-0 h-auto" disabled={task.status === 'pendiente'} onClick={() => handleStatusChange('pendiente')}>← Pendiente</Button>
+                <Button variant="link" size="sm" className="p-0 h-auto" disabled={task.status === 'en-progreso'} onClick={() => handleStatusChange('en-progreso')}>En Progreso →</Button>
+                <Button variant="link" size="sm" className="p-0 h-auto" disabled={task.status === 'cierre'} onClick={() => handleStatusChange('cierre')}>Cierre →</Button>
             </div>
         )}
       </CardContent>
