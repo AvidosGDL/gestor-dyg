@@ -29,7 +29,7 @@ function Login() {
       router.push('/');
     }
   }, [user, isUserLoading, router]);
-  
+
   if (isUserLoading || user) {
     return <div className="flex items-center justify-center min-h-screen bg-background">Cargando...</div>;
   }
@@ -57,7 +57,7 @@ function Login() {
   };
 
   const handleGoogleSignIn = async () => {
-    const provider = new newGoogleAuthProvider();
+    const provider = new GoogleAuthProvider();
     setIsSubmitting(true);
     try {
       await signInWithPopup(auth, provider);
