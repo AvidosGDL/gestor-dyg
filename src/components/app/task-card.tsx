@@ -84,12 +84,8 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
       className="group relative border-l-4"
       style={{ borderLeftColor: getPriorityColor(task.priority) }}
     >
-      <CardContent className="p-4">
-        <div className="flex justify-between items-start gap-2 mb-2">
-          <h4 className="font-bold text-foreground break-words flex-1 min-w-0">
-            {task.title}
-          </h4>
-          <div className="flex gap-1 shrink-0">
+      <CardContent className="p-4 relative">
+        <div className="absolute top-4 right-4 flex gap-1 shrink-0 z-10">
             <Button
               variant="ghost"
               size="icon"
@@ -127,9 +123,12 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
               <Trash2 size={16} />
             </Button>
           </div>
-        </div>
 
-        <div className="flex items-center text-sm text-muted-foreground mb-3 gap-2">
+        <h4 className="font-bold text-foreground break-words pr-24 pt-10">
+          {task.title}
+        </h4>
+
+        <div className="flex items-center text-sm text-muted-foreground mb-3 gap-2 mt-2">
           <Briefcase size={14} />
           <span className="font-medium">{task.client || 'Sin Proyecto'}</span>
         </div>
