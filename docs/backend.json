@@ -127,13 +127,19 @@
           "type": "string",
           "format": "uri",
           "description": "URL of the team member's avatar."
+        },
+        "authType": {
+          "type": "string",
+          "enum": ["google", "email"],
+          "description": "Authentication method for the team member."
         }
       },
       "required": [
         "id",
         "name",
         "email",
-        "role"
+        "role",
+        "authType"
       ]
     }
   },

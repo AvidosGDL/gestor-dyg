@@ -15,14 +15,16 @@ import { Label } from '@/components/ui/label';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2, ImageUp } from 'lucide-react';
-import { useFirestore } from '@/firebase';
+import { Loader2, ImageUp, RadioGroup } from 'lucide-react';
+import { useAuth, useFirestore } from '@/firebase';
 import { addDoc, collection } from 'firebase/firestore';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import { RadioGroup as RadioGroupUI, RadioGroupItem } from '@/components/ui/radio-group';
 
 const memberSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
@@ -30,6 +32,27 @@ const memberSchema = z.object({
   role: z.string().min(1, 'El rol es requerido'),
   phone: z.string().optional(),
   avatarUrl: z.string().url('Por favor, selecciona un avatar'),
+  authType: z.enum(['google', 'email'], { required_error: 'Debes seleccionar un tipo de acceso.' }),
+  password: z.string().optional(),
+  confirmPassword: z.string().optional(),
+})
+.refine((data) => {
+    if (data.authType === 'email') {
+        return data.password && data.password.length >= 6;
+    }
+    return true;
+    }, {
+    message: 'La contraseña debe tener al menos 6 caracteres.',
+    path: ['password'],
+})
+.refine((data) => {
+    if (data.authType === 'email') {
+        return data.password === data.confirmPassword;
+    }
+    return true;
+    }, {
+    message: 'Las contraseñas no coinciden.',
+    path: ['confirmPassword'],
 });
 
 type MemberFormValues = z.infer<typeof memberSchema>;
@@ -51,6 +74,7 @@ export default function NewMemberDialog({
   user,
 }: NewMemberDialogProps) {
   const firestore = useFirestore();
+  const auth = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [customAvatarPreview, setCustomAvatarPreview] = useState<string | null>(null);
@@ -68,13 +92,17 @@ export default function NewMemberDialog({
     formState: { errors, isSubmitting },
   } = useForm<MemberFormValues>({
     resolver: zodResolver(memberSchema),
+    defaultValues: {
+        authType: 'google',
+    }
   });
   
   const selectedAvatarUrl = watch('avatarUrl');
+  const authType = watch('authType');
 
   useEffect(() => {
     if (!open) {
-      reset({ name: '', email: '', role: '', phone: '', avatarUrl: '' });
+      reset({ name: '', email: '', role: '', phone: '', avatarUrl: '', authType: 'google', password: '', confirmPassword: '' });
       setCustomAvatarPreview(null);
     }
   }, [open, reset]);
@@ -92,7 +120,7 @@ export default function NewMemberDialog({
     }
   };
 
-  const onSubmit: SubmitHandler<MemberFormValues> = (data) => {
+  const onSubmit: SubmitHandler<MemberFormValues> = async (data) => {
     if (!user) {
       toast({
         variant: 'destructive',
@@ -102,33 +130,49 @@ export default function NewMemberDialog({
       return;
     }
 
-    const collectionPath = `users/${user.uid}/teamMembers`;
-    const newMember = { ...data };
+    try {
+        if (data.authType === 'email') {
+            await createUserWithEmailAndPassword(auth, data.email, data.password!);
+        }
 
-    const membersCollection = collection(firestore, collectionPath);
-    addDoc(membersCollection, newMember).then(() => {
+        const collectionPath = `users/${user.uid}/teamMembers`;
+        const { password, confirmPassword, ...memberData } = data;
+        const newMember = { ...memberData };
+
+        const membersCollection = collection(firestore, collectionPath);
+        await addDoc(membersCollection, newMember);
+
         toast({
             title: 'Miembro Agregado',
-            description: `${newMember.name} ha sido añadido al equipo.`,
+            description: `${newMember.name} ha sido añadido al equipo y su cuenta ha sido creada.`,
         });
         onOpenChange(false);
-    }).catch(async (serverError) => {
-      const permissionError = new FirestorePermissionError({
-        path: collectionPath,
-        operation: 'create',
-        requestResourceData: newMember,
-      });
-      errorEmitter.emit('permission-error', permissionError);
-    });
+
+    } catch (error: any) {
+        if (error.code && error.code.startsWith('auth/')) {
+             toast({
+                variant: 'destructive',
+                title: 'Error de Autenticación',
+                description: error.message,
+            });
+        } else {
+            const permissionError = new FirestorePermissionError({
+                path: `users/${user.uid}/teamMembers`,
+                operation: 'create',
+                requestResourceData: data,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        }
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Agregar Nuevo Miembro</DialogTitle>
           <DialogDescription>
-            Rellena los detalles y selecciona un avatar para el nuevo miembro.
+            Rellena los detalles y crea las credenciales para el nuevo miembro.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -145,7 +189,7 @@ export default function NewMemberDialog({
                         }}
                         className={cn(
                             "rounded-full p-1 transition-all",
-                            selectedAvatarUrl === url 
+                            selectedAvatarUrl === url && !customAvatarPreview
                                 ? 'ring-2 ring-primary ring-offset-2' 
                                 : 'ring-1 ring-transparent hover:ring-primary/50'
                         )}
@@ -200,6 +244,28 @@ export default function NewMemberDialog({
               <p className="text-sm text-destructive">{errors.name.message}</p>
             )}
           </div>
+          
+           <div className="space-y-2">
+            <Label>Tipo de Acceso</Label>
+            <RadioGroupUI 
+                defaultValue="google" 
+                className="flex gap-4" 
+                onValueChange={(value) => setValue('authType', value as 'google' | 'email')}
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="google" id="r1" />
+                <Label htmlFor="r1">Acceso con Google</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="email" id="r2" />
+                <Label htmlFor="r2">Correo y Contraseña</Label>
+              </div>
+            </RadioGroupUI>
+             {errors.authType && (
+              <p className="text-sm text-destructive">{errors.authType.message}</p>
+            )}
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="email">Correo Electrónico</Label>
             <Input
@@ -213,6 +279,33 @@ export default function NewMemberDialog({
               <p className="text-sm text-destructive">{errors.email.message}</p>
             )}
           </div>
+
+        {authType === 'email' && (
+            <>
+                <div className="space-y-2">
+                    <Label htmlFor="password">Contraseña</Label>
+                    <Input
+                    id="password"
+                    type="password"
+                    {...register('password')}
+                    disabled={isSubmitting}
+                    />
+                    {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">Confirmar Contraseña</Label>
+                    <Input
+                    id="confirmPassword"
+                    type="password"
+                    {...register('confirmPassword')}
+                    disabled={isSubmitting}
+                    />
+                    {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>}
+                </div>
+            </>
+        )}
+
+
           <div className="space-y-2">
             <Label htmlFor="role">Rol</Label>
             <Input

@@ -41,4 +41,5 @@ export interface TeamMember {
   role: string;
   avatarUrl: string;
   phone?: string;
+  authType: 'google' | 'email';
 }
