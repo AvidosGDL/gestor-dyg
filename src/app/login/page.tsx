@@ -19,7 +19,7 @@ import { FirebaseClientProvider } from '@/firebase/client-provider';
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const auth = useAuth();
   const { user, loading } = useUser();
@@ -37,7 +37,7 @@ function Login() {
 
   const handleAuth = async (e: React.FormEvent, action: 'signIn' | 'signUp') => {
     e.preventDefault();
-    setIsSigningIn(true);
+    setIsSubmitting(true);
     try {
       if (action === 'signIn') {
         await signInWithEmailAndPassword(auth, email, password);
@@ -53,12 +53,13 @@ function Login() {
         description: error.message,
       });
     } finally {
-      setIsSigningIn(false);
+      setIsSubmitting(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider();
+    setIsSubmitting(true);
     try {
       await signInWithPopup(auth, provider);
       toast({ title: 'Éxito', description: 'Has iniciado sesión con Google.' });
@@ -69,6 +70,8 @@ function Login() {
         title: 'Error de Autenticación con Google',
         description: error.message,
       });
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
@@ -90,6 +93,7 @@ function Login() {
                 placeholder="tu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={isSubmitting}
               />
             </div>
             <div className="space-y-2">
@@ -99,13 +103,14 @@ function Login() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={isSubmitting}
               />
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
-               <Button onClick={(e) => handleAuth(e, 'signIn')} disabled={isSigningIn} className="w-full">
-                {isSigningIn ? 'Iniciando...' : 'Iniciar Sesión'}
+               <Button onClick={(e) => handleAuth(e, 'signIn')} disabled={isSubmitting} className="w-full">
+                {isSubmitting ? 'Iniciando...' : 'Iniciar Sesión'}
               </Button>
-              <Button onClick={(e) => handleAuth(e, 'signUp')} variant="outline" disabled={isSigningIn} className="w-full">
+              <Button onClick={(e) => handleAuth(e, 'signUp')} variant="outline" disabled={isSubmitting} className="w-full">
                 Registrarse
               </Button>
             </div>
@@ -120,7 +125,7 @@ function Login() {
                 </span>
               </div>
             </div>
-            <Button onClick={handleGoogleSignIn} variant="outline" className="w-full">
+            <Button onClick={handleGoogleSignIn} variant="outline" className="w-full" disabled={isSubmitting}>
               Iniciar sesión con Google
             </Button>
         </CardContent>

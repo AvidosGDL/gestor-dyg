@@ -96,9 +96,7 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="space-y-4 w-full max-w-sm">
-           <Skeleton className="h-10 w-full" />
-           <Skeleton className="h-10 w-full" />
-           <Skeleton className="h-10 w-full" />
+           <p className="text-center text-muted-foreground">Cargando...</p>
         </div>
       </div>
     );
