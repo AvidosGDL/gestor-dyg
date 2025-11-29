@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2, ImageUp, RadioGroup } from 'lucide-react';
+import { Loader2, ImageUp } from 'lucide-react';
 import { useAuth, useFirestore } from '@/firebase';
 import { addDoc, collection } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
@@ -150,43 +150,72 @@ export default function NewMemberDialog({
     }
 
     try {
-        const finalData = { ...data };
-        if (finalData.authType === 'google' && !finalData.email.endsWith('@gmail.com')) {
-            finalData.email = `${finalData.email}@gmail.com`;
-        }
+      let finalData = { ...data };
+      if (finalData.authType === 'google' && !finalData.email.endsWith('@gmail.com')) {
+          // The validation logic in the component already handles appending @gmail.com
+          // but we ensure it here as a safeguard.
+          const username = finalData.email.split('@')[0];
+          finalData.email = `${username}@gmail.com`;
+      }
 
-        if (finalData.authType === 'email') {
-            await createUserWithEmailAndPassword(auth, finalData.email, finalData.password!);
-        }
+      let toastDescription = `${finalData.name} ha sido añadido al equipo.`;
+      
+      if (finalData.authType === 'email' && finalData.password) {
+        // Create user in Firebase Authentication
+        await createUserWithEmailAndPassword(auth, finalData.email, finalData.password);
+        toastDescription = `${finalData.name} ha sido añadido al equipo y su cuenta ha sido creada.`;
+      } else if (finalData.authType === 'google') {
+        // For Google users, we just add them to the team list.
+        // They will need to sign in with Google themselves to be authenticated.
+        toastDescription = `${finalData.name} ha sido añadido al equipo. Deberá iniciar sesión con Google para acceder.`;
+      }
 
-        const collectionPath = `users/${user.uid}/teamMembers`;
-        const { password, confirmPassword, ...memberData } = finalData;
-        const newMember = { ...memberData };
+      const collectionPath = `users/${user.uid}/teamMembers`;
+      const { password, confirmPassword, ...memberData } = finalData;
+      const newMember = { ...memberData };
 
-        const membersCollection = collection(firestore, collectionPath);
-        await addDoc(membersCollection, newMember);
+      const membersCollection = collection(firestore, collectionPath);
+      await addDoc(membersCollection, newMember);
 
-        toast({
-            title: 'Miembro Agregado',
-            description: `${newMember.name} ha sido añadido al equipo y su cuenta ha sido creada.`,
-        });
-        onOpenChange(false);
+      toast({
+        title: 'Miembro Agregado',
+        description: toastDescription,
+      });
+      onOpenChange(false);
 
     } catch (error: any) {
-        if (error.code && error.code.startsWith('auth/')) {
-             toast({
-                variant: 'destructive',
-                title: 'Error de Autenticación',
-                description: error.message,
-            });
-        } else {
-            const permissionError = new FirestorePermissionError({
-                path: `users/${user.uid}/teamMembers`,
-                operation: 'create',
-                requestResourceData: data,
-            });
-            errorEmitter.emit('permission-error', permissionError);
+      let errorMessage = 'Ocurrió un error inesperado.';
+      if (error.code) {
+        switch (error.code) {
+          case 'auth/email-already-in-use':
+            errorMessage = 'Este correo electrónico ya está en uso por otra cuenta.';
+            break;
+          case 'auth/invalid-email':
+            errorMessage = 'El correo electrónico proporcionado no es válido.';
+            break;
+          case 'auth/weak-password':
+            errorMessage = 'La contraseña es demasiado débil.';
+            break;
+          default:
+            errorMessage = error.message;
+            break;
         }
+      }
+      
+      if (error.code && error.code.startsWith('auth/')) {
+        toast({
+          variant: 'destructive',
+          title: 'Error de Autenticación',
+          description: errorMessage,
+        });
+      } else {
+        const permissionError = new FirestorePermissionError({
+          path: `users/${user.uid}/teamMembers`,
+          operation: 'create',
+          requestResourceData: data,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      }
     }
   };
 
@@ -196,7 +225,7 @@ export default function NewMemberDialog({
         <DialogHeader>
           <DialogTitle>Agregar Nuevo Miembro</DialogTitle>
           <DialogDescription>
-            Rellena los detalles y crea las credenciales para el nuevo miembro.
+            Rellena los detalles. Para acceso con Google, el miembro deberá iniciar sesión por su cuenta. Para acceso por correo, se creará una cuenta.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -297,7 +326,7 @@ export default function NewMemberDialog({
                   <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                     <GoogleIcon/>
                   </div>
-                  <Controller
+                   <Controller
                     name="email"
                     control={control}
                     render={({ field }) => (
@@ -305,7 +334,8 @@ export default function NewMemberDialog({
                         id="google-email"
                         placeholder="usuario.de.google"
                         className="pl-10 pr-24"
-                        {...field}
+                        value={field.value.split('@')[0]}
+                        onChange={(e) => field.onChange(`${e.target.value}@gmail.com`)}
                       />
                     )}
                   />
