@@ -2,18 +2,23 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Lightbulb, LoaderCircle, Repeat } from 'lucide-react';
-import type { Task } from '@/lib/types';
+import type { Task, FocusSession } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { generateFocusTips } from '@/ai/flows/generate-focus-tips';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { useTasks } from '@/contexts/tasks-context';
 
 interface PomodoroTimerProps {
   activeTask: Task | null;
 }
 
+const FOCUS_DURATION = 25 * 60;
+const BREAK_DURATION = 5 * 60;
+
 export default function PomodoroTimer({ activeTask }: PomodoroTimerProps) {
-  const [timeLeft, setTimeLeft] = useState(25 * 60);
+  const { updateTask } = useTasks();
+  const [timeLeft, setTimeLeft] = useState(FOCUS_DURATION);
   const [isActive, setIsActive] = useState(false);
   const [mode, setMode] = useState<'focus' | 'shortBreak'>('focus');
   const [focusTips, setFocusTips] = useState<string[]>([]);
@@ -28,49 +33,56 @@ export default function PomodoroTimer({ activeTask }: PomodoroTimerProps) {
     }
   }, []);
 
+  const handleSessionEnd = () => {
+    setIsActive(false);
+    audioRef.current?.play().catch(e => console.log("Audio play blocked by browser"));
+
+    if (mode === 'focus') {
+      if (activeTask) {
+        const newSession: FocusSession = {
+          date: new Date().toISOString(),
+          duration: FOCUS_DURATION / 60,
+        };
+        const updatedSessions = [...(activeTask.focusSessions || []), newSession];
+        updateTask(activeTask.id, { focusSessions: updatedSessions });
+      }
+      toast({
+        title: "¡Sesión completada!",
+        description: "Tómate un merecido descanso.",
+      });
+      switchMode('shortBreak', false);
+    } else {
+      toast({
+        title: "¡Descanso terminado!",
+        description: "Es hora de volver a enfocarse.",
+      });
+      switchMode('focus', false);
+    }
+  };
+
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
     if (isActive && timeLeft > 0) {
       interval = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
-    } else if (timeLeft === 0) {
-      setIsActive(false);
-      if (mode === 'focus') {
-        toast({
-          title: "¡Sesión completada!",
-          description: "Tómate un merecido descanso.",
-        });
-        audioRef.current?.play().catch(e => console.log("Audio play blocked by browser"));
-        // Automatically switch to short break
-        setMode('shortBreak');
-        setTimeLeft(5 * 60);
-      } else {
-        toast({
-          title: "¡Descanso terminado!",
-          description: "Es hora de volver a enfocarse.",
-        });
-        audioRef.current?.play().catch(e => console.log("Audio play blocked by browser"));
-        // Switch back to focus
-        setMode('focus');
-        setTimeLeft(25 * 60);
-      }
+    } else if (timeLeft === 0 && isActive) {
+      handleSessionEnd();
     }
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isActive, timeLeft, mode, toast]);
+  }, [isActive, timeLeft]);
 
   const toggleTimer = () => setIsActive(!isActive);
 
   const resetTimer = () => {
     setIsActive(false);
-    if (mode === 'focus') setTimeLeft(25 * 60);
-    if (mode === 'shortBreak') setTimeLeft(5 * 60);
+    setTimeLeft(mode === 'focus' ? FOCUS_DURATION : BREAK_DURATION);
   };
 
-  const switchMode = (newMode: 'focus' | 'shortBreak') => {
+  const switchMode = (newMode: 'focus' | 'shortBreak', shouldDeactivate: boolean = true) => {
     setMode(newMode);
-    setIsActive(false);
-    setTimeLeft(newMode === 'focus' ? 25 * 60 : 5 * 60);
+    if(shouldDeactivate) setIsActive(false);
+    setTimeLeft(newMode === 'focus' ? FOCUS_DURATION : BREAK_DURATION);
   };
 
   const formatTime = (seconds: number) => {
@@ -123,6 +135,7 @@ export default function PomodoroTimer({ activeTask }: PomodoroTimerProps) {
         <Button
           onClick={toggleTimer}
           size="lg"
+          disabled={!activeTask && mode === 'focus'}
           className={`px-8 py-3 rounded-full font-bold transition-all transform hover:scale-105 ${isActive ? 'bg-destructive hover:bg-destructive/90' : 'bg-emerald-500 hover:bg-emerald-600'}`}
         >
           {isActive ? 'Pausar' : 'Iniciar'}

@@ -46,6 +46,23 @@
         "description": {
           "type": "string",
           "description": "Detailed description of the task."
+        },
+        "focusSessions": {
+          "type": "array",
+          "description": "An array of focus sessions for this task.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "date": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "duration": {
+                "type": "number"
+              }
+            },
+            "required": ["date", "duration"]
+          }
         }
       },
       "required": [
@@ -104,47 +121,17 @@
     ]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/users/{userId}/tasks/{taskId}",
-        "definition": {
-          "entityName": "Task",
-          "schema": {
-            "$ref": "#/backend/entities/Task"
-          },
-          "description": "Stores task data for a specific user.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The ID of the user who owns these tasks."
-            },
-            {
-              "name": "taskId",
-              "description": "Unique identifier for the task."
-            }
-          ]
-        }
+    "/users/{userId}/tasks/{taskId}": {
+      "schema": {
+        "$ref": "#/entities/Task"
       },
-      {
-        "path": "/users/{userId}/teamMembers/{memberId}",
-        "definition": {
-          "entityName": "TeamMember",
-          "schema": {
-            "$ref": "#/backend/entities/TeamMember"
-          },
-          "description": "Stores team member data for a specific user.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The ID of the user who owns this team."
-            },
-            {
-              "name": "memberId",
-              "description": "Unique identifier for the team member."
-            }
-          ]
-        }
-      }
-    ]
+      "description": "Stores task data for a specific user."
+    },
+    "/users/{userId}/teamMembers/{memberId}": {
+      "schema": {
+        "$ref": "#/entities/TeamMember"
+      },
+      "description": "Stores team member data for a specific user."
+    }
   }
 }

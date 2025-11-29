@@ -5,9 +5,11 @@ import {
   Briefcase,
   Calendar,
   DollarSign,
+  Edit,
   Percent,
   Timer,
   Trash2,
+  Clock,
 } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus } from '@/lib/types';
@@ -19,6 +21,7 @@ import { isPast } from 'date-fns';
 interface TaskCardProps {
   task: Task;
   setActiveTaskForPomodoro: (task: Task | null) => void;
+  onEdit: (task: Task) => void;
 }
 
 const getPriorityColor = (p: Task['priority']) => {
@@ -39,12 +42,23 @@ const getPotentialColor = (value: number) => {
     return 'bg-sky-500';
 }
 
-export default function TaskCard({ task, setActiveTaskForPomodoro }: TaskCardProps) {
+const formatFocusTime = (minutes: number) => {
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours}h ${mins}m`;
+}
+
+export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: TaskCardProps) {
   const { deleteTask, updateTask } = useTasks();
 
   const handleStatusChange = (newStatus: TaskStatus) => {
     updateTask(task.id, { status: newStatus });
   }
+
+  const totalFocusMinutes = React.useMemo(() => {
+    return task.focusSessions?.reduce((total, session) => total + session.duration, 0) || 0;
+  }, [task.focusSessions]);
 
   return (
     <Card
@@ -53,8 +67,17 @@ export default function TaskCard({ task, setActiveTaskForPomodoro }: TaskCardPro
     >
       <CardContent className="p-4">
         <div className="flex justify-between items-start mb-2">
-          <h4 className="font-bold text-foreground leading-tight break-words pr-2">{task.title}</h4>
+          <h4 className="font-bold text-foreground break-words pr-2">{task.title}</h4>
           <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-primary"
+              onClick={() => onEdit(task)}
+              title="Editar tarea"
+            >
+              <Edit size={16} />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -130,7 +153,12 @@ export default function TaskCard({ task, setActiveTaskForPomodoro }: TaskCardPro
             {task.delegateTo ? (
               <Badge variant="secondary">Delegado: {task.delegateTo}</Badge>
             ) : (
-              <span className="text-muted-foreground italic">Sin delegar</span>
+             totalFocusMinutes > 0 && (
+                <div className="flex items-center gap-1 text-muted-foreground font-medium">
+                  <Clock size={12} />
+                  <span>{formatFocusTime(totalFocusMinutes)}</span>
+                </div>
+              )
             )}
           </div>
           {task.dueDate && (

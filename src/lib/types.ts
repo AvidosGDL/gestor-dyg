@@ -5,6 +5,11 @@ export type TaskStatus =
   | 'completado';
 export type TaskPriority = 'low' | 'medium' | 'high';
 
+export interface FocusSession {
+  date: string; // ISO 8601 string
+  duration: number; // in minutes
+}
+
 export interface Task {
   id: string; // Changed from number to string for Firestore compatibility
   title: string;
@@ -17,6 +22,7 @@ export interface Task {
   description: string;
   value: number;
   probability: number;
+  focusSessions?: FocusSession[];
 }
 
 export interface TeamMember {

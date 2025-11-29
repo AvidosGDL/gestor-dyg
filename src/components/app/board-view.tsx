@@ -1,11 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ListTodo } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus } from '@/lib/types';
 import TaskCard from './task-card';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import EditTaskDialog from './edit-task-dialog';
 
 interface BoardViewProps {
   setActiveTaskForPomodoro: (task: Task | null) => void;
@@ -24,12 +25,14 @@ const TaskColumn = ({
   color,
   tasks,
   setActiveTaskForPomodoro,
+  onEditTask,
 }: {
   status: TaskStatus;
   label: string;
   color: string;
   tasks: Task[];
   setActiveTaskForPomodoro: (task: Task | null) => void;
+  onEditTask: (task: Task) => void;
 }) => {
   const columnTasks = tasks.filter((t) => t.status === status);
 
@@ -52,6 +55,7 @@ const TaskColumn = ({
               key={task.id}
               task={task}
               setActiveTaskForPomodoro={setActiveTaskForPomodoro}
+              onEdit={onEditTask}
             />
           ))}
           {columnTasks.length === 0 && (
@@ -68,24 +72,46 @@ const TaskColumn = ({
 
 export default function BoardView({ setActiveTaskForPomodoro }: BoardViewProps) {
   const { tasks } = useTasks();
+  const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  const handleEditTask = (task: Task) => {
+    setTaskToEdit(task);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    setIsEditDialogOpen(false);
+    setTaskToEdit(null);
+  };
 
   return (
-    <div className="h-full">
-      <ScrollArea className="h-full whitespace-nowrap">
-        <div className="flex gap-4 pb-4 h-full">
-          {columns.map((col) => (
-            <TaskColumn
-              key={col.id}
-              status={col.id}
-              label={col.label}
-              color={col.color}
-              tasks={tasks}
-              setActiveTaskForPomodoro={setActiveTaskForPomodoro}
-            />
-          ))}
-        </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
-    </div>
+    <>
+      <div className="h-full">
+        <ScrollArea className="h-full whitespace-nowrap">
+          <div className="flex gap-4 pb-4 h-full">
+            {columns.map((col) => (
+              <TaskColumn
+                key={col.id}
+                status={col.id}
+                label={col.label}
+                color={col.color}
+                tasks={tasks}
+                setActiveTaskForPomodoro={setActiveTaskForPomodoro}
+                onEditTask={handleEditTask}
+              />
+            ))}
+          </div>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+      </div>
+      {taskToEdit && (
+        <EditTaskDialog
+          open={isEditDialogOpen}
+          onOpenChange={handleCloseDialog}
+          task={taskToEdit}
+        />
+      )}
+    </>
   );
 }
