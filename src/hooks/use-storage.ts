@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useUser, useStorage } from '@/firebase';
+import { useUser, useStorage as useFirebaseStorage } from '@/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
 
-export function useStorage() {
-  const storage = useStorage();
+export function useFileUpload() {
+  const storage = useFirebaseStorage();
   const { user } = useUser();
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);

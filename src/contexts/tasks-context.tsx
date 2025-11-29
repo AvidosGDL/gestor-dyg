@@ -84,15 +84,16 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     if (!firestore || !tasksCollectionRef) return;
     const batch = writeBatch(firestore);
     
-    tasks?.forEach(task => {
-      const docRef = doc(firestore, tasksCollectionRef.path, task.id);
-      batch.delete(docRef);
+    const currentTasks = tasks || [];
+    
+    currentTasks.forEach(task => {
+        const docRef = doc(firestore, tasksCollectionRef.path, task.id);
+        batch.delete(docRef);
     });
 
     newTasks.forEach(task => {
-        const { id, ...taskData } = task;
-        const docRef = doc(tasksCollectionRef);
-        batch.set(docRef, taskData);
+        const docRef = doc(firestore, tasksCollectionRef.path, task.id);
+        batch.set(docRef, task);
     });
 
     batch.commit().catch(async (serverError) => {

@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { useStorage } from '@/hooks/use-storage';
+import { useFileUpload } from '@/hooks/use-storage';
 import { Loader2, Upload, X, File as FileIcon } from 'lucide-react';
 import { Progress } from '../ui/progress';
 
@@ -29,7 +29,7 @@ interface CompleteTaskDialogProps {
 export default function CompleteTaskDialog({ open, onOpenChange, task }: CompleteTaskDialogProps) {
   const { updateTask } = useTasks();
   const { toast } = useToast();
-  const { uploadFiles, isUploading, progress } = useStorage();
+  const { uploadFiles, isUploading, progress } = useFileUpload();
   
   const [comment, setComment] = useState('');
   const [files, setFiles] = useState<File[]>([]);
@@ -67,7 +67,7 @@ export default function CompleteTaskDialog({ open, onOpenChange, task }: Complet
     const updateData: Partial<Task> = {
       status: 'completado',
       completionComment: comment,
-      evidenceUrls: evidenceUrls,
+      evidenceUrls: [...(task.evidenceUrls || []), ...evidenceUrls],
     };
 
     updateTask(task.id, updateData);
@@ -89,6 +89,10 @@ export default function CompleteTaskDialog({ open, onOpenChange, task }: Complet
     <Dialog open={open} onOpenChange={(isOpen) => {
         if (!isActionDisabled) {
             onOpenChange(isOpen);
+            if (!isOpen) {
+              setComment('');
+              setFiles([]);
+            }
         }
     }}>
       <DialogContent>
