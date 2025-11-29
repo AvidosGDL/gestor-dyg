@@ -87,7 +87,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
       <CardContent className="p-4">
         <div className="flex justify-between items-start gap-2 mb-2">
           <div className="flex-1 min-w-0">
-             <h4 className="font-bold text-foreground break-words">
+            <h4 className="font-bold text-foreground break-words">
               {task.title}
             </h4>
           </div>
