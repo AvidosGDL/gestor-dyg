@@ -5,7 +5,7 @@ import { useProspects } from '@/contexts/prospects-context';
 import { Prospect } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Trash2, Edit, Phone, Mail, Calendar, Plus } from 'lucide-react';
+import { Trash2, Edit, Phone, Mail, Calendar, Plus, Handshake } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '../ui/badge';
