@@ -25,6 +25,7 @@ function Login() {
   const { toast } = useToast();
 
   useEffect(() => {
+    // If user is logged in, redirect to home.
     if (!isUserLoading && user) {
       router.push('/');
     }
@@ -70,10 +71,12 @@ function Login() {
     }
   };
 
+  // While checking auth state, or if user is logged in, show loading.
   if (isUserLoading || user) {
     return <div className="flex items-center justify-center min-h-screen bg-background">Cargando...</div>;
   }
-
+  
+  // Only show login form if not loading and no user is found
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <Card className="w-full max-w-md">
