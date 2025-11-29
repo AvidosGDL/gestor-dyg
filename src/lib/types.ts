@@ -51,3 +51,18 @@ export interface UserProfile {
   role: string;
   phone?: string;
 }
+
+export interface ContactLogEntry {
+  date: string; // ISO 8601 string
+  notes: string;
+}
+
+export interface Prospect {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  businessDescription: string;
+  nextContactDate?: string; // ISO 8601 date string (YYYY-MM-DD)
+  contactLog?: ContactLogEntry[];
+}

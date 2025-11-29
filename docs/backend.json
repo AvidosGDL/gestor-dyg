@@ -172,6 +172,57 @@
         }
       },
       "required": ["name", "email", "avatarUrl", "role"]
+    },
+    "Prospect": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Prospect",
+      "type": "object",
+      "description": "Represents a new business prospect.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the prospect."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the prospect."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Phone number of the prospect."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the prospect."
+        },
+        "businessDescription": {
+          "type": "string",
+          "description": "Description of the business opportunity."
+        },
+        "nextContactDate": {
+          "type": "string",
+          "format": "date",
+          "description": "Date for the next follow-up contact."
+        },
+        "contactLog": {
+          "type": "array",
+          "description": "A log of all contacts made with the prospect.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "date": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "notes": {
+                "type": "string"
+              }
+            },
+            "required": ["date", "notes"]
+          }
+        }
+      },
+      "required": ["id", "name", "businessDescription"]
     }
   },
   "auth": {
@@ -199,6 +250,12 @@
         "$ref": "#/entities/TeamMember"
       },
       "description": "Stores team member data for a specific user."
+    },
+    "/users/{userId}/prospects/{prospectId}": {
+      "schema": {
+        "$ref": "#/entities/Prospect"
+      },
+      "description": "Stores prospect data for a specific user."
     }
   }
 }
