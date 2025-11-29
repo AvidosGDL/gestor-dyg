@@ -63,6 +63,29 @@
             },
             "required": ["date", "duration"]
           }
+        },
+        "completionComment": {
+          "type": "string",
+          "description": "A comment added when the task is completed."
+        },
+        "attachments": {
+          "type": "array",
+          "description": "A list of files attached to the task.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "size": {
+                "type": "number"
+              }
+            },
+            "required": ["name", "type", "size"]
+          }
         }
       },
       "required": [

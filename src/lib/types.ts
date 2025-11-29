@@ -10,6 +10,13 @@ export interface FocusSession {
   duration: number; // in minutes
 }
 
+export interface Attachment {
+  name: string;
+  type: string;
+  size: number;
+  // url: string; // This would be the URL from a storage service like Firebase Storage
+}
+
 export interface Task {
   id: string; // Changed from number to string for Firestore compatibility
   title: string;
@@ -23,6 +30,8 @@ export interface Task {
   value: number;
   probability: number;
   focusSessions?: FocusSession[];
+  completionComment?: string;
+  attachments?: Attachment[];
 }
 
 export interface TeamMember {

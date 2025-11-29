@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -23,12 +23,19 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useTasks } from '@/contexts/tasks-context';
-import { DollarSign, Percent, Users } from 'lucide-react';
+import { DollarSign, Percent, Users, Paperclip, X } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Task, TaskStatus } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '../ui/textarea';
+import { Badge } from '../ui/badge';
+
+const fileSchema = z.object({
+  name: z.string(),
+  type: z.string(),
+  size: z.number(),
+});
 
 const taskSchema = z.object({
   title: z.string().min(1, 'El título es requerido'),
@@ -41,6 +48,8 @@ const taskSchema = z.object({
   description: z.string().optional(),
   value: z.coerce.number().min(0),
   probability: z.coerce.number().min(0).max(100),
+  completionComment: z.string().optional(),
+  attachments: z.array(fileSchema).optional(),
 });
 
 type TaskFormValues = z.infer<typeof taskSchema>;
@@ -58,18 +67,47 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
   });
 
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const watchedStatus = form.watch('status');
 
   useEffect(() => {
     if (task && open) {
         form.reset({
             ...task,
             dueDate: task.dueDate ? task.dueDate.split('T')[0] : '', // Format date for input
+            completionComment: task.completionComment || '',
         });
+        setAttachedFiles([]); // Reset files on open
     }
   }, [task, open, form]);
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      setAttachedFiles(prevFiles => [...prevFiles, ...Array.from(event.target.files!)]);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setAttachedFiles(prevFiles => prevFiles.filter((_, i) => i !== index));
+  };
+
+
   const onSubmit = (data: TaskFormValues) => {
-    updateTask(task.id, data);
+    // Here you would handle file uploads to a service like Firebase Storage
+    // For now, we'll just include metadata in the task update.
+    const fileMetadata = attachedFiles.map(file => ({
+      name: file.name,
+      type: file.type,
+      size: file.size,
+    }));
+
+    const finalData = {
+      ...data,
+      attachments: [...(task.attachments || []), ...fileMetadata],
+    };
+
+    updateTask(task.id, finalData);
     toast({
         title: "Tarea actualizada",
         description: `"${data.title}" ha sido modificada.`,
@@ -236,6 +274,58 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                   </FormItem>
                 )}
               />
+            
+            {watchedStatus === 'completado' && (
+              <div className="space-y-4 pt-4 border-t">
+                <FormField
+                  control={form.control}
+                  name="completionComment"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Comentario de Cierre</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Añade un comentario sobre la finalización de la tarea..." {...field} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormItem>
+                  <FormLabel>Adjuntar Archivos</FormLabel>
+                  <FormControl>
+                     <div>
+                        <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
+                           <Paperclip className="mr-2 h-4 w-4" />
+                           Seleccionar Archivos
+                        </Button>
+                        <Input 
+                          type="file"
+                          ref={fileInputRef}
+                          multiple
+                          className="hidden"
+                          onChange={handleFileChange}
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,image/*"
+                        />
+                     </div>
+                  </FormControl>
+                  <div className="mt-4 space-y-2">
+                    {task.attachments?.map((file, index) => (
+                      <div key={`existing-${index}`} className="flex items-center justify-between p-2 bg-muted/50 rounded-md text-sm">
+                        <span className="truncate">{file.name}</span>
+                        <Badge variant="secondary">Ya adjunto</Badge>
+                      </div>
+                    ))}
+                    {attachedFiles.map((file, index) => (
+                      <div key={`new-${index}`} className="flex items-center justify-between p-2 bg-muted rounded-md text-sm">
+                        <span className="truncate">{file.name}</span>
+                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeFile(index)}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </FormItem>
+              </div>
+            )}
           </form>
         </Form>
         <DialogFooter>
