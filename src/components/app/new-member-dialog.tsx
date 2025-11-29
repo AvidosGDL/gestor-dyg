@@ -16,7 +16,7 @@ import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Loader2, ImageUp } from 'lucide-react';
-import { useAuth, useFirestore } from '@/firebase';
+import { useAuth, useFirestore, useUser } from '@/firebase';
 import { addDoc, collection } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -88,8 +88,8 @@ interface NewMemberDialogProps {
 export default function NewMemberDialog({
   open,
   onOpenChange,
-  user,
 }: NewMemberDialogProps) {
+  const { user } = useUser();
   const firestore = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
@@ -152,8 +152,6 @@ export default function NewMemberDialog({
     try {
       let finalData = { ...data };
       if (finalData.authType === 'google' && !finalData.email.endsWith('@gmail.com')) {
-          // The validation logic in the component already handles appending @gmail.com
-          // but we ensure it here as a safeguard.
           const username = finalData.email.split('@')[0];
           finalData.email = `${username}@gmail.com`;
       }
@@ -161,12 +159,9 @@ export default function NewMemberDialog({
       let toastDescription = `${finalData.name} ha sido añadido al equipo.`;
       
       if (finalData.authType === 'email' && finalData.password) {
-        // Create user in Firebase Authentication
         await createUserWithEmailAndPassword(auth, finalData.email, finalData.password);
         toastDescription = `${finalData.name} ha sido añadido al equipo y su cuenta ha sido creada.`;
       } else if (finalData.authType === 'google') {
-        // For Google users, we just add them to the team list.
-        // They will need to sign in with Google themselves to be authenticated.
         toastDescription = `${finalData.name} ha sido añadido al equipo. Deberá iniciar sesión con Google para acceder.`;
       }
 
@@ -175,7 +170,15 @@ export default function NewMemberDialog({
       const newMember = { ...memberData };
 
       const membersCollection = collection(firestore, collectionPath);
-      await addDoc(membersCollection, newMember);
+      
+      addDoc(membersCollection, newMember).catch(async (serverError) => {
+          const permissionError = new FirestorePermissionError({
+            path: `users/${user.uid}/teamMembers`,
+            operation: 'create',
+            requestResourceData: data,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+      });
 
       toast({
         title: 'Miembro Agregado',
@@ -202,20 +205,11 @@ export default function NewMemberDialog({
         }
       }
       
-      if (error.code && error.code.startsWith('auth/')) {
-        toast({
-          variant: 'destructive',
-          title: 'Error de Autenticación',
-          description: errorMessage,
-        });
-      } else {
-        const permissionError = new FirestorePermissionError({
-          path: `users/${user.uid}/teamMembers`,
-          operation: 'create',
-          requestResourceData: data,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      }
+      toast({
+        variant: 'destructive',
+        title: 'Error al agregar miembro',
+        description: errorMessage,
+      });
     }
   };
 
