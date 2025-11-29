@@ -30,10 +30,6 @@ function Login() {
     }
   }, [user, isUserLoading, router]);
 
-  if (isUserLoading || user) {
-    return <div className="flex items-center justify-center min-h-screen bg-background">Cargando...</div>;
-  }
-
   const handleAuth = async (e: React.FormEvent, action: 'signIn' | 'signUp') => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -74,6 +70,9 @@ function Login() {
     }
   };
 
+  if (isUserLoading || user) {
+    return <div className="flex items-center justify-center min-h-screen bg-background">Cargando...</div>;
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
