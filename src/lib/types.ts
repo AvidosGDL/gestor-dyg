@@ -23,6 +23,8 @@ export interface Task {
   value: number;
   probability: number;
   focusSessions?: FocusSession[];
+  completionComment?: string;
+  evidenceUrls?: string[];
 }
 
 export interface TeamMember {

@@ -4,6 +4,7 @@ import React from 'react';
 import {
   Briefcase,
   Calendar,
+  CheckCircle,
   DollarSign,
   Edit,
   Percent,
@@ -22,6 +23,7 @@ interface TaskCardProps {
   task: Task;
   setActiveTaskForPomodoro: (task: Task | null) => void;
   onEdit: (task: Task) => void;
+  onComplete: (task: Task) => void;
 }
 
 const getPriorityColor = (p: Task['priority']) => {
@@ -49,7 +51,7 @@ const formatFocusTime = (minutes: number) => {
   return `${hours}h ${mins}m`;
 }
 
-export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: TaskCardProps) {
+export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit, onComplete }: TaskCardProps) {
   const { deleteTask, updateTask } = useTasks();
 
   const handleStatusChange = (newStatus: TaskStatus) => {
@@ -67,7 +69,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
     >
       <CardContent className="p-4">
         <div className="flex justify-between items-start mb-2 gap-2">
-          <h4 className="font-bold text-foreground break-words flex-1">{task.title}</h4>
+          <h4 className="font-bold text-foreground break-words flex-1 pr-1">{task.title}</h4>
           <div className="flex gap-1">
             <Button
               variant="ghost"
@@ -90,8 +92,18 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
             <Button
               variant="ghost"
               size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-emerald-500 shrink-0"
+              onClick={() => onComplete(task)}
+              title="Completar Tarea"
+            >
+              <CheckCircle size={16} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
               className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
               onClick={() => deleteTask(task.id)}
+              title="Eliminar tarea"
             >
               <Trash2 size={16} />
             </Button>

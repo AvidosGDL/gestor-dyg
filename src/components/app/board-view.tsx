@@ -7,6 +7,7 @@ import type { Task, TaskStatus } from '@/lib/types';
 import TaskCard from './task-card';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import EditTaskDialog from './edit-task-dialog';
+import CompleteTaskDialog from './complete-task-dialog';
 
 interface BoardViewProps {
   setActiveTaskForPomodoro: (task: Task | null) => void;
@@ -26,6 +27,7 @@ const TaskColumn = ({
   tasks,
   setActiveTaskForPomodoro,
   onEditTask,
+  onCompleteTask,
 }: {
   status: TaskStatus;
   label: string;
@@ -33,6 +35,7 @@ const TaskColumn = ({
   tasks: Task[];
   setActiveTaskForPomodoro: (task: Task | null) => void;
   onEditTask: (task: Task) => void;
+  onCompleteTask: (task: Task) => void;
 }) => {
   const columnTasks = tasks.filter((t) => t.status === status);
 
@@ -56,6 +59,7 @@ const TaskColumn = ({
               task={task}
               setActiveTaskForPomodoro={setActiveTaskForPomodoro}
               onEdit={onEditTask}
+              onComplete={onCompleteTask}
             />
           ))}
           {columnTasks.length === 0 && (
@@ -73,16 +77,28 @@ const TaskColumn = ({
 export default function BoardView({ setActiveTaskForPomodoro }: BoardViewProps) {
   const { tasks } = useTasks();
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
+  const [taskToComplete, setTaskToComplete] = useState<Task | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
 
   const handleEditTask = (task: Task) => {
     setTaskToEdit(task);
     setIsEditDialogOpen(true);
   };
 
-  const handleCloseDialog = () => {
+  const handleCompleteTask = (task: Task) => {
+    setTaskToComplete(task);
+    setIsCompleteDialogOpen(true);
+  };
+
+  const handleCloseEditDialog = () => {
     setIsEditDialogOpen(false);
     setTaskToEdit(null);
+  };
+
+  const handleCloseCompleteDialog = () => {
+    setIsCompleteDialogOpen(false);
+    setTaskToComplete(null);
   };
 
   return (
@@ -99,6 +115,7 @@ export default function BoardView({ setActiveTaskForPomodoro }: BoardViewProps) 
                 tasks={tasks}
                 setActiveTaskForPomodoro={setActiveTaskForPomodoro}
                 onEditTask={handleEditTask}
+                onCompleteTask={handleCompleteTask}
               />
             ))}
           </div>
@@ -108,8 +125,15 @@ export default function BoardView({ setActiveTaskForPomodoro }: BoardViewProps) 
       {taskToEdit && (
         <EditTaskDialog
           open={isEditDialogOpen}
-          onOpenChange={handleCloseDialog}
+          onOpenChange={handleCloseEditDialog}
           task={taskToEdit}
+        />
+      )}
+      {taskToComplete && (
+        <CompleteTaskDialog
+          open={isCompleteDialogOpen}
+          onOpenChange={handleCloseCompleteDialog}
+          task={taskToComplete}
         />
       )}
     </>
