@@ -1,26 +1,18 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Public access for tasks while login is disabled
-    match /tasks/{taskId} {
-      allow read, write: if true;
-    }
-
-    // Match any document in the 'users' collection
     match /users/{userId} {
-      // Only the authenticated user can access their own user document
+      // Rule: Allow users to read and write to their own document
       allow read, write: if request.auth != null && request.auth.uid == userId;
 
-      /**
-       * @description Owner-only access for team members. Users can manage their own team.
-       * @path        /users/{userId}/teamMembers/{memberId}
-       * @allow       Authenticated user managing their own team members: `(create) /users/some_user_id/teamMembers/new_member`.
-       * @deny        Authenticated user accessing another user's team: `(list) /users/another_user_id/teamMembers`.
-       * @principle   Ensures that team management remains private to the account owner.
-       */
+      // Rule: Allow users to manage their own tasks subcollection
+      match /tasks/{taskId} {
+        allow read, write, create, delete, update: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Rule: Allow users to manage their own teamMembers subcollection
       match /teamMembers/{memberId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write, create, delete, update: if request.auth != null && request.auth.uid == userId;
       }
     }
   }

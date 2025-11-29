@@ -106,14 +106,18 @@
   "firestore": {
     "structure": [
       {
-        "path": "/tasks/{taskId}",
+        "path": "/users/{userId}/tasks/{taskId}",
         "definition": {
           "entityName": "Task",
           "schema": {
             "$ref": "#/backend/entities/Task"
           },
-          "description": "Stores task data. This is a public collection for now.",
+          "description": "Stores task data for a specific user.",
           "params": [
+            {
+              "name": "userId",
+              "description": "The ID of the user who owns these tasks."
+            },
             {
               "name": "taskId",
               "description": "Unique identifier for the task."

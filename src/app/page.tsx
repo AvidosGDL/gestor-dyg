@@ -3,14 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/firebase';
-
-import {
-  SidebarProvider,
-  Sidebar,
-  SidebarInset,
-  SidebarTrigger,
-} from '@/components/ui/sidebar';
-
+import { SidebarProvider, Sidebar, SidebarInset } from '@/components/ui/sidebar';
 import { TasksProvider } from '@/contexts/tasks-context';
 import BoardView from '@/components/app/board-view';
 import PlanningView from '@/components/app/planning-view';
@@ -29,7 +22,6 @@ function Dashboard() {
   const [activeTaskForPomodoro, setActiveTaskForPomodoro] = useState<Task | null>(
     null
   );
-  const { user } = useUser();
 
   return (
     <TasksProvider>
@@ -45,8 +37,8 @@ function Dashboard() {
                 G
               </div>
               <div className="group-data-[collapsible=icon]:hidden">
-                  <span className="font-bold text-lg block">Gestor Pro</span>
-                  <span className="font-semibold text-sm block">Roberto DO IT</span>
+                <span className="font-bold text-lg block">Gestor Pro</span>
+                <span className="font-semibold text-sm block">Roberto DO IT</span>
               </div>
             </div>
             <SidebarNav view={view} setView={setView} />
@@ -82,9 +74,7 @@ function Dashboard() {
                 setActiveTaskForPomodoro={setActiveTaskForPomodoro}
               />
             )}
-            {view === 'team' && (
-              <TeamView />
-            )}
+            {view === 'team' && <TeamView />}
           </main>
         </SidebarInset>
       </SidebarProvider>
@@ -92,10 +82,38 @@ function Dashboard() {
   );
 }
 
+function AuthWrapper({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useUser();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
+
+  if (loading || !user) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="space-y-4 w-full max-w-sm">
+           <Skeleton className="h-10 w-full" />
+           <Skeleton className="h-10 w-full" />
+           <Skeleton className="h-10 w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
+
 export default function Home() {
   return (
     <FirebaseClientProvider>
-      <Dashboard />
+      <AuthWrapper>
+        <Dashboard />
+      </AuthWrapper>
     </FirebaseClientProvider>
   );
 }
