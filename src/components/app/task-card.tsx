@@ -53,7 +53,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro }: TaskCardPro
     >
       <CardContent className="p-4">
         <div className="flex justify-between items-start mb-2">
-          <h4 className="font-bold text-foreground leading-tight pr-14">{task.title}</h4>
+          <h4 className="font-bold text-foreground leading-tight pr-14 break-words">{task.title}</h4>
           <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
             <Button
               variant="ghost"
