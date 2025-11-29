@@ -13,7 +13,6 @@ import type { Task } from '@/lib/types';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import TeamView from '@/components/app/team-view';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { Skeleton } from '@/components/ui/skeleton';
 
 export type View = 'board' | 'planning' | 'team';
 
