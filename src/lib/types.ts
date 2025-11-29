@@ -43,3 +43,11 @@ export interface TeamMember {
   phone?: string;
   authType: 'google' | 'email';
 }
+
+export interface UserProfile {
+  name: string;
+  email: string;
+  avatarUrl: string;
+  role: string;
+  phone?: string;
+}

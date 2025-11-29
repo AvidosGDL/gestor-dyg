@@ -141,6 +141,37 @@
         "role",
         "authType"
       ]
+    },
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Stores public profile information for a user.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The user's full name."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "avatarUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL for the user's avatar image."
+        },
+        "role": {
+          "type": "string",
+          "description": "The user's role in the organization."
+        },
+        "phone": {
+          "type": "string",
+          "description": "The user's phone number."
+        }
+      },
+      "required": ["name", "email", "avatarUrl", "role"]
     }
   },
   "auth": {
@@ -151,6 +182,12 @@
     ]
   },
   "firestore": {
+     "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Stores public profile information for a user."
+    },
     "/users/{userId}/tasks/{taskId}": {
       "schema": {
         "$ref": "#/entities/Task"

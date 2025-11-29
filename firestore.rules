@@ -2,15 +2,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{userId} {
-      // Rule: Allow users to read and write to their own document
       allow read, write: if request.auth != null && request.auth.uid == userId;
 
-      // Rule: Allow users to manage their own tasks subcollection
       match /tasks/{taskId} {
         allow read, write, create, delete, update: if request.auth != null && request.auth.uid == userId;
       }
 
-      // Rule: Allow users to manage their own teamMembers subcollection
       match /teamMembers/{memberId} {
         allow read, write, create, delete, update: if request.auth != null && request.auth.uid == userId;
       }

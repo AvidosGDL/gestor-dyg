@@ -1,132 +1,301 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
+  updateProfile,
 } from 'firebase/auth';
-import { useUser, useAuth } from '@/firebase';
+import { useUser, useAuth, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { doc, setDoc } from 'firebase/firestore';
+import { cn } from '@/lib/utils';
+import { Avatar, AvatarImage } from '@/components/ui/avatar';
+import { ImageUp, Loader2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import * as z from 'zod';
+import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { type UserProfile } from '@/lib/types';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
-function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+const AVATAR_OPTIONS = 7;
+const avatarCollection = 'lorelei';
+const generateAvatarUrl = (seed: string) => `https://api.dicebear.com/8.x/${avatarCollection}/svg?seed=${seed}`;
+
+const loginSchema = z.object({
+  email: z.string().email('El correo electrónico no es válido'),
+  password: z.string().min(1, 'La contraseña es requerida'),
+});
+
+const signupSchema = z.object({
+  name: z.string().min(1, 'El nombre es requerido'),
+  email: z.string().email('El correo electrónico no es válido'),
+  role: z.string().min(1, 'El rol es requerido'),
+  phone: z.string().optional(),
+  avatarUrl: z.string().url('Por favor, selecciona un avatar'),
+  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres.'),
+  confirmPassword: z.string(),
+}).refine(data => data.password === data.confirmPassword, {
+  message: 'Las contraseñas no coinciden.',
+  path: ['confirmPassword'],
+});
+
+type LoginValues = z.infer<typeof loginSchema>;
+type SignupValues = z.infer<typeof signupSchema>;
+
+
+const GoogleIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24">
+      <path fill="#4285F4" d="M21.35 11.1h-9.1v2.7h5.1c-.2 1.7-1.3 3.2-3.2 3.2-2.3 0-4.2-1.9-4.2-4.2s1.9-4.2 4.2-4.2c1.1 0 2 .4 2.7 1l2.1-2.1c-1.2-1.2-2.9-1.9-4.8-1.9-4.1 0-7.4 3.3-7.4 7.4s3.3 7.4 7.4 7.4c4.3 0 7.1-3 7.1-7.1 0-.6-.1-1.1-.2-1.6z"/>
+    </svg>
+);
+  
+function LoginForm() {
+    const auth = useAuth();
+    const { toast } = useToast();
+    const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginValues>({
+      resolver: zodResolver(loginSchema)
+    });
+  
+    const onLogin: SubmitHandler<LoginValues> = async (data) => {
+      try {
+        await signInWithEmailAndPassword(auth, data.email, data.password);
+        toast({ title: 'Éxito', description: `Has iniciado sesión.` });
+      } catch (error: any) {
+        toast({
+          variant: 'destructive',
+          title: 'Error de Autenticación',
+          description: error.message,
+        });
+      }
+    };
+
+    const handleGoogleSignIn = async () => {
+        const provider = new GoogleAuthProvider();
+        try {
+          await signInWithPopup(auth, provider);
+          toast({ title: 'Éxito', description: 'Has iniciado sesión con Google.' });
+        } catch (error: any) {
+          toast({
+            variant: 'destructive',
+            title: 'Error de Autenticación con Google',
+            description: error.message,
+          });
+        }
+      };
+  
+    return (
+      <form onSubmit={handleSubmit(onLogin)} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="login-email">Correo Electrónico</Label>
+          <Input id="login-email" type="email" placeholder="tu@email.com" {...register('email')} disabled={isSubmitting} />
+          {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="login-password">Contraseña</Label>
+          <Input id="login-password" type="password" {...register('password')} disabled={isSubmitting} />
+          {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
+        </div>
+        <Button type="submit" disabled={isSubmitting} className="w-full">
+          {isSubmitting ? 'Iniciando...' : 'Iniciar Sesión'}
+        </Button>
+         <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-card px-2 text-muted-foreground">
+                O continuar con
+            </span>
+            </div>
+        </div>
+        <Button onClick={handleGoogleSignIn} variant="outline" className="w-full" disabled={isSubmitting}>
+           <GoogleIcon/> Iniciar sesión con Google
+        </Button>
+      </form>
+    );
+  }
+
+
+function SignupForm() {
+    const auth = useAuth();
+    const firestore = useFirestore();
+    const { toast } = useToast();
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [customAvatarPreview, setCustomAvatarPreview] = useState<string | null>(null);
+  
+    const avatarOptions = useMemo(() => {
+      return Array.from({ length: AVATAR_OPTIONS }, (_, i) => generateAvatarUrl(`avatar-${i}`));
+    }, []);
+  
+    const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<SignupValues>({
+      resolver: zodResolver(signupSchema)
+    });
+  
+    const selectedAvatarUrl = watch('avatarUrl');
+  
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const dataUrl = reader.result as string;
+          setCustomAvatarPreview(dataUrl);
+          setValue('avatarUrl', dataUrl, { shouldValidate: true });
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+  
+    const onSignup: SubmitHandler<SignupValues> = async (data) => {
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+        const user = userCredential.user;
+        
+        await updateProfile(user, {
+            displayName: data.name,
+            photoURL: data.avatarUrl,
+        });
+
+        const userProfile: Omit<UserProfile, 'id'> = {
+          name: data.name,
+          email: data.email,
+          avatarUrl: data.avatarUrl,
+          role: data.role,
+          phone: data.phone,
+        };
+        
+        const docRef = doc(firestore, 'users', user.uid);
+
+        await setDoc(docRef, userProfile).catch(serverError => {
+            const permissionError = new FirestorePermissionError({
+                path: `users/${user.uid}`,
+                operation: 'create',
+                requestResourceData: userProfile,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
+
+        toast({ title: 'Éxito', description: 'Tu cuenta ha sido creada.' });
+      } catch (error: any) {
+        toast({
+          variant: 'destructive',
+          title: 'Error de Registro',
+          description: error.message,
+        });
+      }
+    };
+  
+    return (
+      <form onSubmit={handleSubmit(onSignup)} className="space-y-4">
+        <div className="space-y-2">
+            <Label>Avatar</Label>
+            <div className="grid grid-cols-4 gap-2">
+                {avatarOptions.map((url, index) => (
+                    <button key={index} type="button" onClick={() => { setValue('avatarUrl', url, { shouldValidate: true }); setCustomAvatarPreview(null); }} className={cn("rounded-full p-1 transition-all", selectedAvatarUrl === url && !customAvatarPreview ? 'ring-2 ring-primary ring-offset-2' : 'ring-1 ring-transparent hover:ring-primary/50')}>
+                        <Avatar className="h-12 w-12"><AvatarImage src={url} alt={`Avatar ${index + 1}`} /></Avatar>
+                    </button>
+                ))}
+                <button type="button" onClick={() => fileInputRef.current?.click()} className={cn("rounded-full p-1 transition-all flex items-center justify-center bg-muted hover:bg-border", customAvatarPreview && selectedAvatarUrl === customAvatarPreview ? 'ring-2 ring-primary ring-offset-2' : 'ring-1 ring-transparent hover:ring-primary/50')}>
+                  <Avatar className="h-12 w-12">{customAvatarPreview ? <AvatarImage src={customAvatarPreview} alt="Avatar personalizado" /> : <div className="w-full h-full flex items-center justify-center"><ImageUp className="w-6 h-6 text-muted-foreground" /></div>}</Avatar>
+                </button>
+                <Input type="file" ref={fileInputRef} className="hidden" accept="image/png, image/jpeg, image/gif" onChange={handleFileChange} />
+            </div>
+            {errors.avatarUrl && <p className="text-sm text-destructive">{errors.avatarUrl.message}</p>}
+        </div>
+
+        <div className="space-y-2">
+            <Label htmlFor="signup-name">Nombre Completo</Label>
+            <Input id="signup-name" placeholder="Ej. Juan Pérez" {...register('name')} disabled={isSubmitting} />
+            {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+        </div>
+
+        <div className="space-y-2">
+            <Label htmlFor="signup-email">Correo Electrónico</Label>
+            <Input id="signup-email" type="email" placeholder="tu@email.com" {...register('email')} disabled={isSubmitting} />
+            {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+        </div>
+
+        <div className="space-y-2">
+            <Label htmlFor="signup-role">Rol o Cargo</Label>
+            <Input id="signup-role" placeholder="Ej. Diseñador" {...register('role')} disabled={isSubmitting} />
+            {errors.role && <p className="text-sm text-destructive">{errors.role.message}</p>}
+        </div>
+
+        <div className="space-y-2">
+            <Label htmlFor="signup-phone">Teléfono (Opcional)</Label>
+            <Input id="signup-phone" placeholder="Ej. +1 234 567 890" {...register('phone')} disabled={isSubmitting} />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="signup-password">Contraseña</Label>
+          <Input id="signup-password" type="password" {...register('password')} disabled={isSubmitting} />
+          {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="signup-confirmPassword">Confirmar Contraseña</Label>
+          <Input id="signup-confirmPassword" type="password" {...register('confirmPassword')} disabled={isSubmitting} />
+          {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>}
+        </div>
+  
+        <Button type="submit" disabled={isSubmitting} className="w-full">
+          {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Creando cuenta...</> : 'Crear Cuenta'}
+        </Button>
+      </form>
+    );
+  }
+
+function AuthPage() {
   const router = useRouter();
-  const auth = useAuth();
   const { user, isUserLoading } = useUser();
-  const { toast } = useToast();
 
   useEffect(() => {
     if (!isUserLoading && user) {
       router.push('/');
     }
   }, [user, isUserLoading, router]);
-  
+
   if (isUserLoading || user) {
-    return <div className="flex items-center justify-center min-h-screen bg-background">Cargando...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="flex items-center gap-2 text-muted-foreground">
+         <Loader2 className="h-5 w-5 animate-spin"/> Cargando...
+        </div>
+      </div>
+    );
   }
 
-  const handleAuth = async (e: React.FormEvent, action: 'signIn' | 'signUp') => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    try {
-      if (action === 'signIn') {
-        await signInWithEmailAndPassword(auth, email, password);
-      } else {
-        await createUserWithEmailAndPassword(auth, email, password);
-      }
-      toast({ title: 'Éxito', description: `Has ${action === 'signIn' ? 'iniciado sesión' : 'creado una cuenta'}.` });
-      // The useEffect will handle the redirection
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error de Autenticación',
-        description: error.message,
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    const provider = new GoogleAuthProvider();
-    setIsSubmitting(true);
-    try {
-      await signInWithPopup(auth, provider);
-      toast({ title: 'Éxito', description: 'Has iniciado sesión con Google.' });
-      // The useEffect will handle the redirection
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error de Autenticación con Google',
-        description: error.message,
-      });
-    } finally {
-        setIsSubmitting(false);
-    }
-  };
-
-
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background">
+    <div className="flex items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Iniciar Sesión</CardTitle>
-          <CardDescription>Accede a tu panel de administración.</CardDescription>
+        <CardHeader className="text-center">
+          <CardTitle>TaskMaster Pro</CardTitle>
+          <CardDescription>Accede a tu panel o crea una cuenta nueva.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Correo Electrónico</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="tu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Contraseña</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2">
-               <Button onClick={(e) => handleAuth(e, 'signIn')} disabled={isSubmitting} className="w-full">
-                {isSubmitting ? 'Iniciando...' : 'Iniciar Sesión'}
-              </Button>
-              <Button onClick={(e) => handleAuth(e, 'signUp')} variant="outline" disabled={isSubmitting} className="w-full">
-                Registrarse
-              </Button>
-            </div>
-          </form>
-           <div className="relative my-4">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  O continuar con
-                </span>
-              </div>
-            </div>
-            <Button onClick={handleGoogleSignIn} variant="outline" className="w-full" disabled={isSubmitting}>
-              Iniciar sesión con Google
-            </Button>
+          <Tabs defaultValue="login" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="login">Iniciar Sesión</TabsTrigger>
+              <TabsTrigger value="signup">Registrarse</TabsTrigger>
+            </TabsList>
+            <TabsContent value="login" className="pt-4">
+              <LoginForm />
+            </TabsContent>
+            <TabsContent value="signup" className="pt-4">
+              <SignupForm />
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
     </div>
@@ -134,7 +303,5 @@ function Login() {
 }
 
 export default function LoginPage() {
-    return (
-      <Login />
-    )
+    return <AuthPage />;
 }
