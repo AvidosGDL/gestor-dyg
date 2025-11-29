@@ -5,7 +5,7 @@ import { useUser, useStorage } from '@/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
 
-export function useStorage() {
+export function useFileUpload() {
   const storage = useStorage();
   const { user } = useUser();
   const [isUploading, setIsUploading] = useState(false);
