@@ -57,7 +57,7 @@ function Login() {
   };
 
   const handleGoogleSignIn = async () => {
-    const provider = new newGoogleAuthProvider();
+    const provider = new GoogleAuthProvider();
     setIsSubmitting(true);
     try {
       await signInWithPopup(auth, provider);
