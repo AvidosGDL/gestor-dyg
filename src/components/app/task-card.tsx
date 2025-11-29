@@ -10,6 +10,7 @@ import {
   Timer,
   Trash2,
   Clock,
+  CheckCircle2,
 } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus } from '@/lib/types';
@@ -22,6 +23,7 @@ interface TaskCardProps {
   task: Task;
   setActiveTaskForPomodoro: (task: Task | null) => void;
   onEdit: (task: Task) => void;
+  onComplete: (task: Task) => void;
 }
 
 const getPriorityColor = (p: Task['priority']) => {
@@ -49,7 +51,7 @@ const formatFocusTime = (minutes: number) => {
   return `${hours}h ${mins}m`;
 }
 
-export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: TaskCardProps) {
+export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit, onComplete }: TaskCardProps) {
   const { deleteTask, updateTask } = useTasks();
 
   const handleStatusChange = (newStatus: TaskStatus) => {
@@ -67,12 +69,21 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
     >
       <CardContent className="p-4">
         <div className="flex justify-between items-start mb-2 gap-2">
-          <h4 className="font-bold text-foreground break-words flex-1">{task.title}</h4>
-          <div className="flex gap-1">
+          <h4 className="font-bold text-foreground break-words flex-1 min-w-0">{task.title}</h4>
+          <div className="flex gap-1 shrink-0">
+             <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-emerald-500"
+              onClick={() => onComplete(task)}
+              title="Completar Tarea"
+            >
+              <CheckCircle2 size={16} />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-primary shrink-0"
+              className="h-7 w-7 text-muted-foreground hover:text-primary"
               onClick={() => onEdit(task)}
               title="Editar tarea"
             >
@@ -81,7 +92,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-primary shrink-0"
+              className="h-7 w-7 text-muted-foreground hover:text-primary"
               onClick={() => setActiveTaskForPomodoro(task)}
               title="Enfocar en esto"
             >
@@ -90,8 +101,9 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+              className="h-7 w-7 text-muted-foreground hover:text-destructive"
               onClick={() => deleteTask(task.id)}
+               title="Eliminar tarea"
             >
               <Trash2 size={16} />
             </Button>
