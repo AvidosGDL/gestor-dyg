@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { SidebarProvider, Sidebar, SidebarInset } from '@/components/ui/sidebar';
 import { TasksProvider } from '@/contexts/tasks-context';
 import { ProspectsProvider } from '@/contexts/prospects-context';
@@ -10,11 +10,12 @@ import BoardView from '@/components/app/board-view';
 import PlanningView from '@/components/app/planning-view';
 import SidebarNav from '@/components/app/sidebar-nav';
 import AppHeader from '@/components/app/header';
-import type { Task } from '@/lib/types';
+import type { Task, UserProfile } from '@/lib/types';
 import TeamView from '@/components/app/team-view';
 import ImportView from '@/components/app/import-view';
 import { ThemeToggle } from '@/components/theme-toggle';
 import ProspectsView from '@/components/app/prospects-view';
+import { doc, getDoc } from 'firebase/firestore';
 
 
 export type View = 'board' | 'planning' | 'team' | 'import' | 'prospects';
@@ -90,6 +91,7 @@ function Dashboard() {
 
 function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
   const router = useRouter();
 
   useEffect(() => {

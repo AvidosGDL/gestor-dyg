@@ -8,20 +8,22 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   updateProfile,
+  onAuthStateChanged,
+  type User,
 } from 'firebase/auth';
-import { useUser, useAuth, useFirestore } from '@/firebase';
+import { useAuth, useFirestore, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarImage } from '@/components/ui/avatar';
 import { ImageUp, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import * as z from 'zod';
-import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
+import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { type UserProfile } from '@/lib/types';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -59,9 +61,35 @@ const GoogleIcon = () => (
       <path fill="#4285F4" d="M21.35 11.1h-9.1v2.7h5.1c-.2 1.7-1.3 3.2-3.2 3.2-2.3 0-4.2-1.9-4.2-4.2s1.9-4.2 4.2-4.2c1.1 0 2 .4 2.7 1l2.1-2.1c-1.2-1.2-2.9-1.9-4.8-1.9-4.1 0-7.4 3.3-7.4 7.4s3.3 7.4 7.4 7.4c4.3 0 7.1-3 7.1-7.1 0-.6-.1-1.1-.2-1.6z"/>
     </svg>
 );
+
+const createProfileIfNotExists = async (user: User, firestore: any) => {
+    const userDocRef = doc(firestore, 'users', user.uid);
+    const userDoc = await getDoc(userDocRef);
+
+    if (!userDoc.exists()) {
+        const userProfile: UserProfile = {
+            name: user.displayName || 'Usuario Anónimo',
+            email: user.email || '',
+            avatarUrl: user.photoURL || generateAvatarUrl(user.uid),
+            role: '', // Role and phone will be empty, can be completed later
+            phone: '',
+        };
+        try {
+            await setDoc(userDocRef, userProfile);
+        } catch (serverError) {
+             const permissionError = new FirestorePermissionError({
+                path: `users/${user.uid}`,
+                operation: 'create',
+                requestResourceData: userProfile,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        }
+    }
+};
   
 function LoginForm() {
     const auth = useAuth();
+    const firestore = useFirestore();
     const { toast } = useToast();
     const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginValues>({
       resolver: zodResolver(loginSchema)
@@ -83,7 +111,9 @@ function LoginForm() {
     const handleGoogleSignIn = async () => {
         const provider = new GoogleAuthProvider();
         try {
-          await signInWithPopup(auth, provider);
+          const result = await signInWithPopup(auth, provider);
+          // After sign in, ensure profile exists
+          await createProfileIfNotExists(result.user, firestore);
           toast({ title: 'Éxito', description: 'Has iniciado sesión con Google.' });
         } catch (error: any) {
           toast({
@@ -119,7 +149,7 @@ function LoginForm() {
             </span>
             </div>
         </div>
-        <Button onClick={handleGoogleSignIn} variant="outline" className="w-full" disabled={isSubmitting}>
+        <Button type="button" onClick={handleGoogleSignIn} variant="outline" className="w-full" disabled={isSubmitting}>
            <GoogleIcon/> Iniciar sesión con Google
         </Button>
       </form>
@@ -167,7 +197,7 @@ function SignupForm() {
             photoURL: data.avatarUrl,
         });
 
-        const userProfile: Omit<UserProfile, 'id'> = {
+        const userProfile: UserProfile = {
           name: data.name,
           email: data.email,
           avatarUrl: data.avatarUrl,
@@ -258,15 +288,34 @@ function SignupForm() {
 
 function AuthPage() {
   const router = useRouter();
-  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
+  const firestore = useFirestore();
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!isUserLoading && user) {
-      router.push('/');
-    }
-  }, [user, isUserLoading, router]);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            // Check if profile exists, if not, it's a first-time login
+            const userDocRef = doc(firestore, 'users', user.uid);
+            const docSnap = await getDoc(userDocRef);
+            if (!docSnap.exists()) {
+                // If it's a first-time Google sign-in, the profile might have just been created
+                // in the popup handler. We give it a moment. Or handle it more robustly.
+                await createProfileIfNotExists(user, firestore);
+            }
+            setUser(user);
+            router.push('/');
+        } else {
+            setUser(null);
+        }
+        setIsLoading(false);
+    });
 
-  if (isUserLoading || user) {
+    return () => unsubscribe();
+  }, [auth, router, firestore]);
+
+  if (isLoading || user) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="flex items-center gap-2 text-muted-foreground">
