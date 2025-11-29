@@ -80,7 +80,8 @@ function Dashboard() {
   );
 }
 
-function AuthWrapper({ children }: { children: React.ReactNode }) {
+
+export default function Home() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
 
@@ -104,18 +105,9 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
 
   // If there's a user, render the protected content (the Dashboard).
   if (user) {
-    return <>{children}</>;
+    return <Dashboard />;
   }
 
   // If no user and not loading (which means the redirect is in progress), return null to prevent flicker.
   return null;
-}
-
-
-export default function Home() {
-  return (
-    <AuthWrapper>
-      <Dashboard />
-    </AuthWrapper>
-  );
 }
