@@ -26,7 +26,6 @@ interface TaskCardProps {
   task: Task;
   setActiveTaskForPomodoro: (task: Task | null) => void;
   onEdit: (task: Task) => void;
-  onComplete: (task: Task) => void;
 }
 
 const getPriorityColor = (p: Task['priority']) => {
@@ -54,7 +53,7 @@ const formatFocusTime = (minutes: number) => {
   return `${hours}h ${mins}m`;
 }
 
-export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit, onComplete }: TaskCardProps) {
+export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: TaskCardProps) {
   const { deleteTask, updateTask } = useTasks();
   const { user } = useUser();
   const firestore = useFirestore();
@@ -67,6 +66,10 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit, onCom
 
   const handleStatusChange = (newStatus: TaskStatus) => {
     updateTask(task.id, { status: newStatus });
+  }
+
+  const handleCompleteTask = () => {
+    updateTask(task.id, { status: 'completado', progress: 100 });
   }
 
   const totalFocusMinutes = React.useMemo(() => {
@@ -83,15 +86,15 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit, onCom
     >
       <CardContent className="p-4">
         <div className="flex justify-between items-start mb-2 gap-2">
-            <h4 className="font-bold text-foreground flex-1 min-w-0">
-                <span className="break-words">{task.title}</span>
+            <h4 className="font-bold text-foreground flex-1 break-words">
+                {task.title}
             </h4>
           <div className="flex gap-1 shrink-0">
              <Button
               variant="ghost"
               size="icon"
               className="h-7 w-7 text-muted-foreground hover:text-emerald-500"
-              onClick={() => onComplete(task)}
+              onClick={handleCompleteTask}
               title="Completar Tarea"
             >
               <CheckCircle2 size={16} />
