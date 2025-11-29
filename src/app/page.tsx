@@ -36,7 +36,7 @@ function Dashboard() {
                 G
               </div>
               <div className="group-data-[collapsible=icon]:hidden">
-                <span className="font-bold text-lg block">Gestor Pro</span>
+                <span className="font-bold text-lg block">Gestor D&G</span>
                 <span className="font-semibold text-sm block">Roberto DO IT</span>
               </div>
             </div>
