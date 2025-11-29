@@ -18,6 +18,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { isPast } from 'date-fns';
+import type { TeamMember } from '@/lib/types';
+import { useCollection, useUser, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 
 interface TaskCardProps {
   task: Task;
@@ -53,6 +56,14 @@ const formatFocusTime = (minutes: number) => {
 
 export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit, onComplete }: TaskCardProps) {
   const { deleteTask, updateTask } = useTasks();
+  const { user } = useUser();
+  const firestore = useFirestore();
+
+  const collectionPath = user ? `users/${user.uid}/teamMembers` : null;
+  const membersCollectionRef = useMemoFirebase(() => {
+    return collectionPath ? collection(firestore, collectionPath) : null;
+  }, [collectionPath, firestore]);
+  const { data: members } = useCollection<TeamMember>(membersCollectionRef);
 
   const handleStatusChange = (newStatus: TaskStatus) => {
     updateTask(task.id, { status: newStatus });
@@ -62,6 +73,9 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit, onCom
     return task.focusSessions?.reduce((total, session) => total + session.duration, 0) || 0;
   }, [task.focusSessions]);
 
+  const delegatedMember = members?.find(m => m.name === task.delegateTo);
+
+
   return (
     <Card
       className="group relative border-l-4"
@@ -69,7 +83,9 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit, onCom
     >
       <CardContent className="p-4">
         <div className="flex justify-between items-start mb-2 gap-2">
-          <h4 className="font-bold text-foreground break-words flex-1 min-w-0">{task.title}</h4>
+            <h4 className="font-bold text-foreground flex-1 min-w-0">
+                <span className="break-words min-w-0">{task.title}</span>
+            </h4>
           <div className="flex gap-1 shrink-0">
              <Button
               variant="ghost"
