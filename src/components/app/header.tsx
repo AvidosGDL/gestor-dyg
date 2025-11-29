@@ -24,6 +24,8 @@ export default function AppHeader({
   const [showNewMemberModal, setShowNewMemberModal] = React.useState(false);
   const { user } = useUser();
 
+  const showAddButton = view === 'board' || view === 'planning';
+
   return (
     <>
       <header className="h-16 bg-card border-b flex items-center justify-between px-4 md:px-8 flex-shrink-0">
@@ -48,7 +50,7 @@ export default function AppHeader({
               <UserPlus size={18} />
               <span className="hidden sm:inline">Nuevo Miembro</span>
             </Button>
-          ) : (
+          ) : showAddButton ? (
             <Button
               onClick={() => setShowNewTaskModal(true)}
               className="shadow-sm transition-transform active:scale-95"
@@ -56,7 +58,7 @@ export default function AppHeader({
               <Plus size={18} />
               <span className="hidden sm:inline">Nueva Tarea</span>
             </Button>
-          )}
+          ) : null}
           <UserNav />
         </div>
       </header>
@@ -64,7 +66,6 @@ export default function AppHeader({
       {user && <NewMemberDialog
         open={showNewMemberModal}
         onOpenChange={setShowNewMemberModal}
-        user={user}
       />}
     </>
   );
@@ -74,4 +75,5 @@ const viewTitles: Record<View, string> = {
   board: 'Tablero de Tareas',
   planning: 'Centro de Comando',
   team: 'Gestión de Equipo',
+  import: 'Importar Tareas',
 };

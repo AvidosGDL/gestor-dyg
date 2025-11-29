@@ -11,9 +11,10 @@ import SidebarNav from '@/components/app/sidebar-nav';
 import AppHeader from '@/components/app/header';
 import type { Task } from '@/lib/types';
 import TeamView from '@/components/app/team-view';
+import ImportView from '@/components/app/import-view';
 import { ThemeToggle } from '@/components/theme-toggle';
 
-export type View = 'board' | 'planning' | 'team';
+export type View = 'board' | 'planning' | 'team' | 'import';
 
 function Dashboard() {
   const [view, setView] = useState<View>('board');
@@ -73,6 +74,7 @@ function Dashboard() {
               />
             )}
             {view === 'team' && <TeamView />}
+            {view === 'import' && <ImportView />}
           </main>
         </SidebarInset>
       </SidebarProvider>
