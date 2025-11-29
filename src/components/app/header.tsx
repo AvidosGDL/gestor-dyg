@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Plus, Timer, UserPlus } from 'lucide-react';
+import { Plus, UserPlus, Timer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import NewTaskDialog from './new-task-dialog';
 import NewMemberDialog from './new-member-dialog';
@@ -9,6 +9,7 @@ import type { View } from '@/app/page';
 import type { Task } from '@/lib/types';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useUser } from '@/firebase';
+import { UserNav } from '@/components/app/user-nav';
 
 interface AppHeaderProps {
   view: View;
@@ -38,24 +39,26 @@ export default function AppHeader({
             </div>
           )}
         </div>
-
-        {view === 'team' ? (
-          <Button
-            onClick={() => setShowNewMemberModal(true)}
-            className="shadow-sm transition-transform active:scale-95"
-          >
-            <UserPlus size={18} />
-            <span className="hidden sm:inline">Nuevo Miembro</span>
-          </Button>
-        ) : (
-          <Button
-            onClick={() => setShowNewTaskModal(true)}
-            className="shadow-sm transition-transform active:scale-95"
-          >
-            <Plus size={18} />
-            <span className="hidden sm:inline">Nueva Tarea</span>
-          </Button>
-        )}
+        <div className="flex items-center gap-4">
+          {view === 'team' ? (
+            <Button
+              onClick={() => setShowNewMemberModal(true)}
+              className="shadow-sm transition-transform active:scale-95"
+            >
+              <UserPlus size={18} />
+              <span className="hidden sm:inline">Nuevo Miembro</span>
+            </Button>
+          ) : (
+            <Button
+              onClick={() => setShowNewTaskModal(true)}
+              className="shadow-sm transition-transform active:scale-95"
+            >
+              <Plus size={18} />
+              <span className="hidden sm:inline">Nueva Tarea</span>
+            </Button>
+          )}
+          <UserNav />
+        </div>
       </header>
       <NewTaskDialog open={showNewTaskModal} onOpenChange={setShowNewTaskModal} />
       {user && <NewMemberDialog
