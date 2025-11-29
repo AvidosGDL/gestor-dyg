@@ -10,7 +10,6 @@ import PlanningView from '@/components/app/planning-view';
 import SidebarNav from '@/components/app/sidebar-nav';
 import AppHeader from '@/components/app/header';
 import type { Task } from '@/lib/types';
-import { FirebaseClientProvider } from '@/firebase/client-provider';
 import TeamView from '@/components/app/team-view';
 import { ThemeToggle } from '@/components/theme-toggle';
 
@@ -82,16 +81,16 @@ function Dashboard() {
 }
 
 function AuthWrapper({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useUser();
+  const { user, isUserLoading } = useUser();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!isUserLoading && !user) {
       router.push('/login');
     }
-  }, [user, loading, router]);
+  }, [user, isUserLoading, router]);
 
-  if (loading || !user) {
+  if (isUserLoading || !user) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="space-y-4 w-full max-w-sm">
@@ -107,10 +106,8 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
 
 export default function Home() {
   return (
-    <FirebaseClientProvider>
-      <AuthWrapper>
-        <Dashboard />
-      </AuthWrapper>
-    </FirebaseClientProvider>
+    <AuthWrapper>
+      <Dashboard />
+    </AuthWrapper>
   );
 }

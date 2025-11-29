@@ -4,7 +4,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
-import { FirebaseProvider } from '@/firebase/provider';
+import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { FirebaseErrorListener } from '@/components/firebase-error-listener';
 import { ThemeProvider } from '@/components/theme-provider';
 
@@ -32,10 +32,10 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <FirebaseProvider>
+          <FirebaseClientProvider>
             {children}
             <FirebaseErrorListener />
-          </FirebaseProvider>
+          </FirebaseClientProvider>
           <Toaster />
         </ThemeProvider>
       </body>

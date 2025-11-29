@@ -14,7 +14,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { FirebaseClientProvider } from '@/firebase/client-provider';
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -22,16 +21,16 @@ function Login() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const auth = useAuth();
-  const { user, loading } = useUser();
+  const { user, isUserLoading } = useUser();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (!loading && user) {
+    if (!isUserLoading && user) {
       router.push('/');
     }
-  }, [user, loading, router]);
+  }, [user, isUserLoading, router]);
   
-  if (loading || user) {
+  if (isUserLoading || user) {
     return <div className="flex items-center justify-center min-h-screen bg-background">Cargando...</div>;
   }
 
@@ -45,7 +44,7 @@ function Login() {
         await createUserWithEmailAndPassword(auth, email, password);
       }
       toast({ title: 'Éxito', description: `Has ${action === 'signIn' ? 'iniciado sesión' : 'creado una cuenta'}.` });
-      router.push('/');
+      // The useEffect will handle the redirection
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -58,12 +57,12 @@ function Login() {
   };
 
   const handleGoogleSignIn = async () => {
-    const provider = new GoogleAuthProvider();
+    const provider = new newGoogleAuthProvider();
     setIsSubmitting(true);
     try {
       await signInWithPopup(auth, provider);
       toast({ title: 'Éxito', description: 'Has iniciado sesión con Google.' });
-      router.push('/');
+      // The useEffect will handle the redirection
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -136,8 +135,6 @@ function Login() {
 
 export default function LoginPage() {
     return (
-        <FirebaseClientProvider>
-            <Login />
-        </FirebaseClientProvider>
+      <Login />
     )
 }
