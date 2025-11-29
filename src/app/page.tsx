@@ -89,7 +89,7 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
       router.push('/login');
     }
   }, [user, isUserLoading, router]);
-  
+
   if (isUserLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
@@ -103,14 +103,8 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
   if (user) {
     return <>{children}</>;
   }
-  
-  return (
-    <div className="flex items-center justify-center min-h-screen bg-background">
-      <div className="space-y-4 w-full max-w-sm">
-         <p className="text-center text-muted-foreground">Cargando...</p>
-      </div>
-    </div>
-  );
+
+  return null;
 }
 
 
