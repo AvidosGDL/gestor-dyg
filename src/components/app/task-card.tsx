@@ -66,13 +66,13 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
       style={{ borderLeftColor: getPriorityColor(task.priority) }}
     >
       <CardContent className="p-4">
-        <div className="flex justify-between items-start mb-2">
-          <h4 className="font-bold text-foreground break-words pr-2">{task.title}</h4>
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+        <div className="flex justify-between items-start mb-2 gap-2">
+          <h4 className="font-bold text-foreground break-words flex-1">{task.title}</h4>
+          <div className="flex gap-1">
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-primary"
+              className="h-7 w-7 text-muted-foreground hover:text-primary shrink-0"
               onClick={() => onEdit(task)}
               title="Editar tarea"
             >
@@ -81,7 +81,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-primary"
+              className="h-7 w-7 text-muted-foreground hover:text-primary shrink-0"
               onClick={() => setActiveTaskForPomodoro(task)}
               title="Enfocar en esto"
             >
@@ -90,7 +90,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+              className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
               onClick={() => deleteTask(task.id)}
             >
               <Trash2 size={16} />
