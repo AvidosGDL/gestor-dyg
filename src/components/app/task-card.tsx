@@ -124,7 +124,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
           </Button>
         </div>
 
-        <h4 className="font-bold text-foreground min-w-0 break-words pr-24 mb-2">
+        <h4 className="font-bold text-foreground break-words pr-24 pt-8 mb-2">
           {task.title}
         </h4>
         
