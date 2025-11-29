@@ -25,7 +25,7 @@ function Login() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // If user is logged in, redirect to home.
+    // If user is already logged in, redirect to home.
     if (!isUserLoading && user) {
       router.push('/');
     }
@@ -41,7 +41,7 @@ function Login() {
         await createUserWithEmailAndPassword(auth, email, password);
       }
       toast({ title: 'Éxito', description: `Has ${action === 'signIn' ? 'iniciado sesión' : 'creado una cuenta'}.` });
-      // The useEffect will handle the redirection
+      // The useEffect will handle the redirection after auth state changes
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -59,7 +59,7 @@ function Login() {
     try {
       await signInWithPopup(auth, provider);
       toast({ title: 'Éxito', description: 'Has iniciado sesión con Google.' });
-      // The useEffect will handle the redirection
+      // The useEffect will handle the redirection after auth state changes
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -71,12 +71,12 @@ function Login() {
     }
   };
 
-  // While checking auth state, or if user is logged in, show loading.
+  // While checking auth state, or if a user is found (and redirecting), show a loading state.
   if (isUserLoading || user) {
     return <div className="flex items-center justify-center min-h-screen bg-background">Cargando...</div>;
   }
   
-  // Only show login form if not loading and no user is found
+  // Only show the login form if not loading and no user is found.
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <Card className="w-full max-w-md">

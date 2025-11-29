@@ -85,7 +85,7 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    // If auth is not loading and there's no user, redirect to login.
+    // Wait until the loading is finished before checking for a user.
     if (!isUserLoading && !user) {
       router.push('/login');
     }
@@ -102,12 +102,12 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // If there's a user, render the protected content.
+  // If there's a user, render the protected content (the Dashboard).
   if (user) {
     return <>{children}</>;
   }
 
-  // If no user and not loading (which means the redirect is in progress), return null.
+  // If no user and not loading (which means the redirect is in progress), return null to prevent flicker.
   return null;
 }
 
