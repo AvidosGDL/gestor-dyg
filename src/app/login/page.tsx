@@ -329,7 +329,7 @@ function AuthPage() {
     <div className="flex items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle>TaskMaster Pro</CardTitle>
+          <CardTitle>Gestor D&G</CardTitle>
           <CardDescription>Accede a tu panel o crea una cuenta nueva.</CardDescription>
         </CardHeader>
         <CardContent>
