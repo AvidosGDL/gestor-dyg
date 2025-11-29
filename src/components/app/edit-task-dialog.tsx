@@ -65,10 +65,13 @@ const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
 const formatDuration = (milliseconds: number) => {
+    if (isNaN(milliseconds) || milliseconds < 0) {
+      return '0s';
+    }
     const totalSeconds = Math.floor(milliseconds / 1000);
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -99,12 +102,15 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
   const [elapsedTime, setElapsedTime] = useState(0);
 
   const totalTime = useMemo(() => {
-      if (!task.focusSessions) return 0;
-      return task.focusSessions.reduce((acc, session) => {
-          const start = new Date(session.startTime).getTime();
-          const end = new Date(session.endTime).getTime();
-          return acc + (end - start);
-      }, 0);
+    if (!task.focusSessions) return 0;
+    return task.focusSessions.reduce((acc, session) => {
+        const start = new Date(session.startTime).getTime();
+        const end = new Date(session.endTime).getTime();
+        if (isNaN(start) || isNaN(end)) {
+            return acc;
+        }
+        return acc + (end - start);
+    }, 0);
   }, [task.focusSessions]);
 
   useEffect(() => {
@@ -121,14 +127,17 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
     if (isTracking) {
       // Detener
       const endTime = new Date();
+      if (!sessionStart) return; // Should not happen
+      
       const newSession: FocusSession = {
-        startTime: sessionStart!.toISOString(),
+        startTime: sessionStart.toISOString(),
         endTime: endTime.toISOString(),
       };
+      
       const updatedSessions = [...(task.focusSessions || []), newSession];
       updateTask(task.id, { focusSessions: updatedSessions });
       
-      const durationMs = endTime.getTime() - sessionStart!.getTime();
+      const durationMs = endTime.getTime() - sessionStart.getTime();
 
       toast({
         title: "Sesión guardada",
@@ -464,3 +473,5 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
     </Dialog>
   );
 }
+
+    
