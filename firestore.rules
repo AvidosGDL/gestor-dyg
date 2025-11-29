@@ -1,21 +1,16 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Public access for tasks while login is disabled
+    match /tasks/{taskId} {
+      allow read, write: if true;
+    }
+
     // Match any document in the 'users' collection
     match /users/{userId} {
       // Only the authenticated user can access their own user document
       allow read, write: if request.auth != null && request.auth.uid == userId;
-
-      /**
-       * @description Owner-only access for tasks. Users can manage their own tasks.
-       * @path        /users/{userId}/tasks/{taskId}
-       * @allow       Authenticated user managing their own task: `(get) /users/some_user_id/tasks/some_task_id`.
-       * @deny        Authenticated user accessing another user's task: `(get) /users/another_user_id/tasks/some_task_id`.
-       * @principle   Enforces data privacy by restricting access to the data owner.
-       */
-      match /tasks/{taskId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-      }
 
       /**
        * @description Owner-only access for team members. Users can manage their own team.

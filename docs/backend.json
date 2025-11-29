@@ -54,12 +54,53 @@
         "status",
         "priority"
       ]
+    },
+    "TeamMember": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "TeamMember",
+      "type": "object",
+      "description": "Represents a team member in the system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the team member."
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name of the team member."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Email address of the team member."
+        },
+        "role": {
+          "type": "string",
+          "description": "Role or position of the team member."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Phone number of the team member."
+        },
+        "avatarUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the team member's avatar."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "email",
+        "role"
+      ]
     }
   },
   "auth": {
     "providers": [
       "password",
-      "anonymous"
+      "anonymous",
+      "google.com"
     ]
   },
   "firestore": {
@@ -71,7 +112,7 @@
           "schema": {
             "$ref": "#/backend/entities/Task"
           },
-          "description": "Stores task data. No authorization fields are denormalized, since all data is public in the current version.",
+          "description": "Stores task data. This is a public collection for now.",
           "params": [
             {
               "name": "taskId",
@@ -79,8 +120,27 @@
             }
           ]
         }
+      },
+      {
+        "path": "/users/{userId}/teamMembers/{memberId}",
+        "definition": {
+          "entityName": "TeamMember",
+          "schema": {
+            "$ref": "#/backend/entities/TeamMember"
+          },
+          "description": "Stores team member data for a specific user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The ID of the user who owns this team."
+            },
+            {
+              "name": "memberId",
+              "description": "Unique identifier for the team member."
+            }
+          ]
+        }
       }
-    ],
-    "reasoning": "The Firestore structure is designed to manage tasks and activities. It utilizes a simple collection-based approach for storing task data.  Authorization is based on user ID, although in this design all the data is public, so it is not enforced.  The structure prioritizes simplicity and scalability for a single-user task management system.\n\n**Authorization Independence**:  Currently, authorization independence is not enforced, as the data model does not yet include user-specific ownership.  Future versions would store tasks under `/users/{userId}/tasks/{taskId}` to guarantee private data, and rules will use `request.auth.uid == userId` to give complete ownership of each users' tasks. If this were collaborative, the members map strategy would be used, with membership denormalized to all subcollections to avoid using the expensive `get()` function.\n\n**QAPs**: The structure supports listing all tasks, or limiting tasks by owner (if implemented)."
+    ]
   }
 }

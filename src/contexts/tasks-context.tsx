@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import React, { createContext, useContext } from 'react';
 import type { Task } from '@/lib/types';
-import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   collection,
   addDoc,
@@ -28,9 +28,8 @@ const TasksContext = createContext<TasksContextType | undefined>(undefined);
 
 export function TasksProvider({ children }: { children: ReactNode }) {
   const firestore = useFirestore();
-  const { user } = useUser();
 
-  const collectionPath = user ? `users/${user.uid}/tasks` : null;
+  const collectionPath = 'tasks';
 
   const tasksCollectionRef = useMemoFirebase(() => {
     return collectionPath ? collection(firestore, collectionPath) : null;
