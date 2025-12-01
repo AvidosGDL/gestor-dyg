@@ -15,10 +15,11 @@ import TeamView from '@/components/app/team-view';
 import ImportView from '@/components/app/import-view';
 import { ThemeToggle } from '@/components/theme-toggle';
 import ProspectsView from '@/components/app/prospects-view';
+import AnalyticsView from '@/components/app/analytics-view';
 import { doc, getDoc } from 'firebase/firestore';
 
 
-export type View = 'board' | 'planning' | 'team' | 'import' | 'prospects';
+export type View = 'board' | 'planning' | 'team' | 'import' | 'prospects' | 'analytics';
 
 function Dashboard() {
   const [view, setView] = useState<View>('board');
@@ -85,6 +86,7 @@ function Dashboard() {
               {view === 'team' && <TeamView />}
               {view === 'import' && <ImportView />}
               {view === 'prospects' && <ProspectsView />}
+              {view === 'analytics' && <AnalyticsView taskFilter={taskFilter} />}
             </main>
           </SidebarInset>
         </SidebarProvider>

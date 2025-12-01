@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Layout, Calendar, Users, FileUp, Handshake } from 'lucide-react';
+import { Layout, Calendar, Users, FileUp, Handshake, LineChart } from 'lucide-react';
 import type { View } from '@/app/page';
 import { cn } from '@/lib/utils';
 import {
@@ -20,6 +20,7 @@ export default function SidebarNav({ view, setView }: SidebarNavProps) {
     { id: 'board', label: 'Tablero Visual', icon: Layout },
     { id: 'planning', label: 'Planeación Diaria', icon: Calendar },
     { id: 'prospects', label: 'Prospectos', icon: Handshake },
+    { id: 'analytics', label: 'Análisis', icon: LineChart },
     { id: 'team', label: 'Equipo', icon: Users },
     { id: 'import', label: 'Importar Tareas', icon: FileUp },
   ];
