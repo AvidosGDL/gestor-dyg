@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { SidebarProvider, Sidebar, SidebarInset } from '@/components/ui/sidebar';
@@ -39,9 +40,13 @@ function Dashboard() {
           >
             <div className="flex h-full flex-col">
               <div className="p-4 lg:p-6 flex items-center gap-3 text-white">
-                <div className="w-8 h-8 bg-gradient-to-tr from-primary to-accent rounded-lg flex items-center justify-center font-bold">
-                  G
-                </div>
+                <Image
+                  src="https://firebasestorage.googleapis.com/v0/b/studio-8033020115-912ac.firebasestorage.app/o/public%2Flogo%20DyG.jpeg?alt=media&token=578d1bd8-b8a4-47b6-a97f-e7731dc39bf1"
+                  alt="Gestor D&G Logo"
+                  width={32}
+                  height={32}
+                  className="w-8 h-8 rounded-lg"
+                />
                 <div className="group-data-[collapsible=icon]:hidden">
                   <span className="font-bold text-lg block">Gestor D&G</span>
                   <span className="font-semibold text-sm block">Roberto DO IT</span>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -329,6 +330,13 @@ function AuthPage() {
     <div className="flex items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
+            <Image 
+                src="https://firebasestorage.googleapis.com/v0/b/studio-8033020115-912ac.firebasestorage.app/o/public%2Flogo%20DyG.jpeg?alt=media&token=578d1bd8-b8a4-47b6-a97f-e7731dc39bf1" 
+                alt="Gestor D&G Logo"
+                width={80}
+                height={80}
+                className="mx-auto mb-4 rounded-lg"
+            />
           <CardTitle>Gestor D&G</CardTitle>
           <CardDescription>Accede a tu panel o crea una cuenta nueva.</CardDescription>
         </CardHeader>
