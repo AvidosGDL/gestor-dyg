@@ -85,11 +85,15 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
   const onSubmit = (data: TaskFormValues) => {
     if (!user) return;
 
-    const delegatedByName = data.delegateToId ? user.displayName : null;
-    const delegationStatus = data.delegateToId ? 'pending' : null;
+    const finalData = { ...data };
+    const delegateToId = finalData.delegateToId === 'null' ? null : finalData.delegateToId;
+
+    const delegatedByName = delegateToId ? user.displayName : null;
+    const delegationStatus = delegateToId ? 'pending' : null;
 
     addTask({
-      ...data,
+      ...finalData,
+      delegateToId,
       ownerId: user.uid,
       delegatedByName,
       delegationStatus,
@@ -245,7 +249,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                         </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                            <SelectItem value="">Nadie / Tarea personal</SelectItem>
+                            <SelectItem value="null">Nadie / Tarea personal</SelectItem>
                             {members?.map(member => (
                               <SelectItem key={member.id} value={member.id}>
                                 {member.name}
