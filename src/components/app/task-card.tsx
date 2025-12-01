@@ -226,9 +226,10 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
             >
               <Calendar size={12} />
               <span>
-                {new Date(task.dueDate).toLocaleDateString('es-MX', {
-                  day: 'numeric',
-                  month: 'short',
+                {new Date(task.dueDate).toLocaleDateString('es-ES', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric'
                 })}
               </span>
             </div>

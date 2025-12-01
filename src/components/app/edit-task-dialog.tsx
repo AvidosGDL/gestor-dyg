@@ -397,7 +397,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                             <div key={index} className="flex justify-between items-center text-xs p-2 bg-muted/50 rounded-md">
                                 <div>
                                 <p className="font-medium text-foreground">
-                                    {start.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    {start.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                                 </p>
                                 <p className="text-muted-foreground">
                                     {start.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}

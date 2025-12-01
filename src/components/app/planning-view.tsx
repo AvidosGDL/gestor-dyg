@@ -180,7 +180,7 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
                       <div className={`w-2 h-2 rounded-full ${task.priority === 'high' ? 'bg-destructive' : task.priority === 'medium' ? 'bg-yellow-500' : 'bg-primary'}`}></div>
                       <div>
                         <p className="font-medium text-foreground">{task.title}</p>
-                        <p className="text-xs text-muted-foreground">${task.value.toLocaleString()} • {task.client} • {task.dueDate ? new Date(task.dueDate).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : 'Sin fecha'}</p>
+                        <p className="text-xs text-muted-foreground">${task.value.toLocaleString()} • {task.client} • {task.dueDate ? new Date(task.dueDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric'}) : 'Sin fecha'}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">

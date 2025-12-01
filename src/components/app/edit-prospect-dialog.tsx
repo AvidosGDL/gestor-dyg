@@ -153,7 +153,7 @@ export default function EditProspectDialog({
                   <div key={field.id} className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg text-sm">
                     <div className="flex-1">
                       <p className="font-semibold text-xs text-muted-foreground">
-                        {format(new Date(field.date), "d 'de' MMMM, yyyy 'a las' HH:mm", { locale: es })}
+                        {format(new Date(field.date), "dd/MM/yyyy 'a las' HH:mm", { locale: es })}
                       </p>
                       <p className="text-foreground mt-1">{field.notes}</p>
                     </div>

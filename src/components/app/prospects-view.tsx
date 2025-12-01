@@ -17,7 +17,7 @@ function ProspectCard({ prospect, onEdit }: { prospect: Prospect, onEdit: (prosp
   const { deleteProspect } = useProspects();
 
   const nextContactDateFormatted = prospect.nextContactDate 
-    ? format(new Date(prospect.nextContactDate), "d 'de' MMMM", { locale: es })
+    ? new Date(prospect.nextContactDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric'})
     : null;
   
   const isDatePast = prospect.nextContactDate ? isPast(new Date(prospect.nextContactDate)) && !new Date(prospect.nextContactDate).toDateString().includes(new Date().toDateString()) : false;
