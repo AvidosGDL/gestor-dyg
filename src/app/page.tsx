@@ -25,6 +25,7 @@ function Dashboard() {
   const [activeTaskForPomodoro, setActiveTaskForPomodoro] = useState<Task | null>(
     null
   );
+  const [taskFilter, setTaskFilter] = useState<string>('me');
 
   return (
     <TasksProvider>
@@ -66,16 +67,19 @@ function Dashboard() {
             <AppHeader
               view={view}
               activeTaskForPomodoro={activeTaskForPomodoro}
+              taskFilter={taskFilter}
+              setTaskFilter={setTaskFilter}
             />
 
             <main className="flex-1 overflow-hidden p-4 md:p-6 bg-background">
               {view === 'board' && (
-                <BoardView setActiveTaskForPomodoro={setActiveTaskForPomodoro} />
+                <BoardView setActiveTaskForPomodoro={setActiveTaskForPomodoro} taskFilter={taskFilter} />
               )}
               {view === 'planning' && (
                 <PlanningView
                   activeTaskForPomodoro={activeTaskForPomodoro}
                   setActiveTaskForPomodoro={setActiveTaskForPomodoro}
+                  taskFilter={taskFilter}
                 />
               )}
               {view === 'team' && <TeamView />}

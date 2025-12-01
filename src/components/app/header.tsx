@@ -1,32 +1,46 @@
 'use client';
 
 import React from 'react';
-import { Plus, UserPlus, Timer, Handshake } from 'lucide-react';
+import { Plus, UserPlus, Timer, Handshake, Filter, User, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import NewTaskDialog from './new-task-dialog';
 import NewMemberDialog from './new-member-dialog';
 import NewProspectDialog from './new-prospect-dialog';
 import type { View } from '@/app/page';
-import type { Task } from '@/lib/types';
+import type { Task, TeamMember } from '@/lib/types';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { UserNav } from '@/components/app/user-nav';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import { collection } from 'firebase/firestore';
 
 interface AppHeaderProps {
   view: View;
   activeTaskForPomodoro: Task | null;
+  taskFilter: string;
+  setTaskFilter: (filter: string) => void;
 }
 
 export default function AppHeader({
   view,
   activeTaskForPomodoro,
+  taskFilter,
+  setTaskFilter,
 }: AppHeaderProps) {
   const [showNewTaskModal, setShowNewTaskModal] = React.useState(false);
   const [showNewMemberModal, setShowNewMemberModal] = React.useState(false);
   const [showNewProspectModal, setShowNewProspectModal] = React.useState(false);
   const { user } = useUser();
+  const firestore = useFirestore();
+
+  const collectionPath = user ? `users/${user.uid}/teamMembers` : null;
+  const membersCollectionRef = useMemoFirebase(() => {
+    return collectionPath ? collection(firestore, collectionPath) : null;
+  }, [collectionPath, firestore]);
+  const { data: members } = useCollection<TeamMember>(membersCollectionRef);
 
   const showAddButton = view === 'board' || view === 'planning';
+  const showFilterButton = view === 'board' || view === 'planning';
 
   const renderAddButton = () => {
     if (view === 'team') {
@@ -64,6 +78,13 @@ export default function AppHeader({
     }
     return null;
   }
+  
+  const getFilterLabel = () => {
+    if (taskFilter === 'me') return 'Mis Tareas';
+    if (taskFilter === 'all') return 'Todas las Tareas';
+    const member = members?.find(m => m.id === taskFilter);
+    return member?.name || 'Filtrar';
+  };
 
   return (
     <>
@@ -81,6 +102,32 @@ export default function AppHeader({
           )}
         </div>
         <div className="flex items-center gap-4">
+          {showFilterButton && (
+             <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="shadow-sm">
+                  <Filter size={16} className="sm:mr-2" />
+                  <span className="hidden sm:inline">{getFilterLabel()}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuRadioGroup value={taskFilter} onValueChange={setTaskFilter}>
+                  <DropdownMenuRadioItem value="me">
+                    <User className="mr-2 h-4 w-4" /> Mis Tareas
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="all">
+                    <Users className="mr-2 h-4 w-4" /> Todas las Tareas
+                  </DropdownMenuRadioItem>
+                  {members && members.length > 0 && <DropdownMenuSeparator />}
+                  {members?.map(member => (
+                    <DropdownMenuRadioItem key={member.id} value={member.id}>
+                      <User className="mr-2 h-4 w-4" /> {member.name}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           {renderAddButton()}
           <UserNav />
         </div>

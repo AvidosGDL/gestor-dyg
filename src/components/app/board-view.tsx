@@ -15,6 +15,7 @@ import { toast } from '@/hooks/use-toast';
 
 interface BoardViewProps {
   setActiveTaskForPomodoro: (task: Task | null) => void;
+  taskFilter: string;
 }
 
 const columns: { id: TaskStatus; label: string; color: string }[] = [
@@ -75,7 +76,7 @@ const TaskColumn = ({
   );
 };
 
-export default function BoardView({ setActiveTaskForPomodoro }: BoardViewProps) {
+export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: BoardViewProps) {
   const { tasks, updateTask } = useTasks();
   const { user } = useUser();
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
@@ -99,10 +100,17 @@ export default function BoardView({ setActiveTaskForPomodoro }: BoardViewProps) 
     })
   };
 
-  const myTasks = useMemo(() => {
+  const filteredTasks = useMemo(() => {
     if (!user) return [];
-    return tasks.filter(t => (t.ownerId === user.uid && t.delegationStatus !== 'rejected') || (t.delegateToId === user.uid && t.delegationStatus === 'accepted'))
-  }, [tasks, user]);
+    if (taskFilter === 'me') {
+      return tasks.filter(t => (t.ownerId === user.uid && t.delegationStatus !== 'rejected') || (t.delegateToId === user.uid && t.delegationStatus === 'accepted'))
+    }
+    if (taskFilter === 'all') {
+      return tasks;
+    }
+    // Filter by member ID
+    return tasks.filter(t => t.delegateToId === taskFilter && t.delegationStatus === 'accepted');
+  }, [tasks, user, taskFilter]);
 
   const delegatedToMe = useMemo(() => {
     if(!user) return [];
@@ -164,7 +172,7 @@ export default function BoardView({ setActiveTaskForPomodoro }: BoardViewProps) 
                 status={col.id}
                 label={col.label}
                 color={col.color}
-                tasks={myTasks}
+                tasks={filteredTasks}
                 setActiveTaskForPomodoro={setActiveTaskForPomodoro}
                 onEditTask={handleEditTask}
               />

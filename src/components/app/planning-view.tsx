@@ -17,16 +17,16 @@ import { prioritizeTasks } from '@/ai/flows/prioritize-tasks';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import EditTaskDialog from './edit-task-dialog';
+import { useUser } from '@/firebase';
 
 
 interface PlanningViewProps {
   activeTaskForPomodoro: Task | null;
   setActiveTaskForPomodoro: (task: Task | null) => void;
+  taskFilter: string;
 }
 
-const PipelineSummary = () => {
-  const { tasks } = useTasks();
-
+const PipelineSummary = ({ tasks }: { tasks: Task[] }) => {
   const completedTasks = useMemo(() =>
     tasks.filter((t) => t.status === 'completado').length
   , [tasks]);
@@ -70,8 +70,9 @@ const PipelineSummary = () => {
 };
 
 
-export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPomodoro }: PlanningViewProps) {
+export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPomodoro, taskFilter }: PlanningViewProps) {
   const { tasks, setTasks, updateTask } = useTasks();
+  const { user } = useUser();
   const [isPrioritizing, setIsPrioritizing] = useState(false);
   const { toast } = useToast();
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
@@ -87,8 +88,20 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
     setTaskToEdit(null);
   };
 
+  const filteredTasks = useMemo(() => {
+    if (!user) return [];
+    let tasksToFilter = tasks;
+    if (taskFilter === 'me') {
+      tasksToFilter = tasks.filter(t => (t.ownerId === user.uid && t.delegationStatus !== 'rejected') || (t.delegateToId === user.uid && t.delegationStatus === 'accepted'));
+    } else if (taskFilter !== 'all') {
+      tasksToFilter = tasks.filter(t => t.delegateToId === taskFilter && t.delegationStatus === 'accepted');
+    }
+    
+    return tasksToFilter;
+  }, [tasks, user, taskFilter]);
+
   const sortedTasks = useMemo(() => {
-    return [...tasks]
+    return [...filteredTasks]
       .filter((t) => t.status !== 'completado')
       .sort((a, b) => {
         // Sort by value (potential) descending
@@ -104,16 +117,21 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
         if (!b.dueDate) return -1;
         return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
       });
-  }, [tasks]);
+  }, [filteredTasks]);
 
   const today = new Date().toISOString().split('T')[0];
 
   const handlePrioritize = async () => {
     setIsPrioritizing(true);
     try {
-      const tasksToPrioritize = tasks.map(t => ({...t}));
+      const tasksToPrioritize = filteredTasks.map(t => ({...t}));
       const prioritized = await prioritizeTasks(tasksToPrioritize);
-      setTasks(prioritized);
+      
+      const prioritizedIds = new Set(prioritized.map(p => p.id));
+      const otherTasks = tasks.filter(t => !prioritizedIds.has(t.id));
+      
+      setTasks([...prioritized, ...otherTasks]);
+
       toast({
         title: "Tareas priorizadas con IA",
         description: "El orden de tus tareas ha sido optimizado.",
@@ -200,7 +218,7 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
         <div className="h-[350px]">
           <PomodoroTimer activeTask={activeTaskForPomodoro} />
         </div>
-        <PipelineSummary />
+        <PipelineSummary tasks={filteredTasks} />
       </div>
     </div>
      {taskToEdit && (
