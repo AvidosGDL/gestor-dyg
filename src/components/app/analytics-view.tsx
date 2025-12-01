@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval, isWithinInterval, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { TrendingUp, CheckCircle2, Clock } from 'lucide-react';
-import { ChartTooltipContent } from '@/components/ui/chart';
+import { ChartContainer, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 
 type Period = 'day' | 'week' | 'month';
 
@@ -29,6 +29,20 @@ const formatDuration = (milliseconds: number) => {
   }
   return `${minutes}m`;
 };
+
+const barChartConfig = {
+  tareasCompletadas: {
+    label: 'Tareas Completadas',
+    color: 'hsl(var(--primary))',
+  },
+} satisfies ChartConfig;
+
+const lineChartConfig = {
+  tiempoEnfoque: {
+    label: 'Tiempo de Enfoque (min)',
+    color: 'hsl(var(--accent))',
+  },
+} satisfies ChartConfig;
 
 
 export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
@@ -160,7 +174,7 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
             <CardDescription>Cantidad de tareas marcadas como completadas.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ChartContainer config={barChartConfig} className="h-[300px] w-full">
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
@@ -169,9 +183,9 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
                   content={<ChartTooltipContent />}
                   cursor={{ fill: 'hsl(var(--muted))' }}
                 />
-                <Bar dataKey="tareasCompletadas" name="Tareas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="tareasCompletadas" name="Tareas" fill="var(--color-tareasCompletadas)" radius={[4, 4, 0, 0]} />
               </BarChart>
-            </ResponsiveContainer>
+            </ChartContainer>
           </CardContent>
         </Card>
         <Card>
@@ -180,7 +194,7 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
             <CardDescription>Minutos dedicados a las tareas completadas.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ChartContainer config={lineChartConfig} className="h-[300px] w-full">
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
@@ -189,9 +203,9 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
                   content={<ChartTooltipContent formatter={(value) => `${value} min`} />}
                   cursor={{ stroke: 'hsl(var(--primary))', strokeWidth: 2, strokeDasharray: '3 3' }}
                 />
-                <Line type="monotone" dataKey="tiempoEnfoque" name="Minutos de Enfoque" stroke="hsl(var(--accent))" strokeWidth={2} dot={{ r: 4, fill: 'hsl(var(--accent))' }} activeDot={{ r: 6 }}/>
+                <Line type="monotone" dataKey="tiempoEnfoque" name="Minutos de Enfoque" stroke="var(--color-tiempoEnfoque)" strokeWidth={2} dot={{ r: 4, fill: 'var(--color-tiempoEnfoque)' }} activeDot={{ r: 6 }}/>
               </LineChart>
-            </ResponsiveContainer>
+            </ChartContainer>
           </CardContent>
         </Card>
       </div>
