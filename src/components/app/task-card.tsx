@@ -12,17 +12,20 @@ import {
   Clock,
   CheckCircle2,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  Mail,
 } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
-import type { Task, TaskStatus } from '@/lib/types';
+import type { Task, TaskStatus, TeamMember } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { isPast } from 'date-fns';
-import type { TeamMember } from '@/lib/types';
 import { useCollection, useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { useToast } from '@/hooks/use-toast';
+
 
 interface TaskCardProps {
   task: Task;
@@ -61,12 +64,59 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
   const { deleteTask, updateTask } = useTasks();
   const { user } = useUser();
   const firestore = useFirestore();
+  const { toast } = useToast();
+
 
   const collectionPath = user ? `users/${user.uid}/teamMembers` : null;
   const membersCollectionRef = useMemoFirebase(() => {
     return collectionPath ? collection(firestore, collectionPath) : null;
   }, [collectionPath, firestore]);
   const { data: members } = useCollection<TeamMember>(membersCollectionRef);
+
+  const delegatedMember = members?.find(m => m.id === task.delegateToId);
+  
+  const handleTestEmail = async () => {
+    if (!delegatedMember || !user) {
+      toast({
+        variant: "destructive",
+        title: "No se puede enviar correo",
+        description: "Esta tarea no está delegada a un miembro del equipo válido.",
+      });
+      return;
+    }
+    
+    try {
+      const functions = getFunctions();
+      const sendEmailFunction = httpsCallable(functions, 'sendTaskDelegationEmail');
+      
+      const payload = {
+        delegatedToEmail: delegatedMember.email,
+        delegatedToName: delegatedMember.name,
+        taskTitle: task.title,
+        delegatedByName: user.displayName || user.email,
+      };
+      
+      toast({
+        title: "Enviando correo...",
+        description: `Se está enviando la notificación a ${delegatedMember.name}.`,
+      });
+
+      await sendEmailFunction(payload);
+
+      toast({
+        title: "Notificación de prueba enviada",
+        description: `Se ha enviado la notificación a ${delegatedMember.name} sobre la tarea.`,
+      });
+
+    } catch (error: any) {
+       console.error('Error calling sendTaskDelegationEmail function:', error);
+       toast({
+        variant: "destructive",
+        title: "Error al notificar",
+        description: "No se pudo enviar el correo de notificación. " + error.message,
+      });
+    }
+  };
 
   const handleStatusChange = (newStatus: TaskStatus) => {
     updateTask(task.id, { status: newStatus });
@@ -89,7 +139,6 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
     }, 0);
   }, [task.focusSessions]);
 
-  const delegatedMember = members?.find(m => m.id === task.delegateToId);
   const isDelegatedToCurrentUser = user?.uid === task.delegateToId;
   const isDelegationPending = task.delegationStatus === 'pending';
 
@@ -137,6 +186,15 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
                     title="Enfocar en esto"
                 >
                     <Timer size={16} />
+                </Button>
+                 <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-blue-500"
+                    onClick={handleTestEmail}
+                    title="Probar envío de correo"
+                >
+                    <Mail size={16} />
                 </Button>
                 <Button
                     variant="ghost"
