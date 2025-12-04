@@ -87,13 +87,14 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
     
     try {
       const functions = getFunctions();
-      const sendEmailFunction = httpsCallable(functions, 'sendTaskDelegationEmail');
+      const sendEmailFunction = httpsCallable(functions, 'sendTaskDelegationEmailCallable');
       
       const payload = {
-        delegatedToEmail: delegatedMember.email,
-        delegatedToName: delegatedMember.name,
+        to: delegatedMember.email,
+        delegateName: delegatedMember.name,
+        taskId: task.id,
         taskTitle: task.title,
-        delegatedByName: user.displayName || user.email,
+        delegatorName: user.displayName || 'un administrador',
       };
       
       toast({
@@ -101,21 +102,21 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
         description: `Se está enviando la notificación a ${delegatedMember.name}.`,
       });
 
-      console.log('[sendTaskDelegationEmail] Iniciando envío de correo de delegación', payload);
+      console.log('[TaskCard] Calling sendTaskDelegationEmailCallable with payload:', payload);
       const result: any = await sendEmailFunction(payload);
 
-      if (!result.data.success) {
-        throw new Error(result.data.message || 'La Cloud Function reportó un error.');
+      if (!result.data.ok) {
+        throw new Error(result.data.error || 'La Cloud Function reportó un error sin mensaje.');
       }
       
-      console.log('[sendTaskDelegationEmail] Correo de delegación enviado correctamente', { result });
+      console.log('[TaskCard] Email sent successfully', { result: result.data });
       toast({
         title: "Notificación de prueba enviada",
         description: `Se ha enviado la notificación a ${delegatedMember.name} sobre la tarea.`,
       });
 
     } catch (error: any) {
-       console.error('[sendTaskDelegationEmail] Error al enviar correo de delegación', {
+       console.error('[TaskCard] Error calling sendTaskDelegationEmailCallable:', {
         error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
        });
        toast({
