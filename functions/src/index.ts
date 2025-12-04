@@ -1,3 +1,11 @@
+/**
+ * Import function triggers from their respective submodules:
+ *
+ * import {onCall} from "firebase-functions/v2/https";
+ * import {onDocumentWritten} from "firebase-functions/v2/firestore";
+ *
+ * See a full list of supported triggers at https://firebase.google.com/docs/functions
+ */
 
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
@@ -5,71 +13,79 @@ import {Resend} from "resend";
 
 admin.initializeApp();
 
-// Define el secret en tu proyecto de Firebase:
+// To deploy, you need to set the RESEND_KEY secret:
 // firebase functions:secrets:set RESEND_KEY
-// Luego, en el panel de GCP, otorga acceso al secret
-// a tu cuenta de servicio de Cloud Functions.
-export const sendTaskDelegationEmail = functions.runWith({secrets: ["RESEND_KEY"]})
-  .https.onCall(async (data, context) => {
-    // Inicializa Resend dentro de la función donde los secrets están disponibles.
-    const resendApiKey = process.env.RESEND_KEY;
-    if (!resendApiKey) {
-      console.error("La clave de API de Resend (RESEND_KEY) no está configurada.");
-      throw new functions.https.HttpsError(
-        "internal",
-        "El servicio de correo no está configurado.",
-      );
-    }
-    const resend = new Resend(resendApiKey);
+// When prompted, paste your Resend API Key.
 
-    // 1. Verifica la autenticación del usuario que llama.
-    if (!context.auth) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "La función debe ser llamada por un usuario autenticado.",
-      );
-    }
+exports.sendTaskDelegationEmail = functions.runWith({secrets: ["RESEND_KEY"]})
+    .https.onCall(async (data, context) => {
+      // Initialize Resend within the function where secrets are available.
+      const resend = new Resend(process.env.RESEND_KEY);
 
-    const {delegatedToEmail, delegatedToName, taskTitle, delegatedByName} = data;
-
-    // 2. Valida los datos de entrada.
-    if (!delegatedToEmail || !taskTitle || !delegatedByName || !delegatedToName) {
-      throw new functions.https.HttpsError(
-        "invalid-argument",
-        "Faltan datos requeridos para enviar la notificación (correo, título, etc.).",
-      );
-    }
-
-    try {
-      // 3. Prepara el contenido del correo.
-      const subject = `Nueva tarea delegada: ${taskTitle}`;
-      const body = `Hola ${delegatedToName},<br><br>${delegatedByName} te ha delegado una nueva tarea: <strong>${taskTitle}</strong>.<br><br>Puedes verla en tu tablero de TaskMaster Pro.`;
-
-      // 4. Envía el correo usando Resend.
-      const {error} = await resend.emails.send({
-        from: "TaskMaster Pro <noreply@yourdomain.com>", // ¡IMPORTANTE! Cambia esto a tu dominio verificado en Resend.
-        to: [delegatedToEmail],
-        subject: subject,
-        html: body,
-      });
-
-      if (error) {
-        console.error("Resend API Error:", error);
+      // 1. Verify authentication
+      if (!context.auth) {
         throw new functions.https.HttpsError(
-          "internal",
-          "Error al enviar el correo a través de Resend: " + error.message,
+            "unauthenticated",
+            "The function must be called by an authenticated user.",
         );
       }
 
-      return {success: true, message: `Correo de delegación enviado a ${delegatedToEmail}`};
-    } catch (error) {
-      console.error("Error en la Cloud Function sendTaskDelegationEmail:", error);
-      if (error instanceof functions.https.HttpsError) {
-        throw error;
+      const {
+        delegatedToName,
+        delegatedToEmail,
+        taskTitle,
+        delegatedByName,
+      } = data;
+
+      // 2. Validate input data
+      if (
+        !delegatedToName ||
+        !delegatedToEmail ||
+        !taskTitle ||
+        !delegatedByName
+      ) {
+        throw new functions.https.HttpsError(
+            "invalid-argument",
+            "Required data is missing for sending the email.",
+        );
       }
-      throw new functions.https.HttpsError(
-        "internal",
-        "Ocurrió un error inesperado al procesar el envío del correo.",
-      );
-    }
-  });
+
+      try {
+        // 3. Define email content
+        const subject = `Nueva tarea asignada: ${taskTitle}`;
+        const body = `Hola ${delegatedToName},<br><br>
+        ${delegatedByName} te ha asignado una nueva tarea: <strong>${taskTitle}</strong>.<br><br>
+        Puedes ver los detalles en el tablero de Gestor D&G.<br><br>
+        ¡Que tengas un día productivo!`;
+
+
+        // 4. Send the email using Resend
+        const {error} = await resend.emails.send({
+          // IMPORTANT: Change this to your verified domain in Resend
+          from: "Gestor D&G <onboarding@resend.dev>",
+          to: [delegatedToEmail],
+          subject: subject,
+          html: body,
+        });
+
+        if (error) {
+          console.error("Resend API Error:", error);
+          throw new functions.https.HttpsError(
+              "internal",
+              "Error sending email via Resend: " + error.message,
+          );
+        }
+
+        return {success: true, message: `Email sent to ${delegatedToEmail}`};
+      } catch (error: any) {
+        console.error("Error in sendTaskDelegationEmail function:", error);
+        if (error instanceof functions.https.HttpsError) {
+          throw error;
+        }
+        throw new functions.https.HttpsError(
+            "internal",
+            "An unexpected error occurred while sending the email.",
+            error.message,
+        );
+      }
+    });
