@@ -52,7 +52,7 @@ const defaultValues: Omit<Task, 'id' | 'ownerId' | 'delegatedByName' | 'delegati
   progress: 0,
   priority: 'medium',
   dueDate: '',
-  delegateToId: '',
+  delegateToId: 'null',
   status: 'pendiente',
   description: '',
   value: 0,
@@ -85,19 +85,19 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
   const onSubmit = (data: TaskFormValues) => {
     if (!user) return;
 
-    const finalData = { ...data };
-    const delegateToId = finalData.delegateToId === 'null' ? null : finalData.delegateToId;
+    const delegateToId = data.delegateToId === 'null' ? null : data.delegateToId;
+    const selectedMember = members?.find(m => m.id === delegateToId);
 
     const delegatedByName = delegateToId ? user.displayName : null;
     const delegationStatus = delegateToId ? 'pending' : null;
 
     addTask({
-      ...finalData,
+      ...data,
       delegateToId,
-      ownerId: user.uid,
       delegatedByName,
       delegationStatus,
-    });
+    }, selectedMember);
+
     toast({
         title: "Nueva tarea creada",
         description: `"${data.title}" ha sido añadida a tu lista.`,

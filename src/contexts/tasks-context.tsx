@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useMemo } from 'react';
-import type { Task } from '@/lib/types';
+import type { Task, TeamMember } from '@/lib/types';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import {
   collection,
@@ -16,12 +16,15 @@ import {
   where,
   or
 } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { useToast } from '@/hooks/use-toast';
+
 
 interface TasksContextType {
   tasks: Task[];
-  addTask: (taskData: Omit<Task, 'id'>) => void;
+  addTask: (taskData: Omit<Task, 'id'>, member?: TeamMember | null) => void;
   updateTask: (id: string, updatedData: Partial<Omit<Task, 'id'>>) => void;
   deleteTask: (id: string) => void;
   setTasks: (tasks: Task[]) => void;
@@ -33,6 +36,7 @@ const TasksContext = createContext<TasksContextType | undefined>(undefined);
 export function TasksProvider({ children }: { children: ReactNode }) {
   const firestore = useFirestore();
   const { user } = useUser();
+  const { toast } = useToast();
 
   const tasksCollectionRef = useMemoFirebase(() => {
     return firestore ? collection(firestore, 'tasks') : null;
@@ -53,10 +57,40 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     loading,
   } = useCollection<Task>(tasksQuery);
 
-  const addTask = (taskData: Omit<Task, 'id'>) => {
-    if (!tasksCollectionRef) return;
-    const newTask = { ...taskData };
-    addDoc(tasksCollectionRef, newTask).catch(async (serverError) => {
+  const addTask = (taskData: Omit<Task, 'id'>, member?: TeamMember | null) => {
+    if (!tasksCollectionRef || !user) return;
+    const newTask = { ...taskData, ownerId: user.uid };
+    addDoc(tasksCollectionRef, newTask).then(async (docRef) => {
+      // Si la tarea fue delegada, llama a la Cloud Function para enviar correo.
+      if (newTask.delegateToId && member) {
+        try {
+          const functions = getFunctions();
+          const sendEmailFunction = httpsCallable(functions, 'sendTaskDelegationEmail');
+          
+          const payload = {
+            delegatedToEmail: member.email,
+            delegatedToName: member.name,
+            taskTitle: newTask.title,
+            delegatedByName: user.displayName || user.email,
+          };
+          
+          await sendEmailFunction(payload);
+          toast({
+            title: "Notificación enviada",
+            description: `Se ha notificado a ${member.name} sobre la nueva tarea.`,
+          });
+
+        } catch (error: any) {
+           console.error('Error calling sendTaskDelegationEmail function:', error);
+           toast({
+            variant: "destructive",
+            title: "Error al notificar",
+            description: "No se pudo enviar el correo de notificación. " + error.message,
+          });
+        }
+      }
+
+    }).catch(async (serverError) => {
       const permissionError = new FirestorePermissionError({
         path: tasksCollectionRef.path,
         operation: 'create',
