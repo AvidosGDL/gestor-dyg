@@ -2,7 +2,7 @@
  * Import function triggers from their respective submodules:
  *
  * import {onCall} from "firebase-functions/v2/https";
- * import {onDocumentWritten} from "firebase-functions/v2/firestore";
+ * import {onDocumentwritten} from "firebase-functions/v2/firestore";
  *
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
@@ -13,13 +13,9 @@ import { Resend } from "resend";
 
 admin.initializeApp();
 
-// To deploy, you need to set the RESEND_KEY secret:
-// firebase functions:secrets:set RESEND_KEY
-// When prompted, paste your Resend API Key.
-
-exports.sendTaskDelegationEmail = onCall({ secrets: ["RESEND_KEY"] }, async (request) => {
-  // Initialize Resend within the function where secrets are available.
-  const resend = new Resend(process.env.RESEND_KEY);
+exports.sendTaskDelegationEmail = onCall(async (request) => {
+  // Initialize Resend with the provided API key.
+  const resend = new Resend('[REMOVED_RESEND_API_KEY]');
 
   // 1. Verify authentication
   if (!request.auth) {
