@@ -42,15 +42,17 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     return firestore ? collection(firestore, 'tasks') : null;
   }, [firestore]);
 
+  // This is where the main change is.
+  // We can't filter by user if we want to see other people's tasks.
+  // The firestore rules will handle security.
   const tasksQuery = useMemoFirebase(() => {
     if (!user || !tasksCollectionRef) return null;
-    return query(tasksCollectionRef, 
-      or(
-        where('ownerId', '==', user.uid),
-        where('delegateToId', '==', user.uid)
-      )
-    );
+    // The filtering will now happen on the client-side in BoardView, etc.
+    // The Firestore rules `allow read: if request.auth != null;` will let this pass
+    // for any authenticated user.
+    return query(tasksCollectionRef);
   }, [user, tasksCollectionRef]);
+
 
   const {
     data: tasks,
@@ -65,23 +67,31 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       if (newTask.delegateToId && member) {
         try {
           const functions = getFunctions();
-          const sendEmailFunction = httpsCallable(functions, 'sendTaskDelegationEmail');
+          const sendEmailFunction = httpsCallable(functions, 'sendTaskDelegationEmailCallable');
           
           const payload = {
-            delegatedToEmail: member.email,
-            delegatedToName: member.name,
+            to: member.email,
+            delegateName: member.name,
+            taskId: docRef.id,
             taskTitle: newTask.title,
-            delegatedByName: user.displayName || user.email,
+            delegatorName: user.displayName || 'un administrador',
           };
           
-          await sendEmailFunction(payload);
+          const result: any = await sendEmailFunction(payload);
+
+          if (!result.data.ok) {
+            throw new Error(result.data.error || 'La Cloud Function reportó un error sin mensaje.');
+          }
+
           toast({
             title: "Notificación enviada",
             description: `Se ha notificado a ${member.name} sobre la nueva tarea.`,
           });
 
         } catch (error: any) {
-           console.error('Error calling sendTaskDelegationEmail function:', error);
+           console.error('[addTask] Error calling sendTaskDelegationEmailCallable:', {
+             error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+           });
            toast({
             variant: "destructive",
             title: "Error al notificar",
