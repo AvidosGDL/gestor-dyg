@@ -15,7 +15,7 @@ admin.initializeApp();
 
 export const sendTaskDelegationEmailCallable = onCall(
   { region: 'us-central1' },
-  async (request): Promise<{ ok: boolean; id?: string; error?: string }> => {
+  async (request): Promise<{ ok: boolean; id?: string }> => {
     console.log('[sendTaskDelegationEmailCallable] Petición recibida', {
       data: request.data,
       authUid: request.auth?.uid ?? null,
