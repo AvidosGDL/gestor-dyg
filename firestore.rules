@@ -15,10 +15,13 @@ service cloud.firestore {
     
     match /tasks/{taskId} {
       allow read: if request.auth != null && (request.auth.uid == resource.data.ownerId || request.auth.uid == resource.data.delegateToId);
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId;
-      allow update: if request.auth != null && 
-                      (request.auth.uid == resource.data.ownerId || 
-                      (request.auth.uid == resource.data.delegateToId && !('ownerId' in request.resource.data) && !('delegateToId' in request.resource.data)));
+      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
+      allow update: if request.auth != null &&
+                      ( (request.auth.uid == resource.data.ownerId) ||
+                        (request.auth.uid == resource.data.delegateToId &&
+                         request.resource.data.ownerId == resource.data.ownerId &&
+                         request.resource.data.delegateToId == resource.data.delegateToId)
+                      );
       allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId;
     }
   }
