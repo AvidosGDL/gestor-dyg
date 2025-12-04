@@ -101,19 +101,23 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
         description: `Se está enviando la notificación a ${delegatedMember.name}.`,
       });
 
+      console.log('[sendTaskDelegationEmail] Iniciando envío de correo de delegación', payload);
       const result: any = await sendEmailFunction(payload);
 
       if (!result.data.success) {
         throw new Error(result.data.message || 'La Cloud Function reportó un error.');
       }
-
+      
+      console.log('[sendTaskDelegationEmail] Correo de delegación enviado correctamente', { result });
       toast({
         title: "Notificación de prueba enviada",
         description: `Se ha enviado la notificación a ${delegatedMember.name} sobre la tarea.`,
       });
 
     } catch (error: any) {
-       console.error('Error calling sendTaskDelegationEmail function:', error);
+       console.error('[sendTaskDelegationEmail] Error al enviar correo de delegación', {
+        error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+       });
        toast({
         variant: "destructive",
         title: "Error al notificar",

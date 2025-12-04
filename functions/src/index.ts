@@ -19,6 +19,7 @@ exports.sendTaskDelegationEmail = onCall(async (request) => {
 
   // 1. Verify authentication
   if (!request.auth) {
+    console.error('[sendTaskDelegationEmail] Unauthenticated call.', { auth: request.auth });
     throw new HttpsError(
       "unauthenticated",
       "The function must be called by an authenticated user."
@@ -39,6 +40,7 @@ exports.sendTaskDelegationEmail = onCall(async (request) => {
     !taskTitle ||
     !delegatedByName
   ) {
+    console.error('[sendTaskDelegationEmail] Invalid arguments.', { data: request.data });
     throw new HttpsError(
       "invalid-argument",
       "Required data is missing for sending the email."
@@ -46,6 +48,7 @@ exports.sendTaskDelegationEmail = onCall(async (request) => {
   }
 
   try {
+    console.log('[sendTaskDelegationEmail] Initiating email dispatch.', { to: delegatedToEmail, task: taskTitle });
     // 3. Define email content
     const subject = `Nueva tarea asignada: ${taskTitle}`;
     const body = `Hola ${delegatedToName},<br><br>
@@ -54,7 +57,7 @@ exports.sendTaskDelegationEmail = onCall(async (request) => {
         ¡Que tengas un día productivo!`;
 
     // 4. Send the email using Resend
-    const { error } = await resend.emails.send({
+    const { data: emailData, error } = await resend.emails.send({
       // IMPORTANT: Change this to your verified domain in Resend
       from: "Gestor D&G <onboarding@resend.dev>",
       to: [delegatedToEmail],
@@ -63,16 +66,24 @@ exports.sendTaskDelegationEmail = onCall(async (request) => {
     });
 
     if (error) {
-      console.error("Resend API Error:", error);
+      console.error("[sendTaskDelegationEmail] Resend API Error:", {
+        to: delegatedToEmail,
+        task: taskTitle,
+        error,
+      });
       throw new HttpsError(
         "internal",
         "Error sending email via Resend: " + error.message
       );
     }
-
+    
+    console.log('[sendTaskDelegationEmail] Email sent successfully.', { to: delegatedToEmail, result: emailData });
     return { success: true, message: `Email sent to ${delegatedToEmail}` };
+
   } catch (error: any) {
-    console.error("Error in sendTaskDelegationEmail function:", error);
+    console.error("[sendTaskDelegationEmail] Unexpected error in function:", {
+        error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+    });
     if (error instanceof HttpsError) {
       throw error;
     }
