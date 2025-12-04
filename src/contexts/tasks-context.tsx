@@ -13,7 +13,6 @@ import {
   writeBatch,
   query,
   where,
-  or,
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -37,23 +36,26 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const { user } = useUser();
   const { toast } = useToast();
 
-  // Apunta a la colección raíz de tareas
   const tasksCollectionRef = useMemoFirebase(() => {
     return firestore ? collection(firestore, 'tasks') : null;
   }, [firestore]);
 
-  // La consulta ahora trae TODAS las tareas, ya que las reglas de seguridad lo permiten.
-  // El filtrado se hará en el cliente.
+  // Consulta para obtener todas las tareas donde el usuario actual es el propietario.
+  // Esto permite al manager ver todas las tareas que ha creado, incluyendo las delegadas.
+  const tasksQuery = useMemoFirebase(() => {
+    if (!user || !tasksCollectionRef) return null;
+    return query(tasksCollectionRef, where('ownerId', '==', user.uid));
+  }, [user, tasksCollectionRef]);
+
   const {
     data: tasks,
     loading,
-  } = useCollection<Task>(tasksCollectionRef);
+  } = useCollection<Task>(tasksQuery);
 
   const addTask = (taskData: Omit<Task, 'id'>, member?: TeamMember | null) => {
     if (!tasksCollectionRef || !user) return;
     const newTask = { ...taskData, ownerId: user.uid };
     addDoc(tasksCollectionRef, newTask).then(async (docRef) => {
-      // Si la tarea fue delegada, llama a la Cloud Function para enviar correo.
       if (newTask.delegateToId && member) {
         try {
           const functions = getFunctions();

@@ -102,18 +102,25 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
 
   const filteredTasks = useMemo(() => {
     if (!user) return [];
+    
+    // "Mis Tareas" = Tareas que me pertenecen y no he delegado.
     if (taskFilter === 'me') {
-      return tasks.filter(t => (t.ownerId === user.uid && t.delegationStatus !== 'rejected') || (t.delegateToId === user.uid && t.delegationStatus === 'accepted'))
-    }
+      return tasks.filter(t => t.ownerId === user.uid && !t.delegateToId);
+    } 
+    
+    // "Todas las tareas" = todas las tareas que gestiona el owner.
     if (taskFilter === 'all') {
       return tasks;
     }
-    // Filter by member ID
-    return tasks.filter(t => t.delegateToId === taskFilter && t.delegationStatus === 'accepted');
+    
+    // Filtro por miembro del equipo: Tareas delegadas a ese miembro.
+    return tasks.filter(t => t.delegateToId === taskFilter);
   }, [tasks, user, taskFilter]);
 
   const delegatedToMe = useMemo(() => {
     if(!user) return [];
+    // Nota: Esta lógica ahora no funcionará como antes porque el manager ya no verá las tareas delegadas A ÉL.
+    // Se mantiene por si en el futuro se cambia la consulta principal para incluir estas tareas.
     return tasks.filter(t => t.delegateToId === user.uid && t.delegationStatus === 'pending')
   }, [tasks, user]);
   
@@ -127,8 +134,6 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
         updateTask(task.id, { delegateToId: null, delegatedByName: null, delegationStatus: null });
     }
     if (task.status === 'completado' && task.delegateToId) {
-        // Here you might want to archive the task or just hide the notification
-        // For simplicity, we'll just ignore it for now or you could add an 'acknowledged' field.
         console.log("Acknowledging completed task:", task.id);
     }
 };
@@ -155,7 +160,7 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
               ))}
                {notifications.map(task => (
                   <div key={task.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                    {task.delegationStatus === 'rejected' && <p className="text-sm">La tarea <span className="italic">"{task.title}"</span> fue <span className="font-bold text-destructive">rechazada</span>.</p>}
+                    {task.delegationStatus === 'rejected' && <p className="text-sm">La tarea <span className="italic">"{task.title}"</span> fue <span className="font-bold text-destructive">rechazada</span> por la persona a la que se delegó.</p>}
                     {task.status === 'completado' && task.delegateToId && <p className="text-sm">La tarea delegada <span className="italic">"{task.title}"</span> ha sido <span className="font-bold text-emerald-500">completada</span>.</p>}
                     <Button size="sm" variant="ghost" onClick={() => dismissNotification(task)}>Descartar</Button>
                   </div>

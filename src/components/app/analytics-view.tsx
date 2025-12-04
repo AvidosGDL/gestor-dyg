@@ -54,13 +54,13 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
     if (!user || loading) return [];
     
     if (taskFilter === 'me') {
-      return tasks.filter(t => (t.ownerId === user.uid && t.delegationStatus !== 'rejected') || (t.delegateToId === user.uid && t.delegationStatus === 'accepted'));
+      return tasks.filter(t => t.ownerId === user.uid && !t.delegateToId);
     } 
     if (taskFilter === 'all') {
       return tasks;
     }
     
-    return tasks.filter(t => t.delegateToId === taskFilter && t.delegationStatus === 'accepted');
+    return tasks.filter(t => t.delegateToId === taskFilter);
   }, [tasks, user, taskFilter, loading]);
   
   const completedTasks = useMemo(() => {
