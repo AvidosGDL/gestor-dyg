@@ -239,11 +239,11 @@
       },
       "description": "Stores public profile information for a user."
     },
-    "/users/{userId}/tasks/{taskId}": {
+    "/tasks/{taskId}": {
       "schema": {
         "$ref": "#/entities/Task"
       },
-      "description": "Stores task data for a specific user."
+      "description": "Stores all tasks for all users in a single collection."
     },
     "/users/{userId}/teamMembers/{memberId}": {
       "schema": {

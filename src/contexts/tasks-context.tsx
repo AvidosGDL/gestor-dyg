@@ -11,6 +11,9 @@ import {
   deleteDoc,
   doc,
   writeBatch,
+  query,
+  where,
+  or,
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -34,11 +37,13 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const { user } = useUser();
   const { toast } = useToast();
 
-  const collectionPath = user ? `users/${user.uid}/tasks` : null;
+  // Apunta a la colección raíz de tareas
   const tasksCollectionRef = useMemoFirebase(() => {
-    return collectionPath ? collection(firestore, collectionPath) : null;
-  }, [collectionPath, firestore]);
+    return firestore ? collection(firestore, 'tasks') : null;
+  }, [firestore]);
 
+  // La consulta ahora trae TODAS las tareas, ya que las reglas de seguridad lo permiten.
+  // El filtrado se hará en el cliente.
   const {
     data: tasks,
     loading,

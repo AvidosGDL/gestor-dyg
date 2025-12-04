@@ -1,20 +1,40 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Reglas para perfiles de usuario
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
 
+      // Reglas para subcolecciones de teamMembers y prospects
       match /teamMembers/{memberId} {
-        allow read, write, create, delete, update: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
-      
       match /prospects/{prospectId} {
-        allow read, write, create, delete, update: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+    }
 
-      match /tasks/{taskId} {
-        allow read, write, create, update, delete: if request.auth != null && request.auth.uid == userId;
-      }
+    // Reglas para la colección principal de tareas
+    match /tasks/{taskId} {
+      // PERMITIR LECTURA: Cualquier usuario autenticado puede leer cualquier tarea.
+      // La lógica de la aplicación se encargará de mostrar solo las tareas relevantes.
+      allow read: if request.auth != null;
+
+      // PERMITIR CREACIÓN: Solo si el ownerId de la nueva tarea es el del usuario que la crea.
+      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
+
+      // PERMITIR ACTUALIZACIÓN:
+      // - El propietario puede cambiar cualquier cosa.
+      // - El delegado puede cambiar campos excepto reasignar la tarea o cambiar el propietario.
+      allow update: if request.auth != null && (
+        (resource.data.ownerId == request.auth.uid) ||
+        (resource.data.delegateToId == request.auth.uid &&
+         request.resource.data.delegateToId == resource.data.delegateToId &&
+         request.resource.data.ownerId == resource.data.ownerId)
+      );
+
+      // PERMITIR ELIMINACIÓN: Solo el propietario puede eliminar la tarea.
+      allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
     }
   }
 }
