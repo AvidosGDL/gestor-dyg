@@ -11,10 +11,6 @@ import {
   deleteDoc,
   doc,
   writeBatch,
-  serverTimestamp,
-  query,
-  where,
-  or
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -38,26 +34,15 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const { user } = useUser();
   const { toast } = useToast();
 
+  const collectionPath = user ? `users/${user.uid}/tasks` : null;
   const tasksCollectionRef = useMemoFirebase(() => {
-    return firestore ? collection(firestore, 'tasks') : null;
-  }, [firestore]);
-
-  // This is where the main change is.
-  // We can't filter by user if we want to see other people's tasks.
-  // The firestore rules will handle security.
-  const tasksQuery = useMemoFirebase(() => {
-    if (!user || !tasksCollectionRef) return null;
-    // The filtering will now happen on the client-side in BoardView, etc.
-    // The Firestore rules `allow read: if request.auth != null;` will let this pass
-    // for any authenticated user.
-    return query(tasksCollectionRef);
-  }, [user, tasksCollectionRef]);
-
+    return collectionPath ? collection(firestore, collectionPath) : null;
+  }, [collectionPath, firestore]);
 
   const {
     data: tasks,
     loading,
-  } = useCollection<Task>(tasksQuery);
+  } = useCollection<Task>(tasksCollectionRef);
 
   const addTask = (taskData: Omit<Task, 'id'>, member?: TeamMember | null) => {
     if (!tasksCollectionRef || !user) return;
