@@ -50,18 +50,23 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
   const { user } = useUser();
   const [period, setPeriod] = useState<Period>('week');
 
-  const filteredTasks = useMemo(() => {
+  const filteredTasksForView = useMemo(() => {
     if (!user || loading) return [];
     
-    let userTasks = tasks;
     if (taskFilter === 'me') {
-      userTasks = tasks.filter(t => (t.ownerId === user.uid && t.delegationStatus !== 'rejected') || (t.delegateToId === user.uid && t.delegationStatus === 'accepted'));
-    } else if (taskFilter !== 'all') {
-      userTasks = tasks.filter(t => t.delegateToId === taskFilter);
+      return tasks.filter(t => (t.ownerId === user.uid && t.delegationStatus !== 'rejected') || (t.delegateToId === user.uid && t.delegationStatus === 'accepted'));
+    } 
+    if (taskFilter === 'all') {
+      return tasks;
     }
     
-    return userTasks.filter(t => t.status === 'completado' && t.completionComment);
+    return tasks.filter(t => t.delegateToId === taskFilter && t.delegationStatus === 'accepted');
   }, [tasks, user, taskFilter, loading]);
+  
+  const completedTasks = useMemo(() => {
+     return filteredTasksForView.filter(t => t.status === 'completado' && t.completionComment);
+  }, [filteredTasksForView]);
+
 
   const chartData = useMemo(() => {
     const now = new Date();
@@ -94,7 +99,7 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
       
       const periodInterval = getPeriodInterval(date);
 
-      const tasksInPeriod = filteredTasks.filter(task => {
+      const tasksInPeriod = completedTasks.filter(task => {
         // Assuming completion date is tracked; if not, we use another date field
         // For this example, let's assume we need a 'completedAt' field.
         // If not available, we can't accurately plot by completion date.
@@ -116,7 +121,7 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
         tiempoEnfoque: totalTime / (1000 * 60), // in minutes
       };
     });
-  }, [filteredTasks, period]);
+  }, [completedTasks, period]);
   
   const totalTasksCompleted = useMemo(() => chartData.reduce((acc, data) => acc + data.tareasCompletadas, 0), [chartData]);
   const totalTimeFocusedMs = useMemo(() => chartData.reduce((acc, data) => acc + (data.tiempoEnfoque * 60 * 1000), 0), [chartData]);

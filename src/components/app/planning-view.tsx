@@ -90,14 +90,14 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
 
   const filteredTasks = useMemo(() => {
     if (!user) return [];
-    let tasksToFilter = tasks;
     if (taskFilter === 'me') {
-      tasksToFilter = tasks.filter(t => (t.ownerId === user.uid && t.delegationStatus !== 'rejected') || (t.delegateToId === user.uid && t.delegationStatus === 'accepted'));
-    } else if (taskFilter !== 'all') {
-      tasksToFilter = tasks.filter(t => t.delegateToId === taskFilter && t.delegationStatus === 'accepted');
+      return tasks.filter(t => (t.ownerId === user.uid && t.delegationStatus !== 'rejected') || (t.delegateToId === user.uid && t.delegationStatus === 'accepted'));
     }
-    
-    return tasksToFilter;
+    if (taskFilter === 'all') {
+      return tasks;
+    }
+    // Filter by member ID
+    return tasks.filter(t => t.delegateToId === taskFilter && t.delegationStatus === 'accepted');
   }, [tasks, user, taskFilter]);
 
   const sortedTasks = useMemo(() => {
