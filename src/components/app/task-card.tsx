@@ -101,7 +101,11 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
         description: `Se está enviando la notificación a ${delegatedMember.name}.`,
       });
 
-      await sendEmailFunction(payload);
+      const result: any = await sendEmailFunction(payload);
+
+      if (!result.data.success) {
+        throw new Error(result.data.message || 'La Cloud Function reportó un error.');
+      }
 
       toast({
         title: "Notificación de prueba enviada",
