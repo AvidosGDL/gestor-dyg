@@ -4,7 +4,7 @@ import { Resend } from 'resend';
 // IMPORTANT: Replace this placeholder with your actual Resend API Key.
 const RESEND_API_KEY = '[REMOVED_RESEND_API_KEY]';
 
-if (!RESEND_API_KEY || RESEND_API_KEY === 'REPLACE_WITH_YOUR_RESEND_API_KEY') {
+if (!RESEND_API_KEY || RESEND_API_KEY === '[REMOVED_RESEND_API_KEY]') {
   // This helps detect if you forgot to set the actual key.
   console.error('[sendTaskDelegationEmail] RESEND_API_KEY is not configured correctly.');
 }
