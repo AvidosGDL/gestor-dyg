@@ -13,6 +13,7 @@ import {
   writeBatch,
   query,
   where,
+  or,
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -40,11 +41,16 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     return firestore ? collection(firestore, 'tasks') : null;
   }, [firestore]);
 
-  // Consulta para obtener todas las tareas donde el usuario actual es el propietario.
-  // Esto permite al manager ver todas las tareas que ha creado, incluyendo las delegadas.
+  // Consulta para obtener las tareas donde el usuario es propietario O es el delegado.
+  // Esto asegura que el manager vea sus tareas delegadas y que los miembros vean las tareas asignadas a ellos.
   const tasksQuery = useMemoFirebase(() => {
     if (!user || !tasksCollectionRef) return null;
-    return query(tasksCollectionRef, where('ownerId', '==', user.uid));
+    return query(tasksCollectionRef, 
+      or(
+        where('ownerId', '==', user.uid),
+        where('delegateToId', '==', user.uid)
+      )
+    );
   }, [user, tasksCollectionRef]);
 
   const {

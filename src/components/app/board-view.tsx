@@ -103,38 +103,42 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
   const filteredTasks = useMemo(() => {
     if (!user) return [];
     
-    // "Mis Tareas" = Tareas que me pertenecen y no he delegado.
-    if (taskFilter === 'me') {
-      return tasks.filter(t => t.ownerId === user.uid && !t.delegateToId);
+    // "Mis Tareas" = Tareas que me pertenecen Y NO HE DELEGADO, o tareas que me HAN DELEGADO a mí.
+    if (taskFilter === 'me' || taskFilter === user.uid) {
+      return tasks.filter(t => (t.ownerId === user.uid && !t.delegateToId) || (t.delegateToId === user.uid));
     } 
     
-    // "Todas las tareas" = todas las tareas que gestiona el owner.
+    // "Todas las tareas" = todas las tareas que gestiona el owner (ya filtradas en el context).
     if (taskFilter === 'all') {
-      return tasks;
+      return tasks.filter(t => t.ownerId === user.uid);
     }
     
-    // Filtro por miembro del equipo: Tareas delegadas a ese miembro.
-    return tasks.filter(t => t.delegateToId === taskFilter);
+    // Filtro por miembro del equipo: Tareas delegadas a ese miembro por el owner actual.
+    return tasks.filter(t => t.ownerId === user.uid && t.delegateToId === taskFilter);
   }, [tasks, user, taskFilter]);
 
   const delegatedToMe = useMemo(() => {
     if(!user) return [];
-    // Nota: Esta lógica ahora no funcionará como antes porque el manager ya no verá las tareas delegadas A ÉL.
-    // Se mantiene por si en el futuro se cambia la consulta principal para incluir estas tareas.
+    // Notificaciones de tareas delegadas pendientes de aceptar/rechazar por el usuario actual.
     return tasks.filter(t => t.delegateToId === user.uid && t.delegationStatus === 'pending')
   }, [tasks, user]);
   
   const notifications = useMemo(() => {
     if(!user) return [];
+    // Notificaciones para el owner sobre el estado de sus tareas delegadas.
     return tasks.filter(t => t.ownerId === user.uid && (t.delegationStatus === 'rejected' || (t.status === 'completado' && t.delegateToId !== null)));
   }, [tasks, user]);
 
   const dismissNotification = (task: Task) => {
     if (task.delegationStatus === 'rejected') {
+        // Al descartar, se quita la delegación para que no vuelva a aparecer.
         updateTask(task.id, { delegateToId: null, delegatedByName: null, delegationStatus: null });
     }
     if (task.status === 'completado' && task.delegateToId) {
+        // Simplemente se podría "archivar" la notificación, aquí la eliminamos para simplicidad.
+        // En una app real, podría ser un campo "notificationDismissed: true".
         console.log("Acknowledging completed task:", task.id);
+        // Para este ejemplo, no se hace nada, pero la tarea ya no aparecerá si se mueve de "completado".
     }
 };
 
