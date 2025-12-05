@@ -111,7 +111,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
       
       console.log('[TaskCard] Email sent successfully', { result: result.data });
       toast({
-        title: "Notificación de prueba enviada",
+        title: "Notificación enviada",
         description: `Se ha enviado la notificación a ${delegatedMember.name} sobre la tarea.`,
       });
 
@@ -314,3 +314,5 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
     </Card>
   );
 }
+
+    
