@@ -1,7 +1,6 @@
 // functions/src/emails/sendTaskDelegationEmail.ts
 import { Resend } from 'resend';
 
-// IMPORTANT: Replace this placeholder with your actual Resend API Key.
 const RESEND_API_KEY = '[REMOVED_RESEND_API_KEY]';
 
 if (!RESEND_API_KEY || RESEND_API_KEY === '[REMOVED_RESEND_API_KEY]') {

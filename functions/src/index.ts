@@ -1,12 +1,3 @@
-/**
- * Import function triggers from their respective submodules:
- *
- * import {onCall} from "firebase-functions/v2/https";
- * import {onDocumentwritten} from "firebase-functions/v2/firestore";
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
-
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import { sendTaskDelegationEmail, TaskDelegationEmailPayload } from './emails/sendTaskDelegationEmail';
@@ -15,7 +6,7 @@ admin.initializeApp();
 
 export const sendTaskDelegationEmailCallable = onCall(
   { region: 'us-central1' },
-  async (request): Promise<{ ok: boolean; id?: string }> => {
+  async (request) => {
     console.log('[sendTaskDelegationEmailCallable] Petición recibida', {
       data: request.data,
       authUid: request.auth?.uid ?? null,
@@ -51,7 +42,7 @@ export const sendTaskDelegationEmailCallable = onCall(
       });
 
       return {
-        ok: true,
+        success: true,
         id: result.id,
       };
     } catch (err) {

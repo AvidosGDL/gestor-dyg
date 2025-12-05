@@ -105,7 +105,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
       console.log('[TaskCard] Calling sendTaskDelegationEmailCallable with payload:', payload);
       const result: any = await sendEmailFunction(payload);
 
-      if (!result.data.ok) {
+      if (!result.data.success) {
         throw new Error(result.data.error || 'La Cloud Function reportó un error sin mensaje.');
       }
       
