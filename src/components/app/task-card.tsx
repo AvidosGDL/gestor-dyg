@@ -87,7 +87,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
     
     try {
       const functions = getFunctions();
-      const sendEmailFunction = httpsCallable(functions, 'sendTaskDelegationEmailCallable');
+      const sendEmailFunction = httpsCallable(functions, 'sendEmailTask');
       
       const payload = {
         to: delegatedMember.email,
@@ -102,7 +102,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
         description: `Se está enviando la notificación a ${delegatedMember.name}.`,
       });
 
-      console.log('[TaskCard] Calling sendTaskDelegationEmailCallable with payload:', payload);
+      console.log('[TaskCard] Calling sendEmailTask with payload:', payload);
       const result: any = await sendEmailFunction(payload);
 
       if (!result.data.success) {
@@ -116,7 +116,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
       });
 
     } catch (error: any) {
-       console.error('[TaskCard] Error calling sendTaskDelegationEmailCallable:', {
+       console.error('[TaskCard] Error calling sendEmailTask:', {
         error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
        });
        toast({
