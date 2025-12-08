@@ -20,7 +20,7 @@ import type { Task, TaskStatus, TeamMember } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { isPast } from 'date-fns';
+import { isPast, parseISO, format } from 'date-fns';
 import { useCollection, useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -286,18 +286,14 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
           {task.dueDate && (
             <div
               className={`flex items-center gap-1 ${
-                isPast(new Date(task.dueDate)) && task.status !== 'completado'
+                isPast(parseISO(task.dueDate)) && task.status !== 'completado'
                   ? 'text-destructive font-bold'
                   : 'text-muted-foreground'
               }`}
             >
               <Calendar size={12} />
               <span>
-                {new Date(task.dueDate).toLocaleDateString('es-ES', {
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: 'numeric'
-                })}
+                {format(parseISO(task.dueDate), 'dd/MM/yyyy')}
               </span>
             </div>
           )}
@@ -314,5 +310,3 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
     </Card>
   );
 }
-
-    

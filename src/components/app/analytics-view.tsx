@@ -80,7 +80,7 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
     
     if (period === 'day') {
       interval = { start: subDays(now, 6), end: now };
-      timeUnitFormat = 'dd/MM';
+      timeUnitFormat = 'dd/MM/yyyy';
       getIntervals = eachDayOfInterval;
     } else if (period === 'week') {
       interval = { start: subDays(now, 6 * 7), end: now };

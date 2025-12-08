@@ -10,14 +10,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '../ui/badge';
 import EditProspectDialog from './edit-prospect-dialog';
-import { format, isPast } from 'date-fns';
+import { format, isPast, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 function ProspectCard({ prospect, onEdit }: { prospect: Prospect, onEdit: (prospect: Prospect) => void }) {
   const { deleteProspect } = useProspects();
 
   const nextContactDateFormatted = prospect.nextContactDate 
-    ? new Date(prospect.nextContactDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric'})
+    ? format(parseISO(prospect.nextContactDate), 'dd/MM/yyyy')
     : null;
   
   const isDatePast = prospect.nextContactDate ? isPast(new Date(prospect.nextContactDate)) && !new Date(prospect.nextContactDate).toDateString().includes(new Date().toDateString()) : false;
