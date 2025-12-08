@@ -65,7 +65,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       if (newTask.delegateToId && member) {
         try {
           const functions = getFunctions();
-          const sendEmailFunction = httpsCallable(functions, 'sendTaskDelegationEmailCallable');
+          const sendEmailFunction = httpsCallable(functions, 'sendEmailTask');
           
           const payload = {
             to: member.email,
@@ -77,7 +77,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
           
           const result: any = await sendEmailFunction(payload);
 
-          if (!result.data.ok) {
+          if (!result.data.success) {
             throw new Error(result.data.error || 'La Cloud Function reportó un error sin mensaje.');
           }
 
@@ -87,7 +87,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
           });
 
         } catch (error: any) {
-           console.error('[addTask] Error calling sendTaskDelegationEmailCallable:', {
+           console.error('[addTask] Error calling sendEmailTask:', {
              error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
            });
            toast({
