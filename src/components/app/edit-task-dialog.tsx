@@ -195,6 +195,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
     const finalData = {
       ...data,
       attachments: [...(task.attachments || []), ...fileMetadata],
+      delegateTo: data.delegateTo || null,
     };
 
     updateTask(task.id, finalData);
