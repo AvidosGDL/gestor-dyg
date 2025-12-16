@@ -245,11 +245,11 @@
       },
       "description": "Stores all tasks for all users in a single collection."
     },
-    "/taskDeleted/{taskId}": {
+    "/taskHistory/{taskId}": {
       "schema": {
         "$ref": "#/entities/Task"
       },
-      "description": "Stores tasks that have been 'soft-deleted' by users."
+      "description": "Stores tasks that have been completed and archived by users."
     },
     "/users/{userId}/teamMembers/{memberId}": {
       "schema": {

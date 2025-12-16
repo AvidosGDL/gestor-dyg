@@ -62,18 +62,10 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     if (!tasksCollectionRef || !user || !firestore) return;
 
     const isDelegating = !!taskData.delegateToId && taskData.delegateToId !== 'null';
-    let delegatedByName = null;
-
+    let delegatedByName: string | null = null;
+    
     if (isDelegating) {
-      try {
-        const userProfileRef = doc(firestore, 'users', user.uid);
-        const userProfileSnap = await getDoc(userProfileRef);
-        if (userProfileSnap.exists()) {
-          delegatedByName = (userProfileSnap.data() as UserProfile).name;
-        }
-      } catch (e) {
-        console.error("Error fetching user profile for delegator name:", e);
-      }
+      delegatedByName = user.displayName;
     }
 
     const newTask: Omit<Task, 'id'> = {
@@ -136,21 +128,12 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     const docRef = doc(firestore, tasksCollectionRef.path, id);
     
     const finalData = { ...updatedData };
-    const isDelegating = finalData.hasOwnProperty('delegateToId') && !!finalData.delegateToId && finalData.delegateToId !== 'null';
+    const isDelegating = finalData.hasOwnProperty('delegateToId');
 
-    if (finalData.hasOwnProperty('delegateToId')) {
-        if(isDelegating) {
+    if (isDelegating) {
+        if (finalData.delegateToId && finalData.delegateToId !== 'null') {
             finalData.delegationStatus = 'pending';
-            try {
-              const userProfileRef = doc(firestore, 'users', user.uid);
-              const userProfileSnap = await getDoc(userProfileRef);
-              if (userProfileSnap.exists()) {
-                finalData.delegatedByName = (userProfileSnap.data() as UserProfile).name;
-              }
-            } catch (e) {
-              console.error("Error fetching user profile for delegator name:", e);
-              finalData.delegatedByName = user.displayName; // Fallback, though might be null
-            }
+            finalData.delegatedByName = user.displayName;
         } else {
             finalData.delegatedByName = null;
             finalData.delegationStatus = null;
@@ -171,7 +154,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const deleteTask = async (id: string) => {
     if (!firestore || !tasksCollectionRef) return;
     const taskToDeleteRef = doc(firestore, 'tasks', id);
-    const deletedTaskRef = doc(firestore, 'taskDeleted', id);
+    const deletedTaskRef = doc(firestore, 'taskHistory', id);
 
     try {
         const taskDoc = await getDoc(taskToDeleteRef);
@@ -189,7 +172,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
         toast({
             title: 'Tarea archivada',
-            description: 'La tarea ha sido movida al archivo de tareas eliminadas.',
+            description: 'La tarea ha sido movida al histórico.',
         });
     } catch (error: any) {
         console.error("Error al mover la tarea: ", error);

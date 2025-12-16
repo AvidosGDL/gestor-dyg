@@ -16,10 +16,11 @@ import {
   Mail,
   UserCheck,
   User,
+  Archive,
 } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus, TeamMember } from '@/lib/types';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { isPast, parseISO, format } from 'date-fns';
@@ -120,7 +121,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
 
     } catch (error: any) {
        console.error('[TaskCard] Error calling sendEmailTask:', {
-        error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+        error: error instanceof Error ? { message: error.message, stack: err.stack } : error,
        });
        toast({
         variant: "destructive",
@@ -158,10 +159,10 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
 
   return (
     <Card
-      className="group relative border-l-4"
+      className="group relative border-l-4 flex flex-col"
       style={{ borderLeftColor: getPriorityColor(task.priority) }}
     >
-      <CardContent className="p-4">
+      <CardContent className="p-4 flex-1">
         {isDelegatedToCurrentUser && isDelegationPending && (
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center gap-2 rounded-lg transition-opacity opacity-0 group-hover:opacity-100">
              <p className="text-sm font-bold text-foreground">Tarea delegada por {task.delegatedByName}</p>
@@ -173,72 +174,74 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
         )}
         <div className="grid grid-cols-[1fr_auto] items-start gap-x-2">
             <div></div>
-            <div className="flex gap-1 justify-self-end">
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-emerald-500"
-                    onClick={handleCompleteTask}
-                    title="Completar Tarea"
-                >
-                    <CheckCircle2 size={16} />
-                </Button>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-primary"
-                    onClick={() => onEdit(task)}
-                    title="Editar tarea"
-                >
-                    <Edit size={16} />
-                </Button>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-primary"
-                    onClick={() => setActiveTaskForPomodoro(task)}
-                    title="Enfocar en esto"
-                >
-                    <Timer size={16} />
-                </Button>
-                 <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-blue-500"
-                    onClick={handleTestEmail}
-                    title="Probar envío de correo"
-                >
-                    <Mail size={16} />
-                </Button>
-                {isOwner && (
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                title="Eliminar tarea"
-                            >
-                                <Trash2 size={16} />
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>¿Archivar Tarea?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    Esta acción moverá la tarea a la lista de tareas archivadas. No se borrará permanentemente.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => deleteTask(task.id)} className="bg-destructive hover:bg-destructive/90">
-                                    Sí, archivar
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                )}
-            </div>
+             {task.status !== 'completado' && (
+                <div className="flex gap-1 justify-self-end">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-emerald-500"
+                        onClick={handleCompleteTask}
+                        title="Completar Tarea"
+                    >
+                        <CheckCircle2 size={16} />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-primary"
+                        onClick={() => onEdit(task)}
+                        title="Editar tarea"
+                    >
+                        <Edit size={16} />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-primary"
+                        onClick={() => setActiveTaskForPomodoro(task)}
+                        title="Enfocar en esto"
+                    >
+                        <Timer size={16} />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-blue-500"
+                        onClick={handleTestEmail}
+                        title="Probar envío de correo"
+                    >
+                        <Mail size={16} />
+                    </Button>
+                    {isOwner && (
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                    title="Archivar tarea"
+                                >
+                                    <Trash2 size={16} />
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>¿Archivar Tarea?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Esta acción moverá la tarea a la lista de tareas archivadas. No se borrará permanentemente.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => deleteTask(task.id)} className="bg-destructive hover:bg-destructive/90">
+                                        Sí, archivar
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    )}
+                </div>
+             )}
             <h4 className="col-span-2 mt-1 font-bold text-foreground break-words min-w-0">
                 {task.title}
             </h4>
@@ -341,6 +344,32 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
             </div>
         )}
       </CardContent>
+       {task.status === 'completado' && (
+        <CardFooter className="p-2 border-t mt-auto">
+          <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" className="w-full">
+                  <Archive size={16} className="mr-2"/>
+                  Pasar a histórico
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Archivar Tarea Completada?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta acción moverá la tarea al histórico. Ya no será visible en el tablero principal.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => deleteTask(task.id)}>
+                    Sí, archivar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+        </CardFooter>
+      )}
     </Card>
   );
 }
