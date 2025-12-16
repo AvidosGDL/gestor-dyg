@@ -50,7 +50,7 @@ const taskSchema = z.object({
 
 type TaskFormValues = z.infer<typeof taskSchema>;
 
-const defaultValues: Omit<Task, 'id' | 'ownerId' | 'delegatedByName' | 'delegationStatus'> = {
+const defaultValues: Partial<TaskFormValues> = {
   title: '',
   client: '',
   progress: 0,
@@ -90,17 +90,12 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
     if (!user) return;
 
     const delegateToId = data.delegateToId === 'null' ? null : data.delegateToId;
-    const selectedMember = members?.find(m => m.id === delegateToId);
-
-    const delegatedByName = delegateToId ? user.displayName : null;
-    const delegationStatus = delegateToId ? 'pending' : null;
+    const selectedMember = members?.find(m => m.id === delegateToId) || null;
 
     addTask({
       ...data,
       delegateToId,
-      delegatedByName,
-      delegationStatus,
-    }, selectedMember);
+    } as Omit<Task, 'id'>, selectedMember, user);
 
     toast({
         title: "Nueva tarea creada",
@@ -164,7 +159,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                     <FormControl>
                       <Slider
                         min={0} max={100} step={5}
-                        defaultValue={[field.value]}
+                        defaultValue={[field.value || 0]}
                         onValueChange={(value) => field.onChange(value[0])}
                       />
                     </FormControl>
@@ -197,7 +192,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                     <FormControl>
                       <Slider
                         min={0} max={100} step={5}
-                        defaultValue={[field.value]}
+                        defaultValue={[field.value || 50]}
                         onValueChange={(value) => field.onChange(value[0])}
                       />
                     </FormControl>

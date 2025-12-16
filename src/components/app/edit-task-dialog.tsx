@@ -26,7 +26,7 @@ import { useTasks } from '@/contexts/tasks-context';
 import { DollarSign, Percent, Users, Paperclip, X, Timer, Play, Square, History, Clock, Calendar as CalendarIcon } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Task, TaskStatus, FocusSession } from '@/lib/types';
+import type { Task, TaskStatus, FocusSession, TeamMember } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '../ui/textarea';
 import { Badge } from '../ui/badge';
@@ -36,6 +36,8 @@ import { Calendar } from '../ui/calendar';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
 
 
 const fileSchema = z.object({
@@ -50,7 +52,7 @@ const taskSchema = z.object({
   progress: z.coerce.number().min(0).max(100),
   priority: z.enum(['low', 'medium', 'high']),
   dueDate: z.string().optional(),
-  delegateTo: z.string().optional(),
+  delegateToId: z.string().optional(),
   status: z.enum(['pendiente', 'en-progreso', 'cierre', 'completado']),
   description: z.string().optional(),
   value: z.coerce.number().min(0),
@@ -94,6 +96,9 @@ const formatDuration = (milliseconds: number) => {
 
 export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDialogProps) {
   const { updateTask } = useTasks();
+  const { user } = useUser();
+  const firestore = useFirestore();
+
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskSchema),
   });
@@ -106,6 +111,12 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
   const [isTracking, setIsTracking] = useState(false);
   const [sessionStart, setSessionStart] = useState<Date | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
+  
+  const collectionPath = user ? `users/${user.uid}/teamMembers` : null;
+  const membersCollectionRef = useMemoFirebase(() => {
+    return collectionPath ? collection(firestore, collectionPath) : null;
+  }, [collectionPath, firestore]);
+  const { data: members } = useCollection<TeamMember>(membersCollectionRef);
 
   const totalTime = useMemo(() => {
     if (!task.focusSessions) return 0;
@@ -141,7 +152,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
       };
       
       const updatedSessions = [...(task.focusSessions || []), newSession];
-      updateTask(task.id, { focusSessions: updatedSessions });
+      updateTask(task.id, { focusSessions: updatedSessions }, user);
       
       const durationMs = endTime.getTime() - sessionStart.getTime();
 
@@ -164,6 +175,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
     if (task && open) {
         form.reset({
             ...task,
+            delegateToId: task.delegateToId || 'null',
             dueDate: task.dueDate,
             completionComment: task.completionComment || '',
         });
@@ -192,13 +204,13 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
       size: file.size,
     }));
 
-    const finalData = {
+    const finalData: Partial<Task> = {
       ...data,
       attachments: [...(task.attachments || []), ...fileMetadata],
-      delegateTo: data.delegateTo || null,
+      delegateToId: data.delegateToId === 'null' ? null : data.delegateToId,
     };
 
-    updateTask(task.id, finalData);
+    updateTask(task.id, finalData, user);
     toast({
         title: "Tarea actualizada",
         description: `"${data.title}" ha sido modificada.`,
@@ -380,15 +392,27 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                 )}
               />
             </div>
-            <FormField
+             <FormField
               control={form.control}
-              name="delegateTo"
+              name="delegateToId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Delegar A</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Nombre del responsable..." {...field} />
-                  </FormControl>
+                  <Select onValueChange={field.onChange} defaultValue={field.value || 'null'}>
+                        <FormControl>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar miembro del equipo..."/>
+                        </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            <SelectItem value="null">Nadie / Tarea personal</SelectItem>
+                            {members?.map(member => (
+                              <SelectItem key={member.id} value={member.id}>
+                                {member.name}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </FormItem>
               )}
             />

@@ -15,6 +15,7 @@ import {
   ThumbsDown,
   Mail,
   UserCheck,
+  User,
 } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus, TeamMember } from '@/lib/types';
@@ -129,15 +130,15 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
   };
 
   const handleStatusChange = (newStatus: TaskStatus) => {
-    updateTask(task.id, { status: newStatus });
+    updateTask(task.id, { status: newStatus }, user);
   }
   
   const handleDelegation = (status: 'accepted' | 'rejected') => {
-    updateTask(task.id, { delegationStatus: status });
+    updateTask(task.id, { delegationStatus: status }, user);
   };
 
   const handleCompleteTask = () => {
-    updateTask(task.id, { status: 'completado', progress: 100 });
+    updateTask(task.id, { status: 'completado', progress: 100 }, user);
   }
 
   const totalFocusTimeMs = React.useMemo(() => {
@@ -273,30 +274,29 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
 
         <div className="flex flex-col space-y-2 text-xs mt-2">
             <div className="flex justify-between items-center">
-                <div className="flex flex-wrap gap-2 items-center">
-                    {task.delegateToId && delegatedMember ? (
-                    <Badge variant="secondary" className="flex items-center gap-1.5">
-                        <UserCheck size={12} />
-                        Delegado a: {delegatedMember.name}
-                    </Badge>
-                    ) : (
-                    totalFocusTimeMs > 0 && (
-                        <div className="flex items-center gap-1 text-muted-foreground font-medium">
-                        <Clock size={12} />
-                        <span>{formatFocusTime(totalFocusTimeMs)}</span>
-                        </div>
-                    )
+                <div className="flex flex-col gap-2 items-start">
+                    {task.delegateToId && delegatedMember && (
+                        <Badge variant="secondary" className="flex items-center gap-1.5">
+                            <UserCheck size={12} />
+                            Delegado a: {delegatedMember.name}
+                        </Badge>
                     )}
                     {task.delegatedByName && (
-                    <Badge className="flex items-center gap-1.5 bg-sky-500/20 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/30">
-                        <UserCheck size={12} />
-                        Delegada por: {task.delegatedByName}
-                    </Badge>
+                        <Badge className="flex items-center gap-1.5 bg-sky-500/20 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/30">
+                            <User size={12} />
+                            Delegada por: {task.delegatedByName}
+                        </Badge>
+                    )}
+                    {totalFocusTimeMs > 0 && !task.delegateToId && (
+                        <div className="flex items-center gap-1 text-muted-foreground font-medium">
+                            <Clock size={12} />
+                            <span>{formatFocusTime(totalFocusTimeMs)}</span>
+                        </div>
                     )}
                 </div>
                 {task.dueDate && (
                     <div
-                    className={`flex items-center gap-1 ${
+                    className={`flex items-center gap-1 self-start ${
                         isPast(parseISO(task.dueDate)) && task.status !== 'completado'
                         ? 'text-destructive font-bold'
                         : 'text-muted-foreground'

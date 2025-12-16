@@ -19,12 +19,13 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
+import { User } from 'firebase/auth';
 
 
 interface TasksContextType {
   tasks: Task[];
-  addTask: (taskData: Omit<Task, 'id'>, member?: TeamMember | null) => void;
-  updateTask: (id: string, updatedData: Partial<Omit<Task, 'id'>>) => void;
+  addTask: (taskData: Omit<Task, 'id'>, member: TeamMember | null, user: User | null) => void;
+  updateTask: (id: string, updatedData: Partial<Omit<Task, 'id'>>, user: User | null) => void;
   deleteTask: (id: string) => void;
   setTasks: (tasks: Task[]) => void;
   loading: boolean;
@@ -41,8 +42,6 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     return firestore ? collection(firestore, 'tasks') : null;
   }, [firestore]);
 
-  // Consulta para obtener las tareas donde el usuario es propietario O es el delegado.
-  // Esto asegura que el manager vea sus tareas delegadas y que los miembros vean las tareas asignadas a ellos.
   const tasksQuery = useMemoFirebase(() => {
     if (!user || !tasksCollectionRef) return null;
     return query(tasksCollectionRef, 
@@ -58,11 +57,20 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     loading,
   } = useCollection<Task>(tasksQuery);
 
-  const addTask = (taskData: Omit<Task, 'id'>, member?: TeamMember | null) => {
+  const addTask = (taskData: Omit<Task, 'id'>, member: TeamMember | null, user: User | null) => {
     if (!tasksCollectionRef || !user) return;
-    const newTask = { ...taskData, ownerId: user.uid };
+    
+    const isDelegating = !!taskData.delegateToId && taskData.delegateToId !== 'null';
+    
+    const newTask = { 
+      ...taskData, 
+      ownerId: user.uid,
+      delegatedByName: isDelegating ? user.displayName : null,
+      delegationStatus: isDelegating ? 'pending' : null,
+    };
+
     addDoc(tasksCollectionRef, newTask).then(async (docRef) => {
-      if (newTask.delegateToId && member) {
+      if (isDelegating && member) {
         try {
           const functions = getFunctions();
           const sendEmailFunction = httpsCallable(functions, 'sendEmailTask');
@@ -72,7 +80,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
             delegateName: member.name,
             taskId: docRef.id,
             taskTitle: newTask.title,
-            delegatorName: user.displayName || 'un administrador',
+            delegatorName: newTask.delegatedByName,
           };
           
           const result: any = await sendEmailFunction(payload);
@@ -108,14 +116,29 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const updateTask = (id: string, updatedData: Partial<Omit<Task, 'id'>>) => {
-    if (!firestore || !tasksCollectionRef) return;
+  const updateTask = (id: string, updatedData: Partial<Omit<Task, 'id'>>, user: User | null) => {
+    if (!firestore || !tasksCollectionRef || !user) return;
     const docRef = doc(firestore, tasksCollectionRef.path, id);
-    updateDoc(docRef, updatedData).catch(async (serverError) => {
+    
+    const finalData = { ...updatedData };
+    const isDelegating = !!finalData.delegateToId && finalData.delegateToId !== 'null';
+
+    if (finalData.hasOwnProperty('delegateToId')) {
+        if(isDelegating) {
+            finalData.delegatedByName = user.displayName;
+            finalData.delegationStatus = 'pending';
+        } else {
+            finalData.delegatedByName = null;
+            finalData.delegationStatus = null;
+            finalData.delegateToId = null;
+        }
+    }
+
+    updateDoc(docRef, finalData).catch(async (serverError) => {
       const permissionError = new FirestorePermissionError({
         path: docRef.path,
         operation: 'update',
-        requestResourceData: updatedData,
+        requestResourceData: finalData,
       });
       errorEmitter.emit('permission-error', permissionError);
     });
