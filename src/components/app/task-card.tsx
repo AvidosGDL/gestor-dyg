@@ -14,6 +14,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   Mail,
+  UserCheck,
 } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus, TeamMember } from '@/lib/types';
@@ -270,33 +271,44 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
           </div>
         </div>
 
-        <div className="flex justify-between items-center text-xs mt-2">
-          <div className="flex items-center gap-2">
-            {task.delegateToId && delegatedMember ? (
-              <Badge variant="secondary">Delegado: {delegatedMember.name}</Badge>
-            ) : (
-             totalFocusTimeMs > 0 && (
-                <div className="flex items-center gap-1 text-muted-foreground font-medium">
-                  <Clock size={12} />
-                  <span>{formatFocusTime(totalFocusTimeMs)}</span>
+        <div className="flex flex-col space-y-2 text-xs mt-2">
+            <div className="flex justify-between items-center">
+                <div className="flex flex-wrap gap-2 items-center">
+                    {task.delegateToId && delegatedMember ? (
+                    <Badge variant="secondary" className="flex items-center gap-1.5">
+                        <UserCheck size={12} />
+                        Delegado a: {delegatedMember.name}
+                    </Badge>
+                    ) : (
+                    totalFocusTimeMs > 0 && (
+                        <div className="flex items-center gap-1 text-muted-foreground font-medium">
+                        <Clock size={12} />
+                        <span>{formatFocusTime(totalFocusTimeMs)}</span>
+                        </div>
+                    )
+                    )}
+                    {task.delegatedByName && (
+                    <Badge className="flex items-center gap-1.5 bg-sky-500/20 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/30">
+                        <UserCheck size={12} />
+                        Delegada por: {task.delegatedByName}
+                    </Badge>
+                    )}
                 </div>
-              )
-            )}
-          </div>
-          {task.dueDate && (
-            <div
-              className={`flex items-center gap-1 ${
-                isPast(parseISO(task.dueDate)) && task.status !== 'completado'
-                  ? 'text-destructive font-bold'
-                  : 'text-muted-foreground'
-              }`}
-            >
-              <Calendar size={12} />
-              <span>
-                {format(parseISO(task.dueDate), 'dd/MM/yyyy')}
-              </span>
+                {task.dueDate && (
+                    <div
+                    className={`flex items-center gap-1 ${
+                        isPast(parseISO(task.dueDate)) && task.status !== 'completado'
+                        ? 'text-destructive font-bold'
+                        : 'text-muted-foreground'
+                    }`}
+                    >
+                    <Calendar size={12} />
+                    <span>
+                        {format(parseISO(task.dueDate), 'dd/MM/yyyy')}
+                    </span>
+                    </div>
+                )}
             </div>
-          )}
         </div>
         
         {task.status !== 'completado' && !isDelegationPending && (
