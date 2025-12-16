@@ -7,6 +7,7 @@ import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { SidebarProvider, Sidebar, SidebarInset } from '@/components/ui/sidebar';
 import { TasksProvider } from '@/contexts/tasks-context';
 import { ProspectsProvider } from '@/contexts/prospects-context';
+import { HistoryProvider } from '@/contexts/history-context';
 import BoardView from '@/components/app/board-view';
 import PlanningView from '@/components/app/planning-view';
 import SidebarNav from '@/components/app/sidebar-nav';
@@ -17,10 +18,11 @@ import ImportView from '@/components/app/import-view';
 import { ThemeToggle } from '@/components/theme-toggle';
 import ProspectsView from '@/components/app/prospects-view';
 import AnalyticsView from '@/components/app/analytics-view';
+import HistoryView from '@/components/app/history-view';
 import { doc, getDoc } from 'firebase/firestore';
 
 
-export type View = 'board' | 'planning' | 'team' | 'import' | 'prospects' | 'analytics';
+export type View = 'board' | 'planning' | 'team' | 'import' | 'prospects' | 'analytics' | 'history';
 
 function Dashboard() {
   const [view, setView] = useState<View>('board');
@@ -32,69 +34,72 @@ function Dashboard() {
   return (
     <TasksProvider>
       <ProspectsProvider>
-        <SidebarProvider>
-          <Sidebar
-            variant="sidebar"
-            collapsible="icon"
-            className="bg-sidebar text-sidebar-foreground z-20"
-          >
-            <div className="flex h-full flex-col">
-              <div className="p-4 lg:p-6 flex items-center gap-3 text-white">
-                <Image
-                  src="https://firebasestorage.googleapis.com/v0/b/studio-8033020115-912ac.firebasestorage.app/o/public%2Flogo%20DyG.jpeg?alt=media&token=578d1bd8-b8a4-47b6-a97f-e7731dc39bf1"
-                  alt="Gestor D&G Logo"
-                  width={32}
-                  height={32}
-                  className="w-8 h-8 rounded-lg"
-                />
-                <div className="group-data-[collapsible=icon]:hidden">
-                  <span className="font-bold text-lg block">Gestor D&G</span>
-                  <span className="font-semibold text-sm block">Roberto DO IT</span>
-                </div>
-              </div>
-              <SidebarNav view={view} setView={setView} />
-              <div className="p-4 mt-auto">
-                <div className="bg-sidebar-accent rounded-xl p-4 space-y-4 flex flex-col items-center group-data-[collapsible=icon]:p-2">
+        <HistoryProvider>
+          <SidebarProvider>
+            <Sidebar
+              variant="sidebar"
+              collapsible="icon"
+              className="bg-sidebar text-sidebar-foreground z-20"
+            >
+              <div className="flex h-full flex-col">
+                <div className="p-4 lg:p-6 flex items-center gap-3 text-white">
+                  <Image
+                    src="https://firebasestorage.googleapis.com/v0/b/studio-8033020115-912ac.firebasestorage.app/o/public%2Flogo%20DyG.jpeg?alt=media&token=578d1bd8-b8a4-47b6-a97f-e7731dc39bf1"
+                    alt="Gestor D&G Logo"
+                    width={32}
+                    height={32}
+                    className="w-8 h-8 rounded-lg"
+                  />
                   <div className="group-data-[collapsible=icon]:hidden">
-                    <h5 className="text-xs font-bold text-muted-foreground uppercase mb-2">
-                      Consejo Productividad
-                    </h5>
-                    <p className="text-xs text-sidebar-foreground/80 italic">
-                      "Si tarda menos de 2 minutos, hazlo ahora. Si no, ponlo en el backlog."
-                    </p>
+                    <span className="font-bold text-lg block">Gestor D&G</span>
+                    <span className="font-semibold text-sm block">Roberto DO IT</span>
                   </div>
-                  <ThemeToggle />
+                </div>
+                <SidebarNav view={view} setView={setView} />
+                <div className="p-4 mt-auto">
+                  <div className="bg-sidebar-accent rounded-xl p-4 space-y-4 flex flex-col items-center group-data-[collapsible=icon]:p-2">
+                    <div className="group-data-[collapsible=icon]:hidden">
+                      <h5 className="text-xs font-bold text-muted-foreground uppercase mb-2">
+                        Consejo Productividad
+                      </h5>
+                      <p className="text-xs text-sidebar-foreground/80 italic">
+                        "Si tarda menos de 2 minutos, hazlo ahora. Si no, ponlo en el backlog."
+                      </p>
+                    </div>
+                    <ThemeToggle />
+                  </div>
                 </div>
               </div>
-            </div>
-          </Sidebar>
+            </Sidebar>
 
-          <SidebarInset>
-            <AppHeader
-              view={view}
-              activeTaskForPomodoro={activeTaskForPomodoro}
-              taskFilter={taskFilter}
-              setTaskFilter={setTaskFilter}
-            />
+            <SidebarInset>
+              <AppHeader
+                view={view}
+                activeTaskForPomodoro={activeTaskForPomodoro}
+                taskFilter={taskFilter}
+                setTaskFilter={setTaskFilter}
+              />
 
-            <main className="flex-1 overflow-hidden p-4 md:p-6 bg-background">
-              {view === 'board' && (
-                <BoardView setActiveTaskForPomodoro={setActiveTaskForPomodoro} taskFilter={taskFilter} />
-              )}
-              {view === 'planning' && (
-                <PlanningView
-                  activeTaskForPomodoro={activeTaskForPomodoro}
-                  setActiveTaskForPomodoro={setActiveTaskForPomodoro}
-                  taskFilter={taskFilter}
-                />
-              )}
-              {view === 'team' && <TeamView />}
-              {view === 'import' && <ImportView />}
-              {view === 'prospects' && <ProspectsView />}
-              {view === 'analytics' && <AnalyticsView taskFilter={taskFilter} />}
-            </main>
-          </SidebarInset>
-        </SidebarProvider>
+              <main className="flex-1 overflow-hidden p-4 md:p-6 bg-background">
+                {view === 'board' && (
+                  <BoardView setActiveTaskForPomodoro={setActiveTaskForPomodoro} taskFilter={taskFilter} />
+                )}
+                {view === 'planning' && (
+                  <PlanningView
+                    activeTaskForPomodoro={activeTaskForPomodoro}
+                    setActiveTaskForPomodoro={setActiveTaskForPomodoro}
+                    taskFilter={taskFilter}
+                  />
+                )}
+                {view === 'team' && <TeamView />}
+                {view === 'import' && <ImportView />}
+                {view === 'prospects' && <ProspectsView />}
+                {view === 'analytics' && <AnalyticsView taskFilter={taskFilter} />}
+                {view === 'history' && <HistoryView taskFilter={taskFilter} />}
+              </main>
+            </SidebarInset>
+          </SidebarProvider>
+        </HistoryProvider>
       </ProspectsProvider>
     </TasksProvider>
   );

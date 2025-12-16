@@ -40,7 +40,7 @@ export default function AppHeader({
   const { data: members } = useCollection<TeamMember>(membersCollectionRef);
 
   const showAddButton = view === 'board' || view === 'planning';
-  const showFilterButton = view === 'board' || view === 'planning' || view === 'analytics';
+  const showFilterButton = view === 'board' || view === 'planning' || view === 'analytics' || view === 'history';
 
   const renderAddButton = () => {
     if (view === 'team') {
@@ -149,4 +149,5 @@ const viewTitles: Record<View, string> = {
   import: 'Importar Tareas',
   prospects: 'Seguimiento de Prospectos',
   analytics: 'Análisis de Avances',
+  history: 'Histórico de Tareas',
 };
