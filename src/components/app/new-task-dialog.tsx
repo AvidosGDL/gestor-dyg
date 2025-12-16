@@ -50,7 +50,7 @@ const taskSchema = z.object({
 
 type TaskFormValues = z.infer<typeof taskSchema>;
 
-const defaultValues: Omit<Task, 'id' | 'ownerId' | 'delegatedByName' | 'delegationStatus'> = {
+const defaultValues: Partial<TaskFormValues> = {
   title: '',
   client: '',
   progress: 0,
@@ -94,7 +94,10 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
 
     addTask({
       ...data,
+      ownerId: user.uid,
       delegateToId,
+      delegatedByName: null,
+      delegationStatus: null,
     }, selectedMember);
 
     toast({

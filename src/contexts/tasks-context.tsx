@@ -25,7 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 interface TasksContextType {
   tasks: Task[];
   addTask: (taskData: Omit<Task, 'id' | 'ownerId'>, member?: TeamMember | null) => void;
-  updateTask: (id: string, updatedData: Partial<Omit<Task, 'id' | 'ownerId'>>, member?: TeamMember | null) => void;
+  updateTask: (id: string, updatedData: Partial<Omit<Task, 'id' | 'ownerId'>>) => void;
   deleteTask: (id: string) => void;
   setTasks: (tasks: Task[]) => void;
   loading: boolean;
@@ -57,7 +57,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     loading,
   } = useCollection<Task>(tasksQuery);
 
-  const addTask = async (taskData: Omit<Task, 'id' | 'ownerId'>, member?: TeamMember | null) => {
+  const addTask = async (taskData: Partial<Omit<Task, 'id'>>, member?: TeamMember | null) => {
     if (!tasksCollectionRef || !user) return;
     
     const newTask: Partial<Task> = { 
@@ -122,7 +122,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const updateTask = async (id: string, updatedData: Partial<Omit<Task, 'id' | 'ownerId'>>, member?: TeamMember | null) => {
+  const updateTask = async (id: string, updatedData: Partial<Omit<Task, 'id' | 'ownerId'>>) => {
     if (!firestore || !tasksCollectionRef || !user) return;
     const docRef = doc(firestore, tasksCollectionRef.path, id);
     
@@ -138,7 +138,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         finalData.delegationStatus = 'pending';
       } 
       // If delegation is being REMOVED
-      else if (finalData.delegateToId === null) {
+      else if (finalData.delegateToId === null || finalData.delegateToId === 'null') {
+        finalData.delegateToId = null;
         finalData.delegatedByName = null;
         finalData.delegationStatus = null;
       }
