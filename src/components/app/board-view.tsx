@@ -43,7 +43,7 @@ const TaskColumn = ({
   const columnTasks = tasks.filter((t) => t.status === status);
 
   return (
-    <div className="min-w-[320px] w-[320px] flex flex-col bg-muted/50 rounded-xl">
+    <div className="min-w-[360px] w-[360px] flex flex-col bg-muted/50 rounded-xl">
       <div
         className={`p-3 bg-card rounded-t-xl border-t-4 shadow-sm ${color} sticky top-0 z-10`}
       >
@@ -93,7 +93,7 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
   };
   
   const handleDelegation = (taskId: string, status: 'accepted' | 'rejected') => {
-    updateTask(taskId, { delegationStatus: status });
+    updateTask(taskId, { delegationStatus: status }, user);
     toast({
       title: `Tarea ${status === 'accepted' ? 'aceptada' : 'rechazada'}`,
       description: `Has ${status === 'accepted' ? 'aceptado' : 'rechazado'} la tarea.`,
@@ -132,7 +132,7 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
   const dismissNotification = (task: Task) => {
     if (task.delegationStatus === 'rejected') {
         // Al descartar, se quita la delegación para que no vuelva a aparecer.
-        updateTask(task.id, { delegateToId: null, delegatedByName: null, delegationStatus: null });
+        updateTask(task.id, { delegateToId: null, delegatedByName: null, delegationStatus: null }, user);
     }
     if (task.status === 'completado' && task.delegateToId) {
         // Simplemente se podría "archivar" la notificación, aquí la eliminamos para simplicidad.
