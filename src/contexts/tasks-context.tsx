@@ -65,7 +65,19 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     let delegatedByName: string | null = null;
     
     if (isDelegating) {
-      delegatedByName = user.displayName;
+      try {
+        const userProfileRef = doc(firestore, `users/${user.uid}`);
+        const userProfileSnap = await getDoc(userProfileRef);
+        if(userProfileSnap.exists()) {
+          delegatedByName = userProfileSnap.data().name;
+        } else {
+          // Fallback to displayName if profile doesn't exist for some reason
+          delegatedByName = user.displayName;
+        }
+      } catch (e) {
+        console.error("Could not fetch user profile to get delegator name", e);
+        delegatedByName = user.displayName; // fallback
+      }
     }
 
     const newTask: Omit<Task, 'id'> = {
@@ -88,7 +100,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
             delegateName: member.name,
             taskId: docRef.id,
             taskTitle: newTask.title,
-            delegatorName: newTask.delegatedByName,
+            delegatorName: delegatedByName,
           };
           
           const result: any = await sendEmailFunction(payload);
@@ -133,7 +145,18 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     if (isDelegating) {
         if (finalData.delegateToId && finalData.delegateToId !== 'null') {
             finalData.delegationStatus = 'pending';
-            finalData.delegatedByName = user.displayName;
+             try {
+                const userProfileRef = doc(firestore, `users/${user.uid}`);
+                const userProfileSnap = await getDoc(userProfileRef);
+                if(userProfileSnap.exists()) {
+                    finalData.delegatedByName = userProfileSnap.data().name;
+                } else {
+                    finalData.delegatedByName = user.displayName;
+                }
+            } catch (e) {
+                console.error("Could not fetch user profile to get delegator name", e);
+                finalData.delegatedByName = user.displayName; // fallback
+            }
         } else {
             finalData.delegatedByName = null;
             finalData.delegationStatus = null;
