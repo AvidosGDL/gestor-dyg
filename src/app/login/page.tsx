@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarImage } from '@/components/ui/avatar';
 import { ImageUp, Loader2 } from 'lucide-react';
@@ -63,28 +63,34 @@ const GoogleIcon = () => (
     </svg>
 );
 
-const createProfileIfNotExists = async (user: User, firestore: any) => {
+const createProfileIfNotExists = async (user: User, firestore: any): Promise<void> => {
     const userDocRef = doc(firestore, 'users', user.uid);
-    const userDoc = await getDoc(userDocRef);
+    try {
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+            return; // Profile already exists
+        }
 
-    if (!userDoc.exists()) {
         const userProfile: UserProfile = {
-            name: user.displayName || 'Usuario Anónimo',
+            name: user.displayName || 'Sin Nombre', // Should not happen with Google Sign-in
             email: user.email || '',
             avatarUrl: user.photoURL || generateAvatarUrl(user.uid),
-            role: '', // Role and phone will be empty, can be completed later
-            phone: '',
+            role: 'Miembro', // Default role
+            phone: user.phoneNumber || '',
         };
-        try {
-            await setDoc(userDocRef, userProfile);
-        } catch (serverError) {
-             const permissionError = new FirestorePermissionError({
+
+        // Use a non-blocking write but catch potential errors for debugging
+        setDoc(userDocRef, userProfile).catch(serverError => {
+            const permissionError = new FirestorePermissionError({
                 path: `users/${user.uid}`,
                 operation: 'create',
                 requestResourceData: userProfile,
             });
             errorEmitter.emit('permission-error', permissionError);
-        }
+            console.error("Failed to create user profile:", permissionError);
+        });
+    } catch (error) {
+        console.error("Error checking or creating user profile:", error);
     }
 };
   
@@ -110,12 +116,14 @@ function LoginForm() {
     };
 
     const handleGoogleSignIn = async () => {
+        if (!auth || !firestore) return;
         const provider = new GoogleAuthProvider();
         try {
           const result = await signInWithPopup(auth, provider);
-          // After sign in, ensure profile exists
+          // After sign in, robustly ensure profile exists before continuing
           await createProfileIfNotExists(result.user, firestore);
           toast({ title: 'Éxito', description: 'Has iniciado sesión con Google.' });
+          // The onAuthStateChanged listener will handle the redirect
         } catch (error: any) {
           toast({
             variant: 'destructive',
@@ -295,16 +303,14 @@ function AuthPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (!auth || !firestore) {
+        setIsLoading(false);
+        return;
+    }
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
         if (user) {
-            // Check if profile exists, if not, it's a first-time login
-            const userDocRef = doc(firestore, 'users', user.uid);
-            const docSnap = await getDoc(userDocRef);
-            if (!docSnap.exists()) {
-                // If it's a first-time Google sign-in, the profile might have just been created
-                // in the popup handler. We give it a moment. Or handle it more robustly.
-                await createProfileIfNotExists(user, firestore);
-            }
+            // Ensure profile exists before redirecting
+            await createProfileIfNotExists(user, firestore);
             setUser(user);
             router.push('/');
         } else {

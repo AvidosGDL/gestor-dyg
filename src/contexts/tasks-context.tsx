@@ -73,11 +73,11 @@ export function TasksProvider({ children }: { children: ReactNode }) {
           const userProfile = userProfileSnap.data() as UserProfile;
           newTask.delegatedByName = userProfile.name;
         } else {
-          // Fallback if profile doesn't exist for some reason
-          newTask.delegatedByName = user.displayName || 'Usuario';
+          // Profile not found, this should be a rare case now
+          newTask.delegatedByName = null; 
         }
       } catch (e) {
-         newTask.delegatedByName = user.displayName || 'Usuario';
+         newTask.delegatedByName = null;
       }
       newTask.delegationStatus = 'pending';
     } else {
@@ -151,10 +151,10 @@ export function TasksProvider({ children }: { children: ReactNode }) {
               const userProfile = userProfileSnap.data() as UserProfile;
               finalData.delegatedByName = userProfile.name;
             } else {
-              finalData.delegatedByName = user.displayName || 'Usuario';
+              finalData.delegatedByName = null;
             }
         } catch (e) {
-            finalData.delegatedByName = user.displayName || 'Usuario';
+            finalData.delegatedByName = null;
         }
         finalData.delegationStatus = 'pending';
       } 
