@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useMemo } from 'react';
-import type { Task, TeamMember } from '@/lib/types';
+import type { Task, TeamMember, UserProfile } from '@/lib/types';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import {
   collection,
@@ -14,6 +14,7 @@ import {
   query,
   where,
   or,
+  getDoc,
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -56,7 +57,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     loading,
   } = useCollection<Task>(tasksQuery);
 
-  const addTask = (taskData: Omit<Task, 'id' | 'ownerId'>, member?: TeamMember | null) => {
+  const addTask = async (taskData: Omit<Task, 'id' | 'ownerId'>, member?: TeamMember | null) => {
     if (!tasksCollectionRef || !user) return;
     
     const newTask: Partial<Task> = { 
@@ -65,8 +66,20 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     };
 
     if (taskData.delegateToId) {
+      try {
+        const userProfileRef = doc(firestore, 'users', user.uid);
+        const userProfileSnap = await getDoc(userProfileRef);
+        if (userProfileSnap.exists()) {
+          const userProfile = userProfileSnap.data() as UserProfile;
+          newTask.delegatedByName = userProfile.name;
+        } else {
+          // Fallback if profile doesn't exist for some reason
+          newTask.delegatedByName = user.displayName || 'Usuario';
+        }
+      } catch (e) {
+         newTask.delegatedByName = user.displayName || 'Usuario';
+      }
       newTask.delegationStatus = 'pending';
-      newTask.delegatedByName = user.displayName || 'Propietario';
     } else {
       newTask.delegationStatus = null;
       newTask.delegatedByName = null;
@@ -84,7 +97,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
             delegateName: member.name,
             taskId: docRef.id,
             taskTitle: newTask.title,
-            delegatorName: user.displayName || 'un administrador',
+            delegatorName: newTask.delegatedByName,
           };
           
           const result: any = await sendEmailFunction(payload);
@@ -120,7 +133,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const updateTask = (id: string, updatedData: Partial<Omit<Task, 'id' | 'ownerId'>>, member?: TeamMember | null) => {
+  const updateTask = async (id: string, updatedData: Partial<Omit<Task, 'id' | 'ownerId'>>, member?: TeamMember | null) => {
     if (!firestore || !tasksCollectionRef || !user) return;
     const docRef = doc(firestore, tasksCollectionRef.path, id);
     
@@ -131,7 +144,18 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     if ('delegateToId' in finalData) {
       // If a NEW delegate is being assigned
       if (finalData.delegateToId && (!originalTask || originalTask.delegateToId !== finalData.delegateToId)) {
-        finalData.delegatedByName = user.displayName || 'Propietario';
+        try {
+            const userProfileRef = doc(firestore, 'users', user.uid);
+            const userProfileSnap = await getDoc(userProfileRef);
+            if (userProfileSnap.exists()) {
+              const userProfile = userProfileSnap.data() as UserProfile;
+              finalData.delegatedByName = userProfile.name;
+            } else {
+              finalData.delegatedByName = user.displayName || 'Usuario';
+            }
+        } catch (e) {
+            finalData.delegatedByName = user.displayName || 'Usuario';
+        }
         finalData.delegationStatus = 'pending';
       } 
       // If delegation is being REMOVED
