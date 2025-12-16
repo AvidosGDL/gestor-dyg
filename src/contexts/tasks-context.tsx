@@ -101,7 +101,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
            toast({
             variant: "destructive",
             title: "Error al notificar",
-            description: "No se pudo enviar el correo de notificación. " + error.message,
+            description: "No se pudo enviar el correo de notificación. Faltan datos para enviar el correo de delegación.",
           });
         }
       }
