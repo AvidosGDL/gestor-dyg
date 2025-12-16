@@ -58,24 +58,28 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     loading,
   } = useCollection<Task>(tasksQuery);
 
-  const addTask = (taskData: Omit<Task, 'id'>, member: TeamMember | null, user: User | null) => {
+  const addTask = async (taskData: Omit<Task, 'id'>, member: TeamMember | null, user: User | null) => {
     if (!tasksCollectionRef || !user) return;
-    
+
     const isDelegating = !!taskData.delegateToId && taskData.delegateToId !== 'null';
-    
-    const newTask = { 
-      ...taskData, 
+
+    const newTask: Omit<Task, 'id'> = {
+      ...taskData,
       ownerId: user.uid,
       delegatedByName: isDelegating ? user.displayName : null,
       delegationStatus: isDelegating ? 'pending' : null,
     };
 
-    addDoc(tasksCollectionRef, newTask).then(async (docRef) => {
+    try {
+      // 1. Create the task in Firestore and wait for it to complete.
+      const docRef = await addDoc(tasksCollectionRef, newTask);
+
+      // 2. If delegating, *after* the task is created, send the email.
       if (isDelegating && member) {
         try {
           const functions = getFunctions();
           const sendEmailFunction = httpsCallable(functions, 'sendEmailTask');
-          
+
           const payload = {
             to: member.email,
             delegateName: member.name,
@@ -83,7 +87,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
             taskTitle: newTask.title,
             delegatorName: newTask.delegatedByName,
           };
-          
+
           const result: any = await sendEmailFunction(payload);
 
           if (!result.data.success) {
@@ -95,26 +99,26 @@ export function TasksProvider({ children }: { children: ReactNode }) {
             description: `Se ha notificado a ${member.name} sobre la nueva tarea.`,
           });
 
-        } catch (error: any) {
+        } catch (emailError: any) {
            console.error('[addTask] Error calling sendEmailTask:', {
-             error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+             error: emailError instanceof Error ? { message: emailError.message, stack: emailError.stack } : emailError,
            });
            toast({
             variant: "destructive",
             title: "Error al notificar",
-            description: "No se pudo enviar el correo de notificación. Faltan datos para enviar el correo de delegación.",
+            description: "La tarea se creó, pero no se pudo enviar el correo de notificación. " + emailError.message,
           });
         }
       }
-
-    }).catch(async (serverError) => {
+    } catch (firestoreError: any) {
+      // Handle Firestore permission errors during task creation
       const permissionError = new FirestorePermissionError({
         path: tasksCollectionRef.path,
         operation: 'create',
         requestResourceData: newTask,
       });
       errorEmitter.emit('permission-error', permissionError);
-    });
+    }
   };
 
   const updateTask = (id: string, updatedData: Partial<Omit<Task, 'id'>>, user: User | null) => {
