@@ -27,6 +27,7 @@ import { useCollection, useUser, useFirestore, useMemoFirebase } from '@/firebas
 import { collection, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 
 interface TaskCardProps {
@@ -152,6 +153,8 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
 
   const isDelegatedToCurrentUser = user?.uid === task.delegateToId;
   const isDelegationPending = task.delegationStatus === 'pending';
+  const isOwner = user?.uid === task.ownerId;
+
 
   return (
     <Card
@@ -207,15 +210,34 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
                 >
                     <Mail size={16} />
                 </Button>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                    onClick={() => deleteTask(task.id)}
-                    title="Eliminar tarea"
-                >
-                    <Trash2 size={16} />
-                </Button>
+                {isOwner && (
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                title="Eliminar tarea"
+                            >
+                                <Trash2 size={16} />
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>¿Archivar Tarea?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Esta acción moverá la tarea a la lista de tareas archivadas. No se borrará permanentemente.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => deleteTask(task.id)} className="bg-destructive hover:bg-destructive/90">
+                                    Sí, archivar
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                )}
             </div>
             <h4 className="col-span-2 mt-1 font-bold text-foreground break-words min-w-0">
                 {task.title}

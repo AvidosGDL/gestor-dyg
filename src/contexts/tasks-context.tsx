@@ -14,6 +14,7 @@ import {
   query,
   where,
   or,
+  getDoc,
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -144,17 +145,47 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const deleteTask = (id: string) => {
+  const deleteTask = async (id: string) => {
     if (!firestore || !tasksCollectionRef) return;
-    const docRef = doc(firestore, tasksCollectionRef.path, id);
-    deleteDoc(docRef).catch(async (serverError) => {
-      const permissionError = new FirestorePermissionError({
-        path: docRef.path,
-        operation: 'delete',
-      });
-      errorEmitter.emit('permission-error', permissionError);
-    });
+    const taskToDeleteRef = doc(firestore, 'tasks', id);
+    const deletedTaskRef = doc(firestore, 'taskDeleted', id);
+
+    try {
+        const taskDoc = await getDoc(taskToDeleteRef);
+        if (!taskDoc.exists()) {
+            throw new Error("La tarea no existe.");
+        }
+        
+        const taskData = taskDoc.data();
+
+        const batch = writeBatch(firestore);
+        batch.set(deletedTaskRef, taskData); // Copiar a taskDeleted
+        batch.delete(taskToDeleteRef); // Borrar de tasks
+        
+        await batch.commit();
+
+        toast({
+            title: 'Tarea archivada',
+            description: 'La tarea ha sido movida al archivo de tareas eliminadas.',
+        });
+    } catch (error: any) {
+        console.error("Error al mover la tarea: ", error);
+        if (error.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+                path: taskToDeleteRef.path,
+                operation: 'delete',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        } else {
+            toast({
+                variant: "destructive",
+                title: "Error al archivar",
+                description: "No se pudo mover la tarea. " + error.message,
+            });
+        }
+    }
   };
+
 
   const setTasks = (newTasks: Task[]) => {
     if (!firestore || !tasksCollectionRef) return;

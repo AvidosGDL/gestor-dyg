@@ -245,6 +245,12 @@
       },
       "description": "Stores all tasks for all users in a single collection."
     },
+    "/taskDeleted/{taskId}": {
+      "schema": {
+        "$ref": "#/entities/Task"
+      },
+      "description": "Stores tasks that have been 'soft-deleted' by users."
+    },
     "/users/{userId}/teamMembers/{memberId}": {
       "schema": {
         "$ref": "#/entities/TeamMember"

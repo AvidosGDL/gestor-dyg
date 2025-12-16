@@ -36,5 +36,15 @@ service cloud.firestore {
       // PERMITIR ELIMINACIÓN: Solo el propietario puede eliminar la tarea.
       allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
     }
+
+    // Reglas para tareas borradas
+    match /taskDeleted/{taskId} {
+        // Solo el propietario original de la tarea puede moverla aquí (crearla).
+        allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
+        
+        // Nadie puede leer, actualizar o eliminar directamente las tareas borradas.
+        // Se gestionan a través de herramientas de administrador o procesos de backend si es necesario.
+        allow read, update, delete: if false;
+    }
   }
 }
