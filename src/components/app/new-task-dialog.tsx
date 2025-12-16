@@ -26,7 +26,7 @@ import { useTasks } from '@/contexts/tasks-context';
 import { DollarSign, Users, Calendar as CalendarIcon } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Task, TaskStatus, TeamMember } from '@/lib/types';
+import type { Task, TeamMember } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
@@ -171,13 +171,29 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
               <FormField
                 control={form.control}
                 name="value"
-                render={({ field }) => (
+                render={({ field: { onChange, value, ...restField } }) => (
                   <FormItem>
                     <FormLabel>Potencial del Negocio ($)</FormLabel>
                     <FormControl>
                       <div className="relative">
                         <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <Input type="number" placeholder="Valor en USD" className="pl-9" {...field} />
+                        <Input
+                          type="text"
+                          placeholder="Valor en USD"
+                          className="pl-9"
+                          value={value.toLocaleString('en-US')}
+                          onChange={(e) => {
+                            const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                            const numericValue = rawValue === '' ? 0 : Number(rawValue);
+                            onChange(numericValue);
+                          }}
+                          onBlur={(e) => {
+                            const numericValue = Number(e.target.value.replace(/[^0-9]/g, ''));
+                             // Re-format on blur to ensure consistency
+                            e.target.value = numericValue.toLocaleString('en-US');
+                          }}
+                          {...restField}
+                        />
                       </div>
                     </FormControl>
                   </FormItem>
