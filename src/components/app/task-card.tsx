@@ -274,24 +274,23 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
         <div className="flex flex-col space-y-2 text-xs mt-2">
             <div className="flex justify-between items-center">
                 <div className="flex flex-wrap gap-2 items-center">
-                    {task.delegateToId && delegatedMember ? (
-                    <Badge variant="secondary" className="flex items-center gap-1.5">
-                        <UserCheck size={12} />
-                        Delegado a: {delegatedMember.name}
-                    </Badge>
-                    ) : (
-                    totalFocusTimeMs > 0 && (
+                    {task.delegateToId && delegatedMember && (
+                        <Badge variant="secondary" className="flex items-center gap-1.5">
+                            <UserCheck size={12} />
+                            Delegado a: {delegatedMember.name}
+                        </Badge>
+                    )}
+                    {task.delegatedByName && (
+                        <Badge className="flex items-center gap-1.5 bg-sky-500/20 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/30">
+                            <UserCheck size={12} />
+                            Delegada por: {task.delegatedByName}
+                        </Badge>
+                    )}
+                    {!task.delegateToId && totalFocusTimeMs > 0 && (
                         <div className="flex items-center gap-1 text-muted-foreground font-medium">
                         <Clock size={12} />
                         <span>{formatFocusTime(totalFocusTimeMs)}</span>
                         </div>
-                    )
-                    )}
-                    {task.delegatedByName && (
-                    <Badge className="flex items-center gap-1.5 bg-sky-500/20 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/30">
-                        <UserCheck size={12} />
-                        Delegada por: {task.delegatedByName}
-                    </Badge>
                     )}
                 </div>
                 {task.dueDate && (
