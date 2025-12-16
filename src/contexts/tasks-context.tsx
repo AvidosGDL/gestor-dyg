@@ -23,8 +23,8 @@ import { useToast } from '@/hooks/use-toast';
 
 interface TasksContextType {
   tasks: Task[];
-  addTask: (taskData: Omit<Task, 'id'>, member?: TeamMember | null) => void;
-  updateTask: (id: string, updatedData: Partial<Omit<Task, 'id'>>) => void;
+  addTask: (taskData: Omit<Task, 'id' | 'ownerId'>, member?: TeamMember | null) => void;
+  updateTask: (id: string, updatedData: Partial<Omit<Task, 'id' | 'ownerId'>>) => void;
   deleteTask: (id: string) => void;
   setTasks: (tasks: Task[]) => void;
   loading: boolean;
@@ -58,9 +58,16 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     loading,
   } = useCollection<Task>(tasksQuery);
 
-  const addTask = (taskData: Omit<Task, 'id'>, member?: TeamMember | null) => {
+  const addTask = (taskData: Omit<Task, 'id' | 'ownerId'>, member?: TeamMember | null) => {
     if (!tasksCollectionRef || !user) return;
-    const newTask = { ...taskData, ownerId: user.uid };
+    
+    const newTask = { 
+      ...taskData, 
+      ownerId: user.uid,
+      delegationStatus: taskData.delegateToId ? 'pending' : null,
+      delegatedByName: taskData.delegateToId ? (user.displayName || 'Propietario') : null
+    };
+
     addDoc(tasksCollectionRef, newTask).then(async (docRef) => {
       if (newTask.delegateToId && member) {
         try {
@@ -108,10 +115,27 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const updateTask = (id: string, updatedData: Partial<Omit<Task, 'id'>>) => {
-    if (!firestore || !tasksCollectionRef) return;
+  const updateTask = (id: string, updatedData: Partial<Omit<Task, 'id' | 'ownerId'>>) => {
+    if (!firestore || !tasksCollectionRef || !user) return;
     const docRef = doc(firestore, tasksCollectionRef.path, id);
-    updateDoc(docRef, updatedData).catch(async (serverError) => {
+    
+    const finalData = { ...updatedData };
+
+    const originalTask = tasks?.find(t => t.id === id);
+
+    // If delegateToId is being changed, update delegation-related fields
+    if ('delegateToId' in finalData) {
+      if (finalData.delegateToId && (!originalTask || originalTask.delegateToId !== finalData.delegateToId)) {
+        finalData.delegatedByName = user.displayName || 'Propietario';
+        finalData.delegationStatus = 'pending';
+      } else if (finalData.delegateToId === null) {
+        finalData.delegatedByName = null;
+        finalData.delegationStatus = null;
+      }
+    }
+
+
+    updateDoc(docRef, finalData).catch(async (serverError) => {
       const permissionError = new FirestorePermissionError({
         path: docRef.path,
         operation: 'update',

@@ -19,7 +19,7 @@ export interface Attachment {
 }
 
 export interface Task {
-  id: string; // Changed from number to string for Firestore compatibility
+  id: string; 
   title: string;
   client: string;
   progress: number;

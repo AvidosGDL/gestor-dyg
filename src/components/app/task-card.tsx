@@ -15,6 +15,7 @@ import {
   ThumbsDown,
   Mail,
   UserCheck,
+  UserCog,
 } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus, TeamMember } from '@/lib/types';
@@ -23,7 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { isPast, parseISO, format } from 'date-fns';
 import { useCollection, useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
 
@@ -145,6 +146,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
     return task.focusSessions.reduce((total, session) => {
       const start = new Date(session.startTime).getTime();
       const end = new Date(session.endTime).getTime();
+      if (isNaN(start) || isNaN(end)) return total;
       return total + (end - start);
     }, 0);
   }, [task.focusSessions]);
@@ -274,16 +276,16 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
         <div className="flex flex-col space-y-2 text-xs mt-2">
             <div className="flex justify-between items-center">
                 <div className="flex flex-wrap gap-2 items-center">
+                    {task.delegatedByName && (
+                        <Badge className="flex items-center gap-1.5 bg-sky-500/20 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/30">
+                            <UserCog size={12} />
+                            Delegada por: {task.delegatedByName}
+                        </Badge>
+                    )}
                     {task.delegateToId && delegatedMember && (
                         <Badge variant="secondary" className="flex items-center gap-1.5">
                             <UserCheck size={12} />
                             Delegado a: {delegatedMember.name}
-                        </Badge>
-                    )}
-                    {task.delegatedByName && (
-                        <Badge className="flex items-center gap-1.5 bg-sky-500/20 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/30">
-                            <UserCheck size={12} />
-                            Delegada por: {task.delegatedByName}
                         </Badge>
                     )}
                     {!task.delegateToId && totalFocusTimeMs > 0 && (

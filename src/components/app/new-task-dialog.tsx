@@ -92,14 +92,9 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
     const delegateToId = data.delegateToId === 'null' ? null : data.delegateToId;
     const selectedMember = members?.find(m => m.id === delegateToId);
 
-    const delegatedByName = delegateToId ? user.displayName : null;
-    const delegationStatus = delegateToId ? 'pending' : null;
-
     addTask({
       ...data,
       delegateToId,
-      delegatedByName,
-      delegationStatus,
     }, selectedMember);
 
     toast({
