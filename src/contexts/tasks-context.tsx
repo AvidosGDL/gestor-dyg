@@ -66,19 +66,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     };
 
     if (taskData.delegateToId) {
-      try {
-        const userProfileRef = doc(firestore, 'users', user.uid);
-        const userProfileSnap = await getDoc(userProfileRef);
-        if (userProfileSnap.exists()) {
-          const userProfile = userProfileSnap.data() as UserProfile;
-          newTask.delegatedByName = userProfile.name;
-        } else {
-          // Profile not found, this should be a rare case now
-          newTask.delegatedByName = null; 
-        }
-      } catch (e) {
-         newTask.delegatedByName = null;
-      }
+      // Use the displayName from the current authenticated user object. It's the most reliable source.
+      newTask.delegatedByName = user.displayName || null;
       newTask.delegationStatus = 'pending';
     } else {
       newTask.delegationStatus = null;
@@ -144,18 +133,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     if ('delegateToId' in finalData) {
       // If a NEW delegate is being assigned
       if (finalData.delegateToId && (!originalTask || originalTask.delegateToId !== finalData.delegateToId)) {
-        try {
-            const userProfileRef = doc(firestore, 'users', user.uid);
-            const userProfileSnap = await getDoc(userProfileRef);
-            if (userProfileSnap.exists()) {
-              const userProfile = userProfileSnap.data() as UserProfile;
-              finalData.delegatedByName = userProfile.name;
-            } else {
-              finalData.delegatedByName = null;
-            }
-        } catch (e) {
-            finalData.delegatedByName = null;
-        }
+        // Use the displayName from the current authenticated user object.
+        finalData.delegatedByName = user.displayName || null;
         finalData.delegationStatus = 'pending';
       } 
       // If delegation is being REMOVED

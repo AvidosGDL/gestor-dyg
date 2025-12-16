@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, type Firestore } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarImage } from '@/components/ui/avatar';
 import { ImageUp, Loader2 } from 'lucide-react';
@@ -63,35 +63,43 @@ const GoogleIcon = () => (
     </svg>
 );
 
-const createProfileIfNotExists = async (user: User, firestore: any): Promise<void> => {
-    const userDocRef = doc(firestore, 'users', user.uid);
-    try {
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-            return; // Profile already exists
-        }
-
-        const userProfile: UserProfile = {
-            name: user.displayName || 'Sin Nombre', // Should not happen with Google Sign-in
-            email: user.email || '',
-            avatarUrl: user.photoURL || generateAvatarUrl(user.uid),
-            role: 'Miembro', // Default role
-            phone: user.phoneNumber || '',
-        };
-
-        // Use a non-blocking write but catch potential errors for debugging
-        setDoc(userDocRef, userProfile).catch(serverError => {
-            const permissionError = new FirestorePermissionError({
-                path: `users/${user.uid}`,
-                operation: 'create',
-                requestResourceData: userProfile,
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            console.error("Failed to create user profile:", permissionError);
-        });
-    } catch (error) {
-        console.error("Error checking or creating user profile:", error);
+const createProfileIfNotExists = async (user: User, firestore: Firestore): Promise<void> => {
+  const userDocRef = doc(firestore, 'users', user.uid);
+  
+  try {
+    const userDoc = await getDoc(userDocRef);
+    if (userDoc.exists()) {
+      return; // Profile already exists, no action needed.
     }
+
+    // Profile does not exist, create it from the auth user object.
+    const userProfile: UserProfile = {
+      // Use displayName and photoURL from the Google Auth user object as the source of truth.
+      name: user.displayName || 'Usuario sin nombre', // Provide a fallback, but displayName should exist for Google.
+      email: user.email || '',
+      avatarUrl: user.photoURL || generateAvatarUrl(user.uid),
+      role: 'Miembro', // Assign a default role.
+      phone: user.phoneNumber || '',
+    };
+    
+    // Perform a blocking write to ensure the profile is created before proceeding.
+    // This is critical to prevent race conditions where other parts of the app
+    // might need the profile immediately after login.
+    await setDoc(userDocRef, userProfile);
+
+  } catch (error: any) {
+    // If the write fails, it's likely a security rule issue.
+    // Emit a detailed error for debugging.
+    const permissionError = new FirestorePermissionError({
+      path: userDocRef.path,
+      operation: 'create',
+      requestResourceData: { name: user.displayName }, // Log what we tried to write
+    });
+    errorEmitter.emit('permission-error', permissionError);
+
+    // Also log the original error for context.
+    console.error("Error creating user profile:", error);
+  }
 };
   
 function LoginForm() {
