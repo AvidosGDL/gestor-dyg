@@ -66,7 +66,6 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     };
 
     if (taskData.delegateToId) {
-      // Use the displayName from the current authenticated user object. It's the most reliable source.
       newTask.delegatedByName = user.displayName || null;
       newTask.delegationStatus = 'pending';
     } else {
@@ -129,15 +128,11 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     const finalData = { ...updatedData };
     const originalTask = tasks?.find(t => t.id === id);
 
-    // If delegateToId is being changed...
     if ('delegateToId' in finalData) {
-      // If a NEW delegate is being assigned
       if (finalData.delegateToId && (!originalTask || originalTask.delegateToId !== finalData.delegateToId)) {
-        // Use the displayName from the current authenticated user object.
         finalData.delegatedByName = user.displayName || null;
         finalData.delegationStatus = 'pending';
       } 
-      // If delegation is being REMOVED
       else if (finalData.delegateToId === null || finalData.delegateToId === 'null') {
         finalData.delegateToId = null;
         finalData.delegatedByName = null;
