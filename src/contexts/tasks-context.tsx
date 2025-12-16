@@ -24,7 +24,7 @@ import { useToast } from '@/hooks/use-toast';
 interface TasksContextType {
   tasks: Task[];
   addTask: (taskData: Omit<Task, 'id' | 'ownerId'>, member?: TeamMember | null) => void;
-  updateTask: (id: string, updatedData: Partial<Omit<Task, 'id' | 'ownerId'>>) => void;
+  updateTask: (id: string, updatedData: Partial<Omit<Task, 'id' | 'ownerId'>>, member?: TeamMember | null) => void;
   deleteTask: (id: string) => void;
   setTasks: (tasks: Task[]) => void;
   loading: boolean;
@@ -41,8 +41,6 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     return firestore ? collection(firestore, 'tasks') : null;
   }, [firestore]);
 
-  // Consulta para obtener las tareas donde el usuario es propietario O es el delegado.
-  // Esto asegura que el manager vea sus tareas delegadas y que los miembros vean las tareas asignadas a ellos.
   const tasksQuery = useMemoFirebase(() => {
     if (!user || !tasksCollectionRef) return null;
     return query(tasksCollectionRef, 
@@ -61,14 +59,21 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const addTask = (taskData: Omit<Task, 'id' | 'ownerId'>, member?: TeamMember | null) => {
     if (!tasksCollectionRef || !user) return;
     
-    const newTask = { 
+    const newTask: Partial<Task> = { 
       ...taskData, 
       ownerId: user.uid,
-      delegationStatus: taskData.delegateToId ? 'pending' : null,
-      delegatedByName: taskData.delegateToId ? (user.displayName || 'Propietario') : null
     };
 
-    addDoc(tasksCollectionRef, newTask).then(async (docRef) => {
+    if (taskData.delegateToId) {
+      newTask.delegationStatus = 'pending';
+      newTask.delegatedByName = user.displayName || 'Propietario';
+    } else {
+      newTask.delegationStatus = null;
+      newTask.delegatedByName = null;
+    }
+
+
+    addDoc(tasksCollectionRef, newTask as Task).then(async (docRef) => {
       if (newTask.delegateToId && member) {
         try {
           const functions = getFunctions();
@@ -115,25 +120,26 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const updateTask = (id: string, updatedData: Partial<Omit<Task, 'id' | 'ownerId'>>) => {
+  const updateTask = (id: string, updatedData: Partial<Omit<Task, 'id' | 'ownerId'>>, member?: TeamMember | null) => {
     if (!firestore || !tasksCollectionRef || !user) return;
     const docRef = doc(firestore, tasksCollectionRef.path, id);
     
     const finalData = { ...updatedData };
-
     const originalTask = tasks?.find(t => t.id === id);
 
-    // If delegateToId is being changed, update delegation-related fields
+    // If delegateToId is being changed...
     if ('delegateToId' in finalData) {
+      // If a NEW delegate is being assigned
       if (finalData.delegateToId && (!originalTask || originalTask.delegateToId !== finalData.delegateToId)) {
         finalData.delegatedByName = user.displayName || 'Propietario';
         finalData.delegationStatus = 'pending';
-      } else if (finalData.delegateToId === null) {
+      } 
+      // If delegation is being REMOVED
+      else if (finalData.delegateToId === null) {
         finalData.delegatedByName = null;
         finalData.delegationStatus = null;
       }
     }
-
 
     updateDoc(docRef, finalData).catch(async (serverError) => {
       const permissionError = new FirestorePermissionError({
