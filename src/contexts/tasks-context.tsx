@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useMemo } from 'react';
-import type { Task, TeamMember } from '@/lib/types';
+import type { Task, TeamMember, UserProfile } from '@/lib/types';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import {
   collection,
@@ -59,22 +59,33 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   } = useCollection<Task>(tasksQuery);
 
   const addTask = async (taskData: Omit<Task, 'id'>, member: TeamMember | null, user: User | null) => {
-    if (!tasksCollectionRef || !user) return;
+    if (!tasksCollectionRef || !user || !firestore) return;
 
     const isDelegating = !!taskData.delegateToId && taskData.delegateToId !== 'null';
+    let delegatedByName = null;
+
+    if (isDelegating) {
+      try {
+        const userProfileRef = doc(firestore, 'users', user.uid);
+        const userProfileSnap = await getDoc(userProfileRef);
+        if (userProfileSnap.exists()) {
+          delegatedByName = (userProfileSnap.data() as UserProfile).name;
+        }
+      } catch (e) {
+        console.error("Error fetching user profile for delegator name:", e);
+      }
+    }
 
     const newTask: Omit<Task, 'id'> = {
       ...taskData,
       ownerId: user.uid,
-      delegatedByName: isDelegating ? user.displayName : null,
+      delegatedByName: delegatedByName,
       delegationStatus: isDelegating ? 'pending' : null,
     };
 
     try {
-      // 1. Create the task in Firestore and wait for it to complete.
       const docRef = await addDoc(tasksCollectionRef, newTask);
 
-      // 2. If delegating, *after* the task is created, send the email.
       if (isDelegating && member) {
         try {
           const functions = getFunctions();
@@ -87,7 +98,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
             taskTitle: newTask.title,
             delegatorName: newTask.delegatedByName,
           };
-
+          
           const result: any = await sendEmailFunction(payload);
 
           if (!result.data.success) {
@@ -111,7 +122,6 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch (firestoreError: any) {
-      // Handle Firestore permission errors during task creation
       const permissionError = new FirestorePermissionError({
         path: tasksCollectionRef.path,
         operation: 'create',
@@ -121,17 +131,26 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const updateTask = (id: string, updatedData: Partial<Omit<Task, 'id'>>, user: User | null) => {
+  const updateTask = async (id: string, updatedData: Partial<Omit<Task, 'id'>>, user: User | null) => {
     if (!firestore || !tasksCollectionRef || !user) return;
     const docRef = doc(firestore, tasksCollectionRef.path, id);
     
     const finalData = { ...updatedData };
-    const isDelegating = !!finalData.delegateToId && finalData.delegateToId !== 'null';
+    const isDelegating = finalData.hasOwnProperty('delegateToId') && !!finalData.delegateToId && finalData.delegateToId !== 'null';
 
     if (finalData.hasOwnProperty('delegateToId')) {
         if(isDelegating) {
-            finalData.delegatedByName = user.displayName;
             finalData.delegationStatus = 'pending';
+            try {
+              const userProfileRef = doc(firestore, 'users', user.uid);
+              const userProfileSnap = await getDoc(userProfileRef);
+              if (userProfileSnap.exists()) {
+                finalData.delegatedByName = (userProfileSnap.data() as UserProfile).name;
+              }
+            } catch (e) {
+              console.error("Error fetching user profile for delegator name:", e);
+              finalData.delegatedByName = user.displayName; // Fallback, though might be null
+            }
         } else {
             finalData.delegatedByName = null;
             finalData.delegationStatus = null;
@@ -163,8 +182,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         const taskData = taskDoc.data();
 
         const batch = writeBatch(firestore);
-        batch.set(deletedTaskRef, taskData); // Copiar a taskDeleted
-        batch.delete(taskToDeleteRef); // Borrar de tasks
+        batch.set(deletedTaskRef, taskData);
+        batch.delete(taskToDeleteRef);
         
         await batch.commit();
 
