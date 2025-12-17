@@ -1,19 +1,117 @@
+/**
+ * This ruleset enforces a strict user-ownership model for the TaskMaster Pro application.
+ *
+ * Core Philosophy:
+ * The security model ensures that users can only access and modify their own data. All user-specific
+ * information, including profiles and tasks, is stored within a dedicated user document tree,
+ * preventing any user from accessing another user's data. This approach is inherently secure
+ * and performant.
+ *
+ * Data Structure:
+ * All data is segregated and nested under the top-level `/users` collection. Each user's data
+ * is located at `/users/{userId}`, where `{userId}` corresponds to their Firebase Authentication UID.
+ *   - `/users/{userId}/profile/{profileId}`: Contains the user's profile document.
+ *   - `/users/{userId}/tasks/{taskId}`: A collection of the user's tasks.
+ *
+ * Key Security Decisions:
+ * - User Enumeration Disabled: Listing documents in the top-level `/users` collection is explicitly
+ *   disallowed to protect user privacy and prevent scraping of user IDs.
+ * - Strict Ownership: All read and write operations are gated by a check that verifies the
+ *   authenticated user's UID matches the `{userId}` in the document path.
+ * - Path-to-Data Integrity: On document creation, rules validate that key identifiers within the
+ *   document's data (e.g., a `userId` field) match the corresponding IDs in the document's path.
+ *   These identifiers are enforced as immutable on update.
+ *
+ * Denormalization for Authorization:
+ * This ruleset relies on path-based security, which is a form of structural denormalization.
+ * Placing a user's data under their own `/users/{userId}` path eliminates the need for costly `get()`
+ * calls to other documents to verify ownership, resulting in faster and more reliable security checks.
+ *
+ * Structural Segregation:
+ * Each user's data is stored in its own isolated document tree. This complete segregation is the
+ * most secure and performant way to manage private user data, especially for list operations,
+ * as queries are naturally scoped to a single user's content.
+ */
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // This rule allows anyone with your Firestore database reference to view, edit,
-    // and delete all data in your Firestore database. It is useful for getting
-    // started, but it is configured to expire after 30 days because it
-    // leaves your app open to attackers. At that time, all client
-    // requests to your Firestore database will be denied.
-    //
-    // Make sure to write security rules for your app before that time, or else
-    // all client requests to your Firestore database will be denied until you Update
-    // your rules
-    match /{document=**} {
-      allow read, write: if request.time < timestamp.date(2026, 12, 27);
+    // Helper functions for readable, reusable logic.
+
+    /**
+     * Checks if the user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the authenticated user's UID matches the userId from the path.
+     * This is the primary function for enforcing data ownership.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * Checks if the user is the owner of an existing document.
+     * Used for safe update and delete operations.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Rules for the top-level user document. This rule is primarily to
+     * prevent user enumeration by disallowing `list` operations on the `/users` collection.
+     * It allows a user to create their own root document but not modify it later.
+     * @path /users/{userId}
+     * @allow A new user with UID 'user_abc' (create)s their own document at `/users/user_abc`.
+     * @deny An anonymous user tries to (list) all documents in the `/users` collection.
+     * @deny A signed-in user 'user_abc' tries to (get) another user's document at `/users/user_xyz`.
+     * @principle Prevents user enumeration and secures the root of a user's data tree.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId);
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Secures a user's profile document. Only the owner of the profile
+     * can read or write to it.
+     * @path /users/{userId}/profile/{profileId}
+     * @allow A signed-in user 'user_abc' (update)s their own profile at `/users/user_abc/profile/some_doc_id`.
+     * @deny A signed-in user 'user_xyz' tries to (get) another user's profile at `/users/user_abc/profile/some_doc_id`.
+     * @deny A user 'user_abc' (create)s a profile where the document's `id` field does not match 'user_abc'.
+     * @principle Restricts access to a user's own private data tree and validates relational integrity on create.
+     */
+    match /users/{userId}/profile/{profileId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Secures a user's task documents. Only the owner of the tasks
+     * can perform any create, read, update, or delete operations.
+     * @path /users/{userId}/tasks/{taskId}
+     * @allow A signed-in user 'user_abc' (create)s a new task at `/users/user_abc/tasks/new_task_123`.
+     * @allow A signed-in user 'user_abc' (list)s all of their own tasks.
+     * @deny A signed-in user 'user_xyz' tries to (delete) another user's task at `/users/user_abc/tasks/some_task_id`.
+     * @deny A user 'user_abc' tries to (update) a task and change its immutable `id` field.
+     * @principle Enforces strict document ownership within a subcollection and ensures data integrity.
+     */
+    match /users/{userId}/tasks/{taskId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == taskId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
     }
   }
 }

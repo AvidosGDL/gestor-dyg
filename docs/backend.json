@@ -4,94 +4,48 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Task",
       "type": "object",
-      "description": "Represents a task or business opportunity within the system.",
+      "description": "Represents a task or business opportunity within the TaskMaster Pro application.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the task."
+          "description": "Unique identifier for the Task entity."
         },
         "title": {
           "type": "string",
-          "description": "Title of the task or business opportunity."
+          "description": "The title or name of the task or business opportunity."
         },
         "client": {
           "type": "string",
-          "description": "Name of the client associated with the task."
+          "description": "The client or company associated with the task."
         },
         "value": {
           "type": "number",
-          "description": "Estimated value of the task or business opportunity."
+          "description": "The estimated value or potential revenue of the task."
         },
         "probability": {
           "type": "number",
-          "description": "Probability of success for the task (percentage)."
+          "description": "The probability of success for the task, expressed as a percentage."
         },
         "dueDate": {
           "type": "string",
-          "description": "Due date for the task.",
-          "format": "date"
+          "description": "The date by which the task should be completed.",
+          "format": "date-time"
         },
         "status": {
           "type": "string",
-          "description": "Current status of the task (e.g., backlog, prospecting, negotiation, closing, done)."
+          "description": "The current status of the task (e.g., backlog, prospecting, negotiation, closing, done)."
         },
         "priority": {
           "type": "string",
-          "description": "Priority level of the task (e.g., low, medium, high)."
+          "description": "The priority level of the task (e.g., low, medium, high)."
         },
-        "delegateToId": {
+        "delegateTo": {
           "type": "string",
-          "description": "The UID of the user to whom the task is delegated."
-        },
-        "delegateToEmail": {
-          "type": "string",
-          "format": "email",
-          "description": "The email of the user to whom the task is delegated."
+          "description": "The person to whom the task is delegated."
         },
         "description": {
           "type": "string",
-          "description": "Detailed description of the task."
-        },
-        "focusSessions": {
-          "type": "array",
-          "description": "An array of focus sessions for this task.",
-          "items": {
-            "type": "object",
-            "properties": {
-              "startTime": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "endTime": {
-                "type": "string",
-                "format": "date-time"
-              }
-            },
-            "required": ["startTime", "endTime"]
-          }
-        },
-        "completionComment": {
-          "type": "string",
-          "description": "A comment added when the task is completed."
-        },
-        "attachments": {
-          "type": "array",
-          "description": "A list of files attached to the task.",
-          "items": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": "string"
-              },
-              "type": {
-                "type": "string"
-              },
-              "size": {
-                "type": "number"
-              }
-            },
-            "required": ["name", "type", "size"]
-          }
+          "description": "A detailed description of the task."
         }
       },
       "required": [
@@ -101,205 +55,88 @@
         "priority"
       ]
     },
-    "TeamMember": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "TeamMember",
-      "type": "object",
-      "description": "Represents a team member in the system.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the team member."
-        },
-        "name": {
-          "type": "string",
-          "description": "Full name of the team member."
-        },
-        "email": {
-          "type": "string",
-          "format": "email",
-          "description": "Email address of the team member."
-        },
-        "role": {
-          "type": "string",
-          "description": "Role or position of the team member."
-        },
-        "phone": {
-          "type": "string",
-          "description": "Phone number of the team member."
-        },
-        "avatarUrl": {
-          "type": "string",
-          "format": "uri",
-          "description": "URL of the team member's avatar."
-        },
-        "authType": {
-          "type": "string",
-          "enum": ["google", "email"],
-          "description": "Authentication method for the team member."
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "email",
-        "role",
-        "authType"
-      ]
-    },
     "UserProfile": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "UserProfile",
       "type": "object",
-      "description": "Stores public profile information for a user.",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "The user's full name."
-        },
-        "email": {
-          "type": "string",
-          "format": "email",
-          "description": "The user's email address."
-        },
-        "avatarUrl": {
-          "type": "string",
-          "format": "uri",
-          "description": "URL for the user's avatar image."
-        },
-        "role": {
-          "type": "string",
-          "description": "The user's role in the organization."
-        },
-        "phone": {
-          "type": "string",
-          "description": "The user's phone number."
-        }
-      },
-      "required": ["name", "email", "avatarUrl", "role"]
-    },
-    "Prospect": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Prospect",
-      "type": "object",
-      "description": "Represents a new business prospect.",
+      "description": "Represents a user profile in the TaskMaster Pro application.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the prospect."
+          "description": "Unique identifier for the UserProfile entity."
         },
-        "name": {
+        "firstName": {
           "type": "string",
-          "description": "Name of the prospect."
+          "description": "The first name of the user."
         },
-        "phone": {
+        "lastName": {
           "type": "string",
-          "description": "Phone number of the prospect."
+          "description": "The last name of the user."
         },
         "email": {
           "type": "string",
-          "description": "Email address of the prospect."
+          "description": "The email address of the user.",
+          "format": "email"
         },
-        "businessDescription": {
+        "profilePictureUrl": {
           "type": "string",
-          "description": "Description of the business opportunity."
-        },
-        "nextContactDate": {
-          "type": "string",
-          "format": "date",
-          "description": "Date for the next follow-up contact."
-        },
-        "contactLog": {
-          "type": "array",
-          "description": "A log of all contacts made with the prospect.",
-          "items": {
-            "type": "object",
-            "properties": {
-              "date": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "notes": {
-                "type": "string"
-              }
-            },
-            "required": ["date", "notes"]
-          }
+          "description": "URL of the user's profile picture.",
+          "format": "uri"
         }
       },
-      "required": ["id", "name", "businessDescription"]
-    },
-    "Invitation": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Invitation",
-      "type": "object",
-      "description": "Represents an invitation for a new user to join the system.",
-      "properties": {
-        "email": {
-          "type": "string",
-          "format": "email",
-          "description": "The email of the invited user."
-        },
-        "inviterId": {
-          "type": "string",
-          "description": "The UID of the user who sent the invitation."
-        },
-        "inviterName": {
-          "type": "string",
-          "description": "The name of the user who sent the invitation."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The timestamp when the invitation was created."
-        }
-      },
-      "required": ["email", "inviterId", "inviterName", "createdAt"]
+      "required": [
+        "id",
+        "firstName",
+        "lastName",
+        "email"
+      ]
     }
   },
   "auth": {
     "providers": [
       "password",
-      "anonymous",
-      "google.com"
+      "anonymous"
     ]
   },
   "firestore": {
-     "/users/{userId}": {
-      "schema": {
-        "$ref": "#/entities/UserProfile"
+    "structure": [
+      {
+        "path": "/users/{userId}/profile",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores user profile information. The `userId` parameter ensures that only the authenticated user can access their own profile data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, matching the Firebase Auth UID."
+            }
+          ]
+        }
       },
-      "description": "Stores public profile information for a user."
-    },
-    "/tasks/{taskId}": {
-      "schema": {
-        "$ref": "#/entities/Task"
-      },
-      "description": "Stores all tasks for all users in a single collection."
-    },
-    "/taskHistory/{taskId}": {
-      "schema": {
-        "$ref": "#/entities/Task"
-      },
-      "description": "Stores tasks that have been completed and archived by users."
-    },
-    "/users/{userId}/teamMembers/{memberId}": {
-      "schema": {
-        "$ref": "#/entities/TeamMember"
-      },
-      "description": "Stores team member data for a specific user."
-    },
-    "/users/{userId}/prospects/{prospectId}": {
-      "schema": {
-        "$ref": "#/entities/Prospect"
-      },
-      "description": "Stores prospect data for a specific user."
-    },
-    "/invitations/{email}": {
-      "schema": {
-        "$ref": "#/entities/Invitation"
-      },
-      "description": "Stores pending invitations for new users, keyed by their email."
-    }
+      {
+        "path": "/users/{userId}/tasks/{taskId}",
+        "definition": {
+          "entityName": "Task",
+          "schema": {
+            "$ref": "#/backend/entities/Task"
+          },
+          "description": "Stores tasks associated with a specific user. The path includes `userId` to enforce ownership, ensuring only the authenticated user can access their own tasks.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, matching the Firebase Auth UID."
+            },
+            {
+              "name": "taskId",
+              "description": "The unique identifier for the task."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to manage tasks and user profiles for the TaskMaster Pro application, prioritizing security, scalability, and debuggability. It emphasizes Authorization Independence by avoiding hierarchical authorization dependencies.\n\n**Authorization Independence and QAPs:**\n\n*   **User Profiles:** User profile data is stored under `/users/{userId}/profile`.  Authorization rules can directly check if `request.auth.uid == userId`. Segregation ensures only the user can access their profile.\n*   **Tasks:** Tasks are stored within a user's document in the `/users/{userId}/tasks/{taskId}` collection. This structure ensures that only the authenticated user can access and manipulate tasks under their ownership. The structure allows for secure listing of tasks, as the query will always be scoped to the user's own tasks, satisfying QAPs (Rules are not Filters) requirements.\n\nThis structure promotes clarity of intent and supports robust security rules without relying on complex `get()` calls. The path-based ownership model provides inherent security and facilitates simple, efficient rules."
   }
 }
