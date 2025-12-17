@@ -6,19 +6,17 @@ import Image from 'next/image';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  GoogleAuthProvider,
-  signInWithPopup,
   updateProfile,
   onAuthStateChanged,
   type User,
 } from 'firebase/auth';
-import { useAuth, useFirestore, useMemoFirebase } from '@/firebase';
+import { useAuth, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { doc, setDoc, getDoc, serverTimestamp, deleteDoc, query, collection, where, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, getDoc, deleteDoc, query, collection, where, getDocs, writeBatch } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarImage } from '@/components/ui/avatar';
 import { ImageUp, Loader2 } from 'lucide-react';
@@ -26,7 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import * as z from 'zod';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { type UserProfile, type Task } from '@/lib/types';
+import { type UserProfile } from '@/lib/types';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -55,13 +53,6 @@ const signupSchema = z.object({
 
 type LoginValues = z.infer<typeof loginSchema>;
 type SignupValues = z.infer<typeof signupSchema>;
-
-
-const GoogleIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24">
-      <path fill="#4285F4" d="M21.35 11.1h-9.1v2.7h5.1c-.2 1.7-1.3 3.2-3.2 3.2-2.3 0-4.2-1.9-4.2-4.2s1.9-4.2 4.2-4.2c1.1 0 2 .4 2.7 1l2.1-2.1c-1.2-1.2-2.9-1.9-4.8-1.9-4.1 0-7.4 3.3-7.4 7.4s3.3 7.4 7.4 7.4c4.3 0 7.1-3 7.1-7.1 0-.6-.1-1.1-.2-1.6z"/>
-    </svg>
-);
 
 const createProfileAndLinkTasks = async (user: User, firestore: any, signupData?: SignupValues) => {
   const userDocRef = doc(firestore, 'users', user.uid);
@@ -106,7 +97,6 @@ const createProfileAndLinkTasks = async (user: User, firestore: any, signupData?
   
 function LoginForm() {
     const auth = useAuth();
-    const firestore = useFirestore();
     const { toast } = useToast();
     const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginValues>({
       resolver: zodResolver(loginSchema)
@@ -125,41 +115,6 @@ function LoginForm() {
       }
     };
 
-    const handleGoogleSignIn = async () => {
-        const provider = new GoogleAuthProvider();
-        try {
-          const result = await signInWithPopup(auth, provider);
-          
-          // Check if user is invited (for Google sign-in)
-          const invitationRef = doc(firestore, 'invitations', result.user.email!);
-          const invitationSnap = await getDoc(invitationRef);
-          if (!invitationSnap.exists()) {
-             // If not invited, sign them out and show error.
-             await signOut(auth);
-             toast({
-               variant: 'destructive',
-               title: 'Acceso Denegado',
-               description: 'Se necesita una invitación para ingresar al sistema.',
-             });
-             return;
-          }
-
-          // If invited, create profile and link tasks
-          await createProfileAndLinkTasks(result.user, firestore);
-          
-          // Delete invitation
-          await deleteDoc(invitationRef);
-
-          toast({ title: 'Éxito', description: 'Has iniciado sesión con Google.' });
-        } catch (error: any) {
-          toast({
-            variant: 'destructive',
-            title: 'Error de Autenticación con Google',
-            description: error.message,
-          });
-        }
-      };
-  
     return (
       <form onSubmit={handleSubmit(onLogin)} className="space-y-4">
         <div className="space-y-2">
@@ -174,19 +129,6 @@ function LoginForm() {
         </div>
         <Button type="submit" disabled={isSubmitting} className="w-full">
           {isSubmitting ? 'Iniciando...' : 'Iniciar Sesión'}
-        </Button>
-         <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-card px-2 text-muted-foreground">
-                O continuar con
-            </span>
-            </div>
-        </div>
-        <Button type="button" onClick={handleGoogleSignIn} variant="outline" className="w-full" disabled={isSubmitting}>
-           <GoogleIcon/> Iniciar sesión con Google
         </Button>
       </form>
     );
@@ -389,3 +331,5 @@ function AuthPage() {
 export default function LoginPage() {
     return <AuthPage />;
 }
+
+    
