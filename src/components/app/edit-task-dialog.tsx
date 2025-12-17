@@ -485,16 +485,16 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                 </div>
             )}
             
-            {watchedStatus === 'completado' && (
+            {['en-progreso', 'cierre', 'completado'].includes(watchedStatus) && (
               <div className="space-y-4 pt-4 border-t">
                 <FormField
                   control={form.control}
                   name="completionComment"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Comentario de Cierre</FormLabel>
+                      <FormLabel>Comentarios / Cierre</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Añade un comentario sobre la finalización de la tarea..." {...field} />
+                        <Textarea placeholder="Añade un comentario sobre el avance o la finalización de la tarea..." {...field} />
                       </FormControl>
                     </FormItem>
                   )}
