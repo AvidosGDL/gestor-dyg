@@ -65,10 +65,11 @@ function Dashboard() {
             <Sidebar
               variant="sidebar"
               collapsible="icon"
-              className="bg-sidebar text-sidebar-foreground z-20 group"
+              className="text-sidebar-foreground z-20"
             >
-              <SidebarRail />
-              <div className="hidden group-data-[state=expanded]:flex p-4 lg:p-6 items-center">
+              <div className="flex h-full flex-col group">
+                {/* Header for Expanded View */}
+                <div className="p-4 lg:p-6 flex items-center gap-3 group-data-[state=collapsed]:hidden">
                   <Image
                     src="https://firebasestorage.googleapis.com/v0/b/studio-8033020115-912ac.firebasestorage.app/o/public%2Flogo%20DyG.jpeg?alt=media&token=578d1bd8-b8a4-47b6-a97f-e7731dc39bf1"
                     alt="Gestor D&G Logo"
@@ -76,9 +77,11 @@ function Dashboard() {
                     height={32}
                     className="w-8 h-8 rounded-lg"
                   />
-                  <span className="font-bold text-lg block ml-3">Gestor D&G</span>
-              </div>
-              <div className="hidden group-data-[state=collapsed]:flex p-4 lg:p-6 items-center justify-center">
+                  <span className="font-bold text-lg">Gestor D&G</span>
+                </div>
+                
+                {/* Header for Collapsed View */}
+                <div className="p-4 lg:p-6 items-center justify-center hidden group-data-[state=collapsed]:flex">
                   <Image
                     src="https://firebasestorage.googleapis.com/v0/b/studio-8033020115-912ac.firebasestorage.app/o/public%2Flogo%20DyG.jpeg?alt=media&token=578d1bd8-b8a4-47b6-a97f-e7731dc39bf1"
                     alt="Gestor D&G Logo"
@@ -86,24 +89,27 @@ function Dashboard() {
                     height={32}
                     className="w-8 h-8 rounded-lg"
                   />
-              </div>
+                </div>
+              
+                <SidebarRail />
 
-              <div className="flex flex-col h-full">
-                <SidebarNav view={view} setView={setView} />
-                <div className="p-4 mt-auto space-y-4">
-                  <div className="bg-sidebar-accent rounded-xl p-4 space-y-4 flex flex-col items-center group-data-[collapsible=icon]:hidden">
-                    <div className="group-data-[collapsible=icon]:hidden">
-                      <h5 className="text-xs font-bold text-muted-foreground uppercase mb-2">
-                        Consejo Productividad
-                      </h5>
-                      <p className="text-xs text-sidebar-foreground/80 italic">
-                        "{currentTip}"
-                      </p>
+                <div className="flex flex-col h-full">
+                  <SidebarNav view={view} setView={setView} />
+                  <div className="p-4 mt-auto space-y-4">
+                    <div className="bg-sidebar-accent rounded-xl p-4 space-y-4 flex flex-col items-center group-data-[state=collapsed]:hidden">
+                      <div className="group-data-[collapsible=icon]:hidden">
+                        <h5 className="text-xs font-bold text-muted-foreground uppercase mb-2">
+                          Consejo Productividad
+                        </h5>
+                        <p className="text-xs text-sidebar-foreground/80 italic">
+                          "{currentTip}"
+                        </p>
+                      </div>
                     </div>
+                     <div className="flex justify-center items-center group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-4">
+                        <ThemeToggle />
+                      </div>
                   </div>
-                   <div className="flex justify-center items-center group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-4">
-                      <ThemeToggle />
-                    </div>
                 </div>
               </div>
             </Sidebar>
