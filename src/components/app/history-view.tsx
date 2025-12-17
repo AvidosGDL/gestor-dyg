@@ -99,8 +99,8 @@ export default function HistoryView({ taskFilter }: HistoryViewProps) {
   return (
     <>
       <div className="h-full flex flex-col gap-4">
-        <ScrollArea className="h-full">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pb-4 h-full">
+        <ScrollArea className="flex-1 -mx-4">
+          <div className="px-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 pb-4">
             {columns.map((col) => (
               <HistoryTaskColumn
                 key={col.id}

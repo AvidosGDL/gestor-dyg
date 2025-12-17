@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { ListTodo, Bell } from 'lucide-react';
+import { ListTodo, Bell, Trash2 } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus } from '@/lib/types';
 import TaskCard from './task-card';
@@ -12,6 +12,9 @@ import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { toast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 
 interface BoardViewProps {
   setActiveTaskForPomodoro: (task: Task | null) => void;
@@ -132,7 +135,7 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
   const dismissNotification = (task: Task) => {
     if (task.delegationStatus === 'rejected') {
         // Al descartar, se quita la delegación para que no vuelva a aparecer.
-        updateTask(task.id, { delegateToId: null, delegatedByName: null, delegationStatus: null }, user);
+        updateTask(task.id, { delegateToId: null, delegatedByName: null, delegationStatus: null, delegateToEmail: null }, user);
     }
     if (task.status === 'completado' && task.delegateToId) {
         // Simplemente se podría "archivar" la notificación, aquí la eliminamos para simplicidad.
@@ -173,8 +176,8 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
           </Card>
           </div>
         }
-        <ScrollArea className="h-full">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pb-4 h-full">
+        <ScrollArea className="flex-1 -mx-4">
+          <div className="px-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 pb-4">
             {columns.map((col) => (
               <TaskColumn
                 key={col.id}
