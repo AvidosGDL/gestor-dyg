@@ -329,10 +329,10 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                  <AlertDialogTitle>¿Confirmas que quieres archivar esta tarea?</AlertDialogTitle>
                   <AlertDialogDescription>
                     Esta acción es permanente y moverá la tarea al histórico. Para confirmar, escribe{" "}
-                    <span className="font-bold text-foreground">BORRAR</span> a continuación.
+                    <span className="font-bold text-foreground">ARCHIVAR</span> a continuación.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <div className="space-y-2">
@@ -348,10 +348,10 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
                   <AlertDialogAction 
                     onClick={() => deleteTask(task.id)}
-                    disabled={confirmationText !== 'BORRAR'}
+                    disabled={confirmationText !== 'ARCHIVAR'}
                     className="bg-destructive hover:bg-destructive/90"
                   >
-                    Archivar permanentemente
+                    Sí, archivar
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
