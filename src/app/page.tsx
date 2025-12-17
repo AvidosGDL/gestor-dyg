@@ -67,8 +67,8 @@ function Dashboard() {
               className="bg-sidebar text-sidebar-foreground z-20"
             >
               <SidebarRail />
-              <div className="flex h-full flex-col">
-                 <div className="p-4 lg:p-6 flex items-center group-data-[collapsible=icon]:justify-center text-white">
+              <div className="group flex h-full flex-col">
+                <div className="p-4 lg:p-6 flex items-center group-data-[collapsible=icon]:justify-center text-white">
                   <div className="flex items-center gap-3">
                     <Image
                       src="https://firebasestorage.googleapis.com/v0/b/studio-8033020115-912ac.firebasestorage.app/o/public%2Flogo%20DyG.jpeg?alt=media&token=578d1bd8-b8a4-47b6-a97f-e7731dc39bf1"
