@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { SidebarProvider, Sidebar, SidebarInset, SidebarTrigger, SidebarRail } from '@/components/ui/sidebar';
+import { SidebarProvider, Sidebar, SidebarInset, SidebarRail } from '@/components/ui/sidebar';
 import { TasksProvider } from '@/contexts/tasks-context';
 import { ProspectsProvider } from '@/contexts/prospects-context';
 import { HistoryProvider } from '@/contexts/history-context';
@@ -64,24 +64,30 @@ function Dashboard() {
             <Sidebar
               variant="sidebar"
               collapsible="icon"
-              className="bg-sidebar text-sidebar-foreground z-20"
+              className="bg-sidebar text-sidebar-foreground z-20 group"
             >
               <SidebarRail />
-              <div className="group flex h-full flex-col">
-                <div className="p-4 lg:p-6 flex items-center group-data-[collapsible=icon]:justify-center text-white">
-                  <div className="flex items-center gap-3">
-                    <Image
-                      src="https://firebasestorage.googleapis.com/v0/b/studio-8033020115-912ac.firebasestorage.app/o/public%2Flogo%20DyG.jpeg?alt=media&token=578d1bd8-b8a4-47b6-a97f-e7731dc39bf1"
-                      alt="Gestor D&G Logo"
-                      width={32}
-                      height={32}
-                      className="w-8 h-8 rounded-lg"
-                    />
-                    <div className="group-data-[collapsible=icon]:hidden">
-                      <span className="font-bold text-lg block">Gestor D&G</span>
-                    </div>
-                  </div>
-                </div>
+              <div className="p-4 lg:p-6 items-center text-white hidden group-data-[state=expanded]:flex">
+                  <Image
+                    src="https://firebasestorage.googleapis.com/v0/b/studio-8033020115-912ac.firebasestorage.app/o/public%2Flogo%20DyG.jpeg?alt=media&token=578d1bd8-b8a4-47b6-a97f-e7731dc39bf1"
+                    alt="Gestor D&G Logo"
+                    width={32}
+                    height={32}
+                    className="w-8 h-8 rounded-lg"
+                  />
+                  <span className="font-bold text-lg block ml-3">Gestor D&G</span>
+              </div>
+              <div className="p-4 lg:p-6 items-center justify-center text-white hidden group-data-[state=collapsed]:flex">
+                  <Image
+                    src="https://firebasestorage.googleapis.com/v0/b/studio-8033020115-912ac.firebasestorage.app/o/public%2Flogo%20DyG.jpeg?alt=media&token=578d1bd8-b8a4-47bť-a97f-e7731dc39bf1"
+                    alt="Gestor D&G Logo"
+                    width={32}
+                    height={32}
+                    className="w-8 h-8 rounded-lg"
+                  />
+              </div>
+
+              <div className="flex flex-col h-full">
                 <SidebarNav view={view} setView={setView} />
                 <div className="p-4 mt-auto space-y-4">
                   <div className="bg-sidebar-accent rounded-xl p-4 space-y-4 flex flex-col items-center group-data-[collapsible=icon]:hidden">
