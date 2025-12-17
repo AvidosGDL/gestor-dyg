@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Briefcase,
   Calendar,
@@ -29,6 +29,8 @@ import { collection, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 
 
 interface TaskCardProps {
@@ -69,6 +71,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const [confirmationText, setConfirmationText] = useState('');
 
 
   const collectionPath = user ? `users/${user.uid}/teamMembers` : null;
@@ -98,7 +101,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
         delegateName: delegatedMember.name,
         taskId: task.id,
         taskTitle: task.title,
-        delegatorName: user.displayName || 'un administrador',
+        delegatorName: user.displayName,
       };
       
       toast({
@@ -120,9 +123,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
       });
 
     } catch (error: any) {
-       console.error('[TaskCard] Error calling sendEmailTask:', {
-        error: error instanceof Error ? { message: error.message, stack: err.stack } : error,
-       });
+       console.error('[TaskCard] Error calling sendEmailTask:', error);
        toast({
         variant: "destructive",
         title: "Error al notificar",
@@ -212,34 +213,6 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
                     >
                         <Mail size={16} />
                     </Button>
-                    {isOwner && (
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                    title="Archivar tarea"
-                                >
-                                    <Trash2 size={16} />
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Archivar Tarea?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        Esta acción moverá la tarea a la lista de tareas archivadas. No se borrará permanentemente.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => deleteTask(task.id)} className="bg-destructive hover:bg-destructive/90">
-                                        Sí, archivar
-                                    </AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                    )}
                 </div>
              )}
             <h4 className="col-span-2 mt-1 font-bold text-foreground break-words min-w-0">
@@ -346,7 +319,8 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
       </CardContent>
        {task.status === 'completado' && (
         <CardFooter className="p-2 border-t mt-auto">
-          <AlertDialog>
+          {isOwner ? (
+            <AlertDialog onOpenChange={() => setConfirmationText('')}>
               <AlertDialogTrigger asChild>
                 <Button variant="ghost" className="w-full">
                   <Archive size={16} className="mr-2"/>
@@ -355,19 +329,38 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>¿Archivar Tarea Completada?</AlertDialogTitle>
+                  <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Esta acción moverá la tarea al histórico. Ya no será visible en el tablero principal.
+                    Esta acción es permanente y moverá la tarea al histórico. Para confirmar, escribe{" "}
+                    <span className="font-bold text-foreground">BORRAR</span> a continuación.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
+                <div className="space-y-2">
+                  <Label htmlFor="delete-confirmation">Confirmación</Label>
+                  <Input 
+                    id="delete-confirmation"
+                    value={confirmationText}
+                    onChange={(e) => setConfirmationText(e.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => deleteTask(task.id)}>
-                    Sí, archivar
+                  <AlertDialogAction 
+                    onClick={() => deleteTask(task.id)}
+                    disabled={confirmationText !== 'BORRAR'}
+                    className="bg-destructive hover:bg-destructive/90"
+                  >
+                    Archivar permanentemente
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+          ) : (
+            <div className="w-full text-center text-xs text-muted-foreground py-2">
+              Tarea completada.
+            </div>
+          )}
         </CardFooter>
       )}
     </Card>
