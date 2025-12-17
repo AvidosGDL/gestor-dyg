@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { SidebarProvider, Sidebar, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
+import { SidebarProvider, Sidebar, SidebarInset, SidebarTrigger, SidebarRail } from '@/components/ui/sidebar';
 import { TasksProvider } from '@/contexts/tasks-context';
 import { ProspectsProvider } from '@/contexts/prospects-context';
 import { HistoryProvider } from '@/contexts/history-context';
@@ -60,14 +60,15 @@ function Dashboard() {
     <TasksProvider>
       <ProspectsProvider>
         <HistoryProvider>
-          <SidebarProvider defaultOpen={false}>
+          <SidebarProvider defaultOpen={true}>
             <Sidebar
               variant="sidebar"
               collapsible="icon"
               className="bg-sidebar text-sidebar-foreground z-20"
             >
+              <SidebarRail />
               <div className="flex h-full flex-col">
-                <div className="p-4 lg:p-6 flex items-center justify-between group-data-[collapsible=icon]:justify-center text-white">
+                 <div className="p-4 lg:p-6 flex items-center justify-between group-data-[collapsible=icon]:justify-center text-white">
                   <div className="flex items-center gap-3">
                     <Image
                       src="https://firebasestorage.googleapis.com/v0/b/studio-8033020115-912ac.firebasestorage.app/o/public%2Flogo%20DyG.jpeg?alt=media&token=578d1bd8-b8a4-47b6-a97f-e7731dc39bf1"
@@ -80,7 +81,6 @@ function Dashboard() {
                       <span className="font-bold text-lg block">Gestor D&G</span>
                     </div>
                   </div>
-                  <SidebarTrigger className="hidden lg:flex group-data-[collapsible=icon]:hidden" />
                 </div>
                 <SidebarNav view={view} setView={setView} />
                 <div className="p-4 mt-auto space-y-4">
