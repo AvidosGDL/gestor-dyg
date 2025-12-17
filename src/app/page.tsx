@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
@@ -24,18 +24,43 @@ import { doc, getDoc } from 'firebase/firestore';
 
 export type View = 'board' | 'planning' | 'team' | 'import' | 'prospects' | 'analytics' | 'history';
 
+const productivityTips = [
+  "Si tarda menos de 2 minutos, hazlo ahora. Si no, ponlo en el backlog.",
+  "Agrupa tareas similares y realízalas en bloque.",
+  "La regla 80/20: el 80% de los resultados provienen del 20% de los esfuerzos. ¡Prioriza!",
+  "Usa la técnica Pomodoro: 25 minutos de enfoque intenso y 5 de descanso.",
+  "Termina tu día de trabajo planificando las 3 tareas más importantes del día siguiente.",
+  "Desactiva las notificaciones mientras trabajas en una tarea importante.",
+  "Toma descansos cortos y regulares para mantener tu mente fresca y evitar el agotamiento."
+];
+
+
 function Dashboard() {
   const [view, setView] = useState<View>('board');
   const [activeTaskForPomodoro, setActiveTaskForPomodoro] = useState<Task | null>(
     null
   );
   const [taskFilter, setTaskFilter] = useState<string>('me');
+  const [currentTip, setCurrentTip] = useState(productivityTips[0]);
+
+  useEffect(() => {
+    // Set an initial random tip
+    setCurrentTip(productivityTips[Math.floor(Math.random() * productivityTips.length)]);
+
+    // Change tip every 8 hours
+    const intervalId = setInterval(() => {
+      setCurrentTip(productivityTips[Math.floor(Math.random() * productivityTips.length)]);
+    }, 8 * 60 * 60 * 1000); // 8 hours in milliseconds
+
+    return () => clearInterval(intervalId);
+  }, []);
+
 
   return (
     <TasksProvider>
       <ProspectsProvider>
         <HistoryProvider>
-          <SidebarProvider>
+          <SidebarProvider defaultOpen={false}>
             <Sidebar
               variant="sidebar"
               collapsible="icon"
@@ -52,22 +77,23 @@ function Dashboard() {
                   />
                   <div className="group-data-[collapsible=icon]:hidden">
                     <span className="font-bold text-lg block">Gestor D&G</span>
-                    <span className="font-semibold text-sm block">Roberto DO IT</span>
                   </div>
                 </div>
                 <SidebarNav view={view} setView={setView} />
-                <div className="p-4 mt-auto">
+                <div className="p-4 mt-auto space-y-4">
                   <div className="bg-sidebar-accent rounded-xl p-4 space-y-4 flex flex-col items-center group-data-[collapsible=icon]:p-2">
                     <div className="group-data-[collapsible=icon]:hidden">
                       <h5 className="text-xs font-bold text-muted-foreground uppercase mb-2">
                         Consejo Productividad
                       </h5>
                       <p className="text-xs text-sidebar-foreground/80 italic">
-                        "Si tarda menos de 2 minutos, hazlo ahora. Si no, ponlo en el backlog."
+                        "{currentTip}"
                       </p>
                     </div>
-                    <ThemeToggle />
                   </div>
+                   <div className="flex justify-center">
+                      <ThemeToggle />
+                    </div>
                 </div>
               </div>
             </Sidebar>
