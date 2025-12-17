@@ -84,7 +84,7 @@ function Dashboard() {
                 </div>
                 <SidebarNav view={view} setView={setView} />
                 <div className="p-4 mt-auto space-y-4">
-                  <div className="bg-sidebar-accent rounded-xl p-4 space-y-4 flex flex-col items-center group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:hidden">
+                  <div className="bg-sidebar-accent rounded-xl p-4 space-y-4 flex flex-col items-center group-data-[collapsible=icon]:hidden">
                     <div className="group-data-[collapsible=icon]:hidden">
                       <h5 className="text-xs font-bold text-muted-foreground uppercase mb-2">
                         Consejo Productividad
