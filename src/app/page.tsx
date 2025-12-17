@@ -60,7 +60,7 @@ function Dashboard() {
     <TasksProvider>
       <ProspectsProvider>
         <HistoryProvider>
-          <SidebarProvider defaultOpen={true}>
+          <SidebarProvider defaultOpen={false}>
             <Sidebar
               variant="sidebar"
               collapsible="icon"
