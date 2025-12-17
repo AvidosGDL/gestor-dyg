@@ -18,6 +18,7 @@ import * as z from 'zod';
 import { Loader2, ImageUp } from 'lucide-react';
 import { useFirestore, useUser, useAuth } from '@/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { getStorage, ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
 import { updateProfile } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -51,6 +52,7 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
   const firestore = useFirestore();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [customAvatarFile, setCustomAvatarFile] = useState<string | null>(null);
   const [customAvatarPreview, setCustomAvatarPreview] = useState<string | null>(null);
 
   const avatarOptions = useMemo(() => {
@@ -83,6 +85,7 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
           } else {
             setCustomAvatarPreview(null);
           }
+          setCustomAvatarFile(null);
         }
       };
       fetchProfile();
@@ -95,24 +98,43 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
       const reader = new FileReader();
       reader.onloadend = () => {
         const dataUrl = reader.result as string;
-        setCustomAvatarPreview(dataUrl);
+        setCustomAvatarFile(dataUrl); // Store the file data for upload
+        setCustomAvatarPreview(dataUrl); // For visual preview
         setValue('avatarUrl', dataUrl, { shouldValidate: true });
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const onSubmit: SubmitHandler<ProfileFormValues> = async (data) => {
+  const uploadAvatar = async (userId: string, dataUrl: string): Promise<string> => {
+    const storage = getStorage();
+    const avatarRef = storageRef(storage, `avatars/${userId}/${Date.now()}`);
+    await uploadString(avatarRef, dataUrl, 'data_url');
+    return getDownloadURL(avatarRef);
+  }
+
+  const onSubmit: SubmitHandler<ProfileFormValues> = async (formData) => {
     if (!user) return;
+    
+    let finalAvatarUrl = formData.avatarUrl;
 
     try {
+       if (customAvatarFile) {
+        finalAvatarUrl = await uploadAvatar(user.uid, customAvatarFile);
+      }
+
+      const dataToSave: Partial<ProfileFormValues> = {
+        ...formData,
+        avatarUrl: finalAvatarUrl,
+      };
+
       // 1. Update Firestore document
       const userDocRef = doc(firestore, 'users', user.uid);
-      await updateDoc(userDocRef, data).catch(serverError => {
+      await updateDoc(userDocRef, dataToSave).catch(serverError => {
         const permissionError = new FirestorePermissionError({
            path: `users/${user.uid}`,
            operation: 'update',
-           requestResourceData: data,
+           requestResourceData: dataToSave,
        });
        errorEmitter.emit('permission-error', permissionError);
        throw serverError;
@@ -121,8 +143,8 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
       // 2. Update Firebase Auth profile
       if (auth.currentUser) {
         await updateProfile(auth.currentUser, {
-            displayName: data.name,
-            photoURL: data.avatarUrl,
+            displayName: dataToSave.name,
+            photoURL: dataToSave.avatarUrl,
         });
       }
 
@@ -160,6 +182,7 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
                         onClick={() => {
                           setValue('avatarUrl', url, { shouldValidate: true });
                           setCustomAvatarPreview(null);
+                          setCustomAvatarFile(null);
                         }}
                         className={cn(
                             "rounded-full p-1 transition-all",
@@ -178,7 +201,7 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
                   onClick={() => fileInputRef.current?.click()}
                   className={cn(
                     "rounded-full p-1 transition-all flex items-center justify-center bg-muted hover:bg-border",
-                    customAvatarPreview && selectedAvatarUrl === customAvatarPreview
+                    customAvatarPreview
                       ? 'ring-2 ring-primary ring-offset-2'
                       : 'ring-1 ring-transparent hover:ring-primary/50'
                   )}

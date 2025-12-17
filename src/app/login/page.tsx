@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { doc, setDoc, getDoc, deleteDoc, query, collection, where, getDocs, writeBatch } from 'firebase/firestore';
+import { getStorage, ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarImage } from '@/components/ui/avatar';
 import { ImageUp, Loader2 } from 'lucide-react';
@@ -140,6 +141,7 @@ function SignupForm() {
     const firestore = useFirestore();
     const { toast } = useToast();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [customAvatarFile, setCustomAvatarFile] = useState<string | null>(null);
     const [customAvatarPreview, setCustomAvatarPreview] = useState<string | null>(null);
   
     const avatarOptions = useMemo(() => {
@@ -158,12 +160,20 @@ function SignupForm() {
         const reader = new FileReader();
         reader.onloadend = () => {
           const dataUrl = reader.result as string;
+          setCustomAvatarFile(dataUrl);
           setCustomAvatarPreview(dataUrl);
           setValue('avatarUrl', dataUrl, { shouldValidate: true });
         };
         reader.readAsDataURL(file);
       }
     };
+
+    const uploadAvatar = async (email: string, dataUrl: string): Promise<string> => {
+      const storage = getStorage();
+      const avatarRef = storageRef(storage, `avatars/${email}/${Date.now()}`);
+      await uploadString(avatarRef, dataUrl, 'data_url');
+      return getDownloadURL(avatarRef);
+    }
   
     const onSignup: SubmitHandler<SignupValues> = async (data) => {
       try {
@@ -179,6 +189,11 @@ function SignupForm() {
           });
           return;
         }
+        
+        let finalAvatarUrl = data.avatarUrl;
+        if (customAvatarFile) {
+          finalAvatarUrl = await uploadAvatar(data.email, customAvatarFile);
+        }
 
         // 2. Create user in Auth
         const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
@@ -186,11 +201,11 @@ function SignupForm() {
         
         await updateProfile(user, {
             displayName: data.name,
-            photoURL: data.avatarUrl,
+            photoURL: finalAvatarUrl,
         });
 
         // 3. Create profile in 'users' and link pending tasks
-        await createProfileAndLinkTasks(user, firestore, data);
+        await createProfileAndLinkTasks(user, firestore, {...data, avatarUrl: finalAvatarUrl});
 
         // 4. Delete invitation
         await deleteDoc(invitationRef);
@@ -211,11 +226,11 @@ function SignupForm() {
             <Label>Avatar</Label>
             <div className="grid grid-cols-4 gap-2">
                 {avatarOptions.map((url, index) => (
-                    <button key={index} type="button" onClick={() => { setValue('avatarUrl', url, { shouldValidate: true }); setCustomAvatarPreview(null); }} className={cn("rounded-full p-1 transition-all", selectedAvatarUrl === url && !customAvatarPreview ? 'ring-2 ring-primary ring-offset-2' : 'ring-1 ring-transparent hover:ring-primary/50')}>
+                    <button key={index} type="button" onClick={() => { setValue('avatarUrl', url, { shouldValidate: true }); setCustomAvatarPreview(null); setCustomAvatarFile(null); }} className={cn("rounded-full p-1 transition-all", selectedAvatarUrl === url && !customAvatarPreview ? 'ring-2 ring-primary ring-offset-2' : 'ring-1 ring-transparent hover:ring-primary/50')}>
                         <Avatar className="h-12 w-12"><AvatarImage src={url} alt={`Avatar ${index + 1}`} /></Avatar>
                     </button>
                 ))}
-                <button type="button" onClick={() => fileInputRef.current?.click()} className={cn("rounded-full p-1 transition-all flex items-center justify-center bg-muted hover:bg-border", customAvatarPreview && selectedAvatarUrl === customAvatarPreview ? 'ring-2 ring-primary ring-offset-2' : 'ring-1 ring-transparent hover:ring-primary/50')}>
+                <button type="button" onClick={() => fileInputRef.current?.click()} className={cn("rounded-full p-1 transition-all flex items-center justify-center bg-muted hover:bg-border", customAvatarPreview ? 'ring-2 ring-primary ring-offset-2' : 'ring-1 ring-transparent hover:ring-primary/50')}>
                   <Avatar className="h-12 w-12">{customAvatarPreview ? <AvatarImage src={customAvatarPreview} alt="Avatar personalizado" /> : <div className="w-full h-full flex items-center justify-center"><ImageUp className="w-6 h-6 text-muted-foreground" /></div>}</Avatar>
                 </button>
                 <Input type="file" ref={fileInputRef} className="hidden" accept="image/png, image/jpeg, image/gif" onChange={handleFileChange} />

@@ -23,6 +23,7 @@ import { Trash2, Edit, Loader2, ImageUp, Wand2 } from 'lucide-react';
 import { type TeamMember } from '@/lib/types';
 import { useCollection, useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, deleteDoc, doc, updateDoc, writeBatch, getDocs, query, where, collectionGroup } from 'firebase/firestore';
+import { getStorage, ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import {
@@ -69,6 +70,7 @@ function EditMemberDialog({
   onSave: (id: string, data: MemberFormValues) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [customAvatarFile, setCustomAvatarFile] = useState<string | null>(null);
   const [customAvatarPreview, setCustomAvatarPreview] = useState<string | null>(null);
 
   const {
@@ -96,6 +98,7 @@ function EditMemberDialog({
       } else {
         setCustomAvatarPreview(null);
       }
+      setCustomAvatarFile(null);
     }
   }, [member, isOpen, reset, avatarOptions]);
 
@@ -105,16 +108,28 @@ function EditMemberDialog({
       const reader = new FileReader();
       reader.onloadend = () => {
         const dataUrl = reader.result as string;
+        setCustomAvatarFile(dataUrl);
         setCustomAvatarPreview(dataUrl);
         setValue('avatarUrl', dataUrl, { shouldValidate: true });
       };
       reader.readAsDataURL(file);
     }
   };
+  
+  const uploadAvatar = async (email: string, dataUrl: string): Promise<string> => {
+    const storage = getStorage();
+    const avatarRef = storageRef(storage, `avatars/${email}/${Date.now()}`);
+    await uploadString(avatarRef, dataUrl, 'data_url');
+    return getDownloadURL(avatarRef);
+  }
 
-  const handleSave: SubmitHandler<MemberFormValues> = (data) => {
+  const handleSave: SubmitHandler<MemberFormValues> = async (data) => {
     if (member) {
-      onSave(member.id, data);
+      let finalAvatarUrl = data.avatarUrl;
+      if (customAvatarFile) {
+        finalAvatarUrl = await uploadAvatar(member.email, customAvatarFile);
+      }
+      onSave(member.id, {...data, avatarUrl: finalAvatarUrl});
     }
   };
 
@@ -141,7 +156,7 @@ function EditMemberDialog({
                   }}
                   className={cn(
                     "rounded-full p-1 transition-all",
-                    selectedAvatarUrl === url
+                    selectedAvatarUrl === url && !customAvatarPreview
                       ? 'ring-2 ring-primary ring-offset-2'
                       : 'ring-1 ring-transparent hover:ring-primary/50'
                   )}
@@ -156,7 +171,7 @@ function EditMemberDialog({
                   onClick={() => fileInputRef.current?.click()}
                   className={cn(
                     "rounded-full p-1 transition-all flex items-center justify-center bg-muted hover:bg-border",
-                    customAvatarPreview && selectedAvatarUrl === customAvatarPreview
+                    customAvatarPreview
                       ? 'ring-2 ring-primary ring-offset-2'
                       : 'ring-1 ring-transparent hover:ring-primary/50'
                   )}

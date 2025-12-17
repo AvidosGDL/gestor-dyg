@@ -18,6 +18,7 @@ import * as z from 'zod';
 import { Loader2, ImageUp } from 'lucide-react';
 import { useFirestore, useUser } from '@/firebase';
 import { addDoc, collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { getStorage, ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
@@ -54,6 +55,7 @@ export default function NewMemberDialog({
   const firestore = useFirestore();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [customAvatarFile, setCustomAvatarFile] = useState<string | null>(null);
   const [customAvatarPreview, setCustomAvatarPreview] = useState<string | null>(null);
   
   const avatarOptions = React.useMemo(() => {
@@ -85,6 +87,7 @@ export default function NewMemberDialog({
     if (!open) {
       reset();
       setCustomAvatarPreview(null);
+      setCustomAvatarFile(null);
     }
   }, [open, reset]);
 
@@ -94,12 +97,20 @@ export default function NewMemberDialog({
       const reader = new FileReader();
       reader.onloadend = () => {
         const dataUrl = reader.result as string;
+        setCustomAvatarFile(dataUrl);
         setCustomAvatarPreview(dataUrl);
         setValue('avatarUrl', dataUrl, { shouldValidate: true });
       };
       reader.readAsDataURL(file);
     }
   };
+
+  const uploadAvatar = async (email: string, dataUrl: string): Promise<string> => {
+    const storage = getStorage();
+    const avatarRef = storageRef(storage, `avatars/${email}/${Date.now()}`);
+    await uploadString(avatarRef, dataUrl, 'data_url');
+    return getDownloadURL(avatarRef);
+  }
 
   const onSubmit: SubmitHandler<MemberFormValues> = async (data) => {
     if (!user) {
@@ -112,11 +123,20 @@ export default function NewMemberDialog({
     }
 
     try {
+      let finalAvatarUrl = data.avatarUrl;
+      if (customAvatarFile) {
+        finalAvatarUrl = await uploadAvatar(data.email, customAvatarFile);
+      }
+      
+      const newMemberData = { 
+        ...data, 
+        avatarUrl: finalAvatarUrl,
+        authType: data.email.endsWith('@gmail.com') ? 'google' : 'email',
+      };
+
       // 1. Add to team members subcollection
       const teamMembersPath = `users/${user.uid}/teamMembers`;
       const membersCollection = collection(firestore, teamMembersPath);
-      const authTypeValue = data.email.endsWith('@gmail.com') ? 'google' : 'email';
-      const newMemberData = { ...data, authType: authTypeValue };
       
       const memberDocPromise = addDoc(membersCollection, newMemberData).catch(async (serverError) => {
           const permissionError = new FirestorePermissionError({
@@ -125,7 +145,7 @@ export default function NewMemberDialog({
             requestResourceData: newMemberData,
           });
           errorEmitter.emit('permission-error', permissionError);
-          throw serverError; // Re-throw to be caught by the outer catch
+          throw serverError;
       });
 
       // 2. Add to global invitations collection
@@ -145,7 +165,7 @@ export default function NewMemberDialog({
           requestResourceData: invitationData,
         });
         errorEmitter.emit('permission-error', permissionError);
-        throw serverError; // Re-throw
+        throw serverError;
       });
 
       await Promise.all([memberDocPromise, invitationPromise]);
@@ -185,6 +205,7 @@ export default function NewMemberDialog({
                         onClick={() => {
                           setValue('avatarUrl', url, { shouldValidate: true });
                           setCustomAvatarPreview(null);
+                          setCustomAvatarFile(null);
                         }}
                         className={cn(
                             "rounded-full p-1 transition-all",
@@ -203,7 +224,7 @@ export default function NewMemberDialog({
                   onClick={() => fileInputRef.current?.click()}
                   className={cn(
                     "rounded-full p-1 transition-all flex items-center justify-center bg-muted hover:bg-border",
-                    customAvatarPreview && selectedAvatarUrl === customAvatarPreview
+                    customAvatarPreview
                       ? 'ring-2 ring-primary ring-offset-2'
                       : 'ring-1 ring-transparent hover:ring-primary/50'
                   )}
