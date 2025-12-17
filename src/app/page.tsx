@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -67,7 +68,7 @@ function Dashboard() {
               className="bg-sidebar text-sidebar-foreground z-20 group"
             >
               <SidebarRail />
-              <div className="p-4 lg:p-6 items-center text-white hidden group-data-[state=expanded]:flex">
+              <div className="hidden group-data-[state=expanded]:flex p-4 lg:p-6 items-center">
                   <Image
                     src="https://firebasestorage.googleapis.com/v0/b/studio-8033020115-912ac.firebasestorage.app/o/public%2Flogo%20DyG.jpeg?alt=media&token=578d1bd8-b8a4-47b6-a97f-e7731dc39bf1"
                     alt="Gestor D&G Logo"
@@ -77,9 +78,9 @@ function Dashboard() {
                   />
                   <span className="font-bold text-lg block ml-3">Gestor D&G</span>
               </div>
-              <div className="p-4 lg:p-6 items-center justify-center text-white hidden group-data-[state=collapsed]:flex">
+              <div className="hidden group-data-[state=collapsed]:flex p-4 lg:p-6 items-center justify-center">
                   <Image
-                    src="https://firebasestorage.googleapis.com/v0/b/studio-8033020115-912ac.firebasestorage.app/o/public%2Flogo%20DyG.jpeg?alt=media&token=578d1bd8-b8a4-47bť-a97f-e7731dc39bf1"
+                    src="https://firebasestorage.googleapis.com/v0/b/studio-8033020115-912ac.firebasestorage.app/o/public%2Flogo%20DyG.jpeg?alt=media&token=578d1bd8-b8a4-47b6-a97f-e7731dc39bf1"
                     alt="Gestor D&G Logo"
                     width={32}
                     height={32}
