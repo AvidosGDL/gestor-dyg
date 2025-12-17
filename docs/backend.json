@@ -90,6 +90,45 @@
         "lastName",
         "email"
       ]
+    },
+    "Prospect": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Prospect",
+      "type": "object",
+      "description": "Represents a business prospect or lead.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Prospect."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the prospect."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email of the prospect.",
+          "format": "email"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Phone number of the prospect."
+        },
+        "businessDescription": {
+          "type": "string",
+          "description": "Description of the prospect's business."
+        },
+        "nextContactDate": {
+          "type": "string",
+          "description": "Next scheduled contact date.",
+          "format": "date"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "businessDescription"
+      ]
     }
   },
   "auth": {
@@ -132,6 +171,26 @@
             {
               "name": "taskId",
               "description": "The unique identifier for the task."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/prospects/{prospectId}",
+        "definition": {
+          "entityName": "Prospect",
+          "schema": {
+            "$ref": "#/backend/entities/Prospect"
+          },
+          "description": "Stores prospects associated with a specific user. The path includes `userId` to enforce ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, matching the Firebase Auth UID."
+            },
+            {
+              "name": "prospectId",
+              "description": "The unique identifier for the prospect."
             }
           ]
         }

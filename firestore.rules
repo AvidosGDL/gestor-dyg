@@ -95,6 +95,10 @@ service cloud.firestore {
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userId);
     }
+    
+    match /users/{userId}/prospects/{prospectId} {
+      allow get, list, create, update, delete: if isOwner(userId);
+    }
 
     /**
      * @description Secures a user's task documents. Only the owner of the tasks
