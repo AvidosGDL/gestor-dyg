@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { SidebarProvider, Sidebar, SidebarInset } from '@/components/ui/sidebar';
+import { SidebarProvider, Sidebar, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { TasksProvider } from '@/contexts/tasks-context';
 import { ProspectsProvider } from '@/contexts/prospects-context';
 import { HistoryProvider } from '@/contexts/history-context';
@@ -67,7 +67,7 @@ function Dashboard() {
               className="bg-sidebar text-sidebar-foreground z-20"
             >
               <div className="flex h-full flex-col">
-                <div className="p-4 lg:p-6 flex items-center gap-3 text-white">
+                <div className="p-4 lg:p-6 flex items-center justify-center group-data-[collapsible=icon]:justify-start gap-3 text-white">
                   <Image
                     src="https://firebasestorage.googleapis.com/v0/b/studio-8033020115-912ac.firebasestorage.app/o/public%2Flogo%20DyG.jpeg?alt=media&token=578d1bd8-b8a4-47b6-a97f-e7731dc39bf1"
                     alt="Gestor D&G Logo"
@@ -81,7 +81,7 @@ function Dashboard() {
                 </div>
                 <SidebarNav view={view} setView={setView} />
                 <div className="p-4 mt-auto space-y-4">
-                  <div className="bg-sidebar-accent rounded-xl p-4 space-y-4 flex flex-col items-center group-data-[collapsible=icon]:p-2">
+                  <div className="bg-sidebar-accent rounded-xl p-4 space-y-4 flex flex-col items-center group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:hidden">
                     <div className="group-data-[collapsible=icon]:hidden">
                       <h5 className="text-xs font-bold text-muted-foreground uppercase mb-2">
                         Consejo Productividad
@@ -91,8 +91,9 @@ function Dashboard() {
                       </p>
                     </div>
                   </div>
-                   <div className="flex justify-center">
+                   <div className="flex justify-between items-center group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-4">
                       <ThemeToggle />
+                      <SidebarTrigger className="lg:static hidden lg:flex" />
                     </div>
                 </div>
               </div>
