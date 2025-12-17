@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useMemo } from 'react';
-import type { Task, TeamMember, UserProfile } from '@/lib/types';
+import type { Task, TeamMember } from '@/lib/types';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import {
   collection,
@@ -15,6 +15,7 @@ import {
   where,
   or,
   getDoc,
+  getDocs,
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -25,7 +26,7 @@ import { User } from 'firebase/auth';
 
 interface TasksContextType {
   tasks: Task[];
-  addTask: (taskData: Omit<Task, 'id'>, member: TeamMember | null, user: User | null) => void;
+  addTask: (taskData: Omit<Task, 'id'>, user: User | null) => void;
   updateTask: (id: string, updatedData: Partial<Omit<Task, 'id'>>, user: User | null) => void;
   deleteTask: (id: string) => void;
   setTasks: (tasks: Task[]) => void;
@@ -56,73 +57,81 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const {
     data: tasks,
     loading,
+    setData: setTasksState,
   } = useCollection<Task>(tasksQuery);
 
-  const addTask = async (taskData: Omit<Task, 'id'>, member: TeamMember | null, user: User | null) => {
+  const addTask = async (taskData: Omit<Task, 'id'>, user: User | null) => {
     if (!tasksCollectionRef || !user || !firestore) return;
 
-    const isDelegating = !!taskData.delegateToId && taskData.delegateToId !== 'null';
-    let delegatedByName: string | null = null;
+    const isDelegating = !!taskData.delegateToEmail;
     
-    if (isDelegating) {
-      try {
-        const userProfileRef = doc(firestore, `users/${user.uid}`);
-        const userProfileSnap = await getDoc(userProfileRef);
-        if(userProfileSnap.exists()) {
-          delegatedByName = userProfileSnap.data().name;
-        } else {
-          // Fallback to displayName if profile doesn't exist for some reason
-          delegatedByName = user.displayName;
-        }
-      } catch (e) {
-        console.error("Could not fetch user profile to get delegator name", e);
-        delegatedByName = user.displayName; // fallback
-      }
-    }
-
-    const newTask: Omit<Task, 'id'> = {
+    const newTask: Omit<Task, 'id' | 'delegatedByName' | 'delegateToId'> & { delegatedByName: string | null; delegateToId: string | null; } = {
       ...taskData,
       ownerId: user.uid,
-      delegatedByName: delegatedByName,
+      delegatedByName: null,
+      delegateToId: null,
       delegationStatus: isDelegating ? 'pending' : null,
     };
+
+    if (isDelegating) {
+      // Get delegator name from their profile
+      const userProfileRef = doc(firestore, `users/${user.uid}`);
+      const userProfileSnap = await getDoc(userProfileRef);
+      if (userProfileSnap.exists()) {
+        newTask.delegatedByName = userProfileSnap.data().name;
+      } else {
+        newTask.delegatedByName = user.displayName; // Fallback
+      }
+
+      // Check if delegated user exists to get their UID
+      const usersQuery = query(collection(firestore, 'users'), where('email', '==', taskData.delegateToEmail));
+      const usersSnap = await getDocs(usersQuery);
+      if (!usersSnap.empty) {
+        const delegatedUserDoc = usersSnap.docs[0];
+        newTask.delegateToId = delegatedUserDoc.id;
+      }
+    }
 
     try {
       const docRef = await addDoc(tasksCollectionRef, newTask);
 
-      if (isDelegating && member) {
-        try {
-          const functions = getFunctions();
-          const sendEmailFunction = httpsCallable(functions, 'sendEmailTask');
+      if (isDelegating && newTask.delegateToEmail) {
+         // Find the team member to get their name for the email
+        const membersQuery = query(collection(firestore, `users/${user.uid}/teamMembers`), where('email', '==', newTask.delegateToEmail));
+        const membersSnap = await getDocs(membersQuery);
+        
+        if (!membersSnap.empty) {
+            const member = membersSnap.docs[0].data() as TeamMember;
+            try {
+                const functions = getFunctions();
+                const sendEmailFunction = httpsCallable(functions, 'sendEmailTask');
 
-          const payload = {
-            to: member.email,
-            delegateName: member.name,
-            taskId: docRef.id,
-            taskTitle: newTask.title,
-            delegatorName: delegatedByName,
-          };
-          
-          const result: any = await sendEmailFunction(payload);
+                const payload = {
+                    to: member.email,
+                    delegateName: member.name,
+                    taskId: docRef.id,
+                    taskTitle: newTask.title,
+                    delegatorName: newTask.delegatedByName,
+                };
+                
+                const result: any = await sendEmailFunction(payload);
 
-          if (!result.data.success) {
-            throw new Error(result.data.error || 'La Cloud Function reportó un error sin mensaje.');
-          }
+                if (!result.data.success) {
+                    throw new Error(result.data.error || 'La Cloud Function reportó un error.');
+                }
 
-          toast({
-            title: "Notificación enviada",
-            description: `Se ha notificado a ${member.name} sobre la nueva tarea.`,
-          });
-
-        } catch (emailError: any) {
-           console.error('[addTask] Error calling sendEmailTask:', {
-             error: emailError instanceof Error ? { message: emailError.message, stack: emailError.stack } : emailError,
-           });
-           toast({
-            variant: "destructive",
-            title: "Error al notificar",
-            description: "La tarea se creó, pero no se pudo enviar el correo de notificación. " + emailError.message,
-          });
+                toast({
+                    title: "Notificación enviada",
+                    description: `Se ha notificado a ${member.name} sobre la nueva tarea.`,
+                });
+            } catch (emailError: any) {
+                console.error('[addTask] Error calling sendEmailTask:', emailError);
+                toast({
+                    variant: "destructive",
+                    title: "Error al notificar",
+                    description: "La tarea se creó, pero no se pudo enviar el correo. " + emailError.message,
+                });
+            }
         }
       }
     } catch (firestoreError: any) {
@@ -140,26 +149,31 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     const docRef = doc(firestore, tasksCollectionRef.path, id);
     
     const finalData = { ...updatedData };
-    const isDelegating = finalData.hasOwnProperty('delegateToId');
+    const isDelegating = finalData.hasOwnProperty('delegateToEmail');
 
     if (isDelegating) {
-        if (finalData.delegateToId && finalData.delegateToId !== 'null') {
+        if (finalData.delegateToEmail && finalData.delegateToEmail !== 'null') {
             finalData.delegationStatus = 'pending';
-             try {
-                const userProfileRef = doc(firestore, `users/${user.uid}`);
-                const userProfileSnap = await getDoc(userProfileRef);
-                if(userProfileSnap.exists()) {
-                    finalData.delegatedByName = userProfileSnap.data().name;
-                } else {
-                    finalData.delegatedByName = user.displayName;
-                }
-            } catch (e) {
-                console.error("Could not fetch user profile to get delegator name", e);
-                finalData.delegatedByName = user.displayName; // fallback
-            }
+             // Set delegator name
+             const userProfileRef = doc(firestore, `users/${user.uid}`);
+             const userProfileSnap = await getDoc(userProfileRef);
+             if (userProfileSnap.exists()) {
+                 finalData.delegatedByName = userProfileSnap.data().name;
+             } else {
+                 finalData.delegatedByName = user.displayName; // Fallback
+             }
+             // Find delegatee UID
+             const usersQuery = query(collection(firestore, 'users'), where('email', '==', finalData.delegateToEmail));
+             const usersSnap = await getDocs(usersQuery);
+             if (!usersSnap.empty) {
+                finalData.delegateToId = usersSnap.docs[0].id;
+             } else {
+                finalData.delegateToId = null; // User not registered yet
+             }
         } else {
             finalData.delegatedByName = null;
             finalData.delegationStatus = null;
+            finalData.delegateToEmail = null;
             finalData.delegateToId = null;
         }
     }
@@ -218,27 +232,13 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
   const setTasks = (newTasks: Task[]) => {
     if (!firestore || !tasksCollectionRef) return;
-    const batch = writeBatch(firestore);
-    
-    tasks?.forEach(task => {
-      const docRef = doc(firestore, tasksCollectionRef.path, task.id);
-      batch.delete(docRef);
-    });
-
-    newTasks.forEach(task => {
-        const { id, ...taskData } = task;
-        const docRef = doc(tasksCollectionRef);
-        batch.set(docRef, taskData);
-    });
-
-    batch.commit().catch(async (serverError) => {
-         const permissionError = new FirestorePermissionError({
-            path: tasksCollectionRef.path,
-            operation: 'write', 
-            requestResourceData: newTasks
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    });
+    // This is a dangerous operation. It's better to update the state locally.
+    // The useCollection hook already handles real-time updates.
+    // If you need to reorder, you can update a local state derived from the hook's data.
+    // For now, we will update the local state to reflect reordering.
+    if (setTasksState) {
+        setTasksState(newTasks);
+    }
   };
 
   const contextValue = useMemo(() => ({

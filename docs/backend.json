@@ -39,9 +39,14 @@
           "type": "string",
           "description": "Priority level of the task (e.g., low, medium, high)."
         },
-        "delegateTo": {
+        "delegateToId": {
           "type": "string",
-          "description": "Name of the person to whom the task is delegated."
+          "description": "The UID of the user to whom the task is delegated."
+        },
+        "delegateToEmail": {
+          "type": "string",
+          "format": "email",
+          "description": "The email of the user to whom the task is delegated."
         },
         "description": {
           "type": "string",
@@ -223,6 +228,33 @@
         }
       },
       "required": ["id", "name", "businessDescription"]
+    },
+    "Invitation": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Invitation",
+      "type": "object",
+      "description": "Represents an invitation for a new user to join the system.",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The email of the invited user."
+        },
+        "inviterId": {
+          "type": "string",
+          "description": "The UID of the user who sent the invitation."
+        },
+        "inviterName": {
+          "type": "string",
+          "description": "The name of the user who sent the invitation."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the invitation was created."
+        }
+      },
+      "required": ["email", "inviterId", "inviterName", "createdAt"]
     }
   },
   "auth": {
@@ -262,6 +294,12 @@
         "$ref": "#/entities/Prospect"
       },
       "description": "Stores prospect data for a specific user."
+    },
+    "/invitations/{email}": {
+      "schema": {
+        "$ref": "#/entities/Invitation"
+      },
+      "description": "Stores pending invitations for new users, keyed by their email."
     }
   }
 }

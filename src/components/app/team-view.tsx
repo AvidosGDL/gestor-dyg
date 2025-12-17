@@ -19,10 +19,10 @@ import {
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Edit, Loader2, ImageUp } from 'lucide-react';
+import { Trash2, Edit, Loader2, ImageUp, Wand2 } from 'lucide-react';
 import { type TeamMember } from '@/lib/types';
 import { useCollection, useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, updateDoc, writeBatch, getDocs, query, where, collectionGroup } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import {
@@ -40,6 +40,8 @@ import * as z from 'zod';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { cn } from '@/lib/utils';
+import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '../ui/alert-dialog';
+
 
 const AVATAR_OPTIONS = 7;
 const avatarCollection = 'lorelei';
@@ -249,6 +251,7 @@ export default function TeamView() {
   const { user, loading: userLoading } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const [isMigrating, setIsMigrating] = useState(false);
 
   const collectionPath = user ? `users/${user.uid}/teamMembers` : null;
   const membersCollectionRef = useMemoFirebase(() => {
@@ -300,11 +303,109 @@ export default function TeamView() {
     });
   };
 
+  const handleMigration = async () => {
+    setIsMigrating(true);
+    toast({ title: 'Iniciando migración...', description: 'Esto puede tardar unos segundos.' });
+
+    try {
+        const tasksRef = collection(firestore, "tasks");
+        const usersRef = collection(firestore, "users");
+        const teamMembersGroupRef = collectionGroup(firestore, 'teamMembers');
+
+        const [tasksSnap, usersSnap, teamMembersSnap] = await Promise.all([
+            getDocs(tasksRef),
+            getDocs(usersRef),
+            getDocs(teamMembersGroupRef)
+        ]);
+
+        const allTasks = tasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as Omit<TeamMember, 'id'> }));
+        const allUsers = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+        const allTeamMembers = teamMembersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+        
+        const usersByEmail = new Map(allUsers.map(u => [u.email, u.id]));
+        const teamMembersById = new Map(allTeamMembers.map(tm => [tm.id, tm]));
+        
+        const batch = writeBatch(firestore);
+        let updatedCount = 0;
+
+        allTasks.forEach(task => {
+            const currentDelegateId = task.delegateToId;
+            if (currentDelegateId && !usersByEmail.has(task.delegateToEmail)) { // Check if it's not already a UID
+                const member = teamMembersById.get(currentDelegateId);
+                if (member) {
+                    const memberEmail = member.email;
+                    const correctUid = usersByEmail.get(memberEmail);
+
+                    if (correctUid) {
+                        const taskRef = doc(firestore, "tasks", task.id);
+                        batch.update(taskRef, { 
+                            delegateToId: correctUid,
+                            delegateToEmail: memberEmail 
+                        });
+                        updatedCount++;
+                    }
+                }
+            }
+        });
+
+        if (updatedCount > 0) {
+            await batch.commit();
+            toast({ title: '¡Migración completada!', description: `${updatedCount} tareas han sido actualizadas.` });
+        } else {
+            toast({ title: 'Migración finalizada', description: 'No se encontraron tareas para actualizar.' });
+        }
+
+    } catch (error: any) {
+        console.error("Error durante la migración: ", error);
+        toast({
+            variant: "destructive",
+            title: 'Error en la migración',
+            description: error.message || 'Ocurrió un error inesperado.'
+        });
+    } finally {
+        setIsMigrating(false);
+    }
+};
+
   const isLoading = userLoading || membersLoading;
+  const isAdmin = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
 
   return (
     <>
-      <div className="h-full">
+      <div className="h-full space-y-4">
+        {isAdmin && (
+            <Card>
+                 <CardHeader>
+                    <CardTitle>Panel de Administrador</CardTitle>
+                    <CardDescription>Herramientas especiales para la gestión del sistema.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button disabled={isMigrating}>
+                                {isMigrating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                Migrar Delegaciones de Tareas
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>¿Confirmar Migración de Datos?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Esta acción es irreversible. Se intentará actualizar todas las tareas existentes para usar el nuevo sistema de delegación por UID de usuario. Este proceso se debe ejecutar una sola vez.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleMigration}>Sí, iniciar migración</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                    <p className="text-xs text-muted-foreground mt-2">
+                        Esta herramienta corrige las tareas antiguas para que apunten al UID del usuario delegado en lugar del ID del documento del miembro del equipo.
+                    </p>
+                </CardContent>
+            </Card>
+        )}
         <Card>
           <CardHeader>
             <CardTitle>Miembros del Equipo</CardTitle>

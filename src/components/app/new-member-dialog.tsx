@@ -17,7 +17,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Loader2, ImageUp } from 'lucide-react';
 import { useFirestore, useUser } from '@/firebase';
-import { addDoc, collection } from 'firebase/firestore';
+import { addDoc, collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
@@ -112,25 +112,47 @@ export default function NewMemberDialog({
     }
 
     try {
-      const collectionPath = `users/${user.uid}/teamMembers`;
-      const membersCollection = collection(firestore, collectionPath);
-      
+      // 1. Add to team members subcollection
+      const teamMembersPath = `users/${user.uid}/teamMembers`;
+      const membersCollection = collection(firestore, teamMembersPath);
       const authTypeValue = data.email.endsWith('@gmail.com') ? 'google' : 'email';
-      const newMember = { ...data, authType: authTypeValue };
-
-
-      addDoc(membersCollection, newMember).catch(async (serverError) => {
+      const newMemberData = { ...data, authType: authTypeValue };
+      
+      const memberDocPromise = addDoc(membersCollection, newMemberData).catch(async (serverError) => {
           const permissionError = new FirestorePermissionError({
-            path: `users/${user.uid}/teamMembers`,
+            path: teamMembersPath,
             operation: 'create',
-            requestResourceData: newMember,
+            requestResourceData: newMemberData,
           });
           errorEmitter.emit('permission-error', permissionError);
+          throw serverError; // Re-throw to be caught by the outer catch
       });
 
+      // 2. Add to global invitations collection
+      const invitationPath = `invitations/${data.email}`;
+      const invitationRef = doc(firestore, invitationPath);
+      const invitationData = {
+        email: data.email,
+        inviterId: user.uid,
+        inviterName: user.displayName || 'un administrador',
+        createdAt: serverTimestamp(),
+      };
+
+      const invitationPromise = setDoc(invitationRef, invitationData, { merge: true }).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: invitationPath,
+          operation: 'create',
+          requestResourceData: invitationData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        throw serverError; // Re-throw
+      });
+
+      await Promise.all([memberDocPromise, invitationPromise]);
+
       toast({
-        title: 'Miembro Agregado',
-        description: `${data.name} ha sido añadido al equipo. Deberá registrarse con el correo ${data.email} para acceder.`,
+        title: 'Miembro Invitado',
+        description: `${data.name} ha sido añadido al equipo e invitado al sistema.`,
       });
       onOpenChange(false);
 
@@ -138,7 +160,7 @@ export default function NewMemberDialog({
       toast({
         variant: 'destructive',
         title: 'Error al agregar miembro',
-        description: error.message || 'Ocurrió un error inesperado.',
+        description: error.message || 'Ocurrió un error inesperado al invitar o agregar al miembro.',
       });
     }
   };
@@ -149,7 +171,7 @@ export default function NewMemberDialog({
         <DialogHeader>
           <DialogTitle>Agregar Nuevo Miembro del Equipo</DialogTitle>
           <DialogDescription>
-            Añade los detalles del nuevo miembro. Recibirá una invitación para unirse o se vinculará si ya es usuario.
+            Añade los detalles del nuevo miembro. Se le enviará una invitación para unirse al sistema.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

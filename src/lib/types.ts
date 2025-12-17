@@ -27,6 +27,7 @@ export interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   delegateToId: string | null;
+  delegateToEmail: string | null;
   delegatedByName: string | null;
   delegationStatus: DelegationStatus;
   ownerId: string;

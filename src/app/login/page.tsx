@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp, deleteDoc, query, collection, where, getDocs, writeBatch } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarImage } from '@/components/ui/avatar';
 import { ImageUp, Loader2 } from 'lucide-react';
@@ -26,7 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import * as z from 'zod';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { type UserProfile } from '@/lib/types';
+import { type UserProfile, type Task } from '@/lib/types';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -63,29 +63,45 @@ const GoogleIcon = () => (
     </svg>
 );
 
-const createProfileIfNotExists = async (user: User, firestore: any) => {
-    const userDocRef = doc(firestore, 'users', user.uid);
-    const userDoc = await getDoc(userDocRef);
+const createProfileAndLinkTasks = async (user: User, firestore: any, signupData?: SignupValues) => {
+  const userDocRef = doc(firestore, 'users', user.uid);
+  const userDocSnap = await getDoc(userDocRef);
 
-    if (!userDoc.exists()) {
-        const userProfile: UserProfile = {
-            name: user.displayName || 'Usuario Anónimo',
-            email: user.email || '',
-            avatarUrl: user.photoURL || generateAvatarUrl(user.uid),
-            role: '', // Role and phone will be empty, can be completed later
-            phone: '',
-        };
-        try {
-            await setDoc(userDocRef, userProfile);
-        } catch (serverError) {
-             const permissionError = new FirestorePermissionError({
-                path: `users/${user.uid}`,
-                operation: 'create',
-                requestResourceData: userProfile,
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        }
-    }
+  // Create profile if it doesn't exist
+  if (!userDocSnap.exists()) {
+      const userProfile: UserProfile = {
+          name: signupData?.name || user.displayName || 'Usuario Anónimo',
+          email: signupData?.email || user.email || '',
+          avatarUrl: signupData?.avatarUrl || user.photoURL || generateAvatarUrl(user.uid),
+          role: signupData?.role || 'Miembro',
+          phone: signupData?.phone || '',
+      };
+      await setDoc(userDocRef, userProfile).catch(serverError => {
+        const permissionError = new FirestorePermissionError({
+           path: `users/${user.uid}`,
+           operation: 'create',
+           requestResourceData: userProfile,
+       });
+       errorEmitter.emit('permission-error', permissionError);
+      });
+  }
+  
+  // Link pending tasks for this email
+  const tasksToUpdateQuery = query(
+    collection(firestore, 'tasks'),
+    where('delegateToEmail', '==', user.email),
+    where('delegateToId', '==', null)
+  );
+
+  const tasksSnapshot = await getDocs(tasksToUpdateQuery);
+  if (!tasksSnapshot.empty) {
+      const batch = writeBatch(firestore);
+      tasksSnapshot.forEach(taskDoc => {
+          const taskRef = doc(firestore, 'tasks', taskDoc.id);
+          batch.update(taskRef, { delegateToId: user.uid });
+      });
+      await batch.commit();
+  }
 };
   
 function LoginForm() {
@@ -113,8 +129,27 @@ function LoginForm() {
         const provider = new GoogleAuthProvider();
         try {
           const result = await signInWithPopup(auth, provider);
-          // After sign in, ensure profile exists
-          await createProfileIfNotExists(result.user, firestore);
+          
+          // Check if user is invited (for Google sign-in)
+          const invitationRef = doc(firestore, 'invitations', result.user.email!);
+          const invitationSnap = await getDoc(invitationRef);
+          if (!invitationSnap.exists()) {
+             // If not invited, sign them out and show error.
+             await signOut(auth);
+             toast({
+               variant: 'destructive',
+               title: 'Acceso Denegado',
+               description: 'Se necesita una invitación para ingresar al sistema.',
+             });
+             return;
+          }
+
+          // If invited, create profile and link tasks
+          await createProfileAndLinkTasks(result.user, firestore);
+          
+          // Delete invitation
+          await deleteDoc(invitationRef);
+
           toast({ title: 'Éxito', description: 'Has iniciado sesión con Google.' });
         } catch (error: any) {
           toast({
@@ -190,6 +225,20 @@ function SignupForm() {
   
     const onSignup: SubmitHandler<SignupValues> = async (data) => {
       try {
+        // 1. Check for invitation
+        const invitationRef = doc(firestore, 'invitations', data.email);
+        const invitationSnap = await getDoc(invitationRef);
+
+        if (!invitationSnap.exists()) {
+          toast({
+            variant: 'destructive',
+            title: 'Acceso Denegado',
+            description: 'Se necesita una invitación para ingresar al sistema.',
+          });
+          return;
+        }
+
+        // 2. Create user in Auth
         const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
         const user = userCredential.user;
         
@@ -198,24 +247,11 @@ function SignupForm() {
             photoURL: data.avatarUrl,
         });
 
-        const userProfile: UserProfile = {
-          name: data.name,
-          email: data.email,
-          avatarUrl: data.avatarUrl,
-          role: data.role,
-          phone: data.phone,
-        };
-        
-        const docRef = doc(firestore, 'users', user.uid);
+        // 3. Create profile in 'users' and link pending tasks
+        await createProfileAndLinkTasks(user, firestore, data);
 
-        await setDoc(docRef, userProfile).catch(serverError => {
-            const permissionError = new FirestorePermissionError({
-                path: `users/${user.uid}`,
-                operation: 'create',
-                requestResourceData: userProfile,
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        });
+        // 4. Delete invitation
+        await deleteDoc(invitationRef);
 
         toast({ title: 'Éxito', description: 'Tu cuenta ha sido creada.' });
       } catch (error: any) {
@@ -290,21 +326,12 @@ function SignupForm() {
 function AuthPage() {
   const router = useRouter();
   const auth = useAuth();
-  const firestore = useFirestore();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
         if (user) {
-            // Check if profile exists, if not, it's a first-time login
-            const userDocRef = doc(firestore, 'users', user.uid);
-            const docSnap = await getDoc(userDocRef);
-            if (!docSnap.exists()) {
-                // If it's a first-time Google sign-in, the profile might have just been created
-                // in the popup handler. We give it a moment. Or handle it more robustly.
-                await createProfileIfNotExists(user, firestore);
-            }
             setUser(user);
             router.push('/');
         } else {
@@ -314,7 +341,7 @@ function AuthPage() {
     });
 
     return () => unsubscribe();
-  }, [auth, router, firestore]);
+  }, [auth, router]);
 
   if (isLoading || user) {
     return (

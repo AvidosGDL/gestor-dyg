@@ -41,7 +41,7 @@ const taskSchema = z.object({
   progress: z.coerce.number().min(0).max(100),
   priority: z.enum(['low', 'medium', 'high']),
   dueDate: z.string().optional(),
-  delegateToId: z.string().optional(),
+  delegateToEmail: z.string().optional(),
   status: z.enum(['pendiente', 'en-progreso', 'cierre', 'completado']),
   description: z.string().optional(),
   value: z.coerce.number().min(0),
@@ -56,7 +56,7 @@ const defaultValues: Partial<TaskFormValues> = {
   progress: 0,
   priority: 'medium',
   dueDate: '',
-  delegateToId: 'null',
+  delegateToEmail: 'null',
   status: 'pendiente',
   description: '',
   value: 0,
@@ -89,13 +89,10 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
   const onSubmit = (data: TaskFormValues) => {
     if (!user) return;
 
-    const delegateToId = data.delegateToId === 'null' ? null : data.delegateToId;
-    const selectedMember = members?.find(m => m.id === delegateToId) || null;
-
     addTask({
       ...data,
-      delegateToId,
-    } as Omit<Task, 'id'>, selectedMember, user);
+      delegateToEmail: data.delegateToEmail === 'null' ? null : data.delegateToEmail,
+    } as Omit<Task, 'id'>, user);
 
     toast({
         title: "Nueva tarea creada",
@@ -280,10 +277,10 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
             </div>
             <FormField
               control={form.control}
-              name="delegateToId"
+              name="delegateToEmail"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Delegar A</FormLabel>
+                  <FormLabel>Delegar A (por Correo)</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                         <SelectTrigger>
@@ -293,8 +290,8 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                         <SelectContent>
                             <SelectItem value="null">Nadie / Tarea personal</SelectItem>
                             {members?.map(member => (
-                              <SelectItem key={member.id} value={member.id}>
-                                {member.name}
+                              <SelectItem key={member.id} value={member.email}>
+                                {member.email} ({member.name})
                               </SelectItem>
                             ))}
                         </SelectContent>
