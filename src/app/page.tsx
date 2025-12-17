@@ -93,7 +93,7 @@ function Dashboard() {
                   </div>
                    <div className="flex justify-between items-center group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-4">
                       <ThemeToggle />
-                      <SidebarTrigger className="lg:static hidden lg:flex" />
+                      <SidebarTrigger className="hidden lg:flex" />
                     </div>
                 </div>
               </div>
