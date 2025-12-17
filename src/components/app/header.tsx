@@ -1,6 +1,8 @@
+
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { Plus, UserPlus, Timer, Handshake, Filter, User, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import NewTaskDialog from './new-task-dialog';
@@ -91,6 +93,13 @@ export default function AppHeader({
       <header className="h-16 bg-card border-b flex items-center justify-between px-4 md:px-8 flex-shrink-0">
         <div className="flex items-center gap-4">
           <SidebarTrigger className="lg:hidden" />
+          <Image
+            src="https://firebasestorage.googleapis.com/v0/b/studio-8033020115-912ac.firebasestorage.app/o/public%2Flogo%20DyG.jpeg?alt=media&token=578d1bd8-b8a4-47b6-a97f-e7731dc39bf1"
+            alt="Gestor D&G Logo"
+            width={32}
+            height={32}
+            className="w-8 h-8 rounded-lg"
+          />
           <h1 className="text-xl font-bold text-foreground">
             {viewTitles[view]}
           </h1>
