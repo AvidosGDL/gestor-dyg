@@ -60,6 +60,11 @@ service cloud.firestore {
     function isExistingOwner(userId) {
       return isOwner(userId) && resource != null;
     }
+    
+    match /invitations/{email} {
+    	allow read: if true;
+      allow write: if isSignedIn();
+    }
 
     /**
      * @description Rules for the top-level user document. This rule is primarily to
@@ -72,11 +77,15 @@ service cloud.firestore {
      * @principle Prevents user enumeration and secures the root of a user's data tree.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false;
+      allow get: if isOwner(userId) || isSignedIn();
+      allow list: if isSignedIn();
       allow create: if isOwner(userId);
-      allow update: if false;
+      allow update: if isOwner(userId);
       allow delete: if false;
+    }
+    
+    match /users/{userId}/teamMembers/{memberId} {
+    	allow read, write: if isOwner(userId);
     }
 
     /**
@@ -98,6 +107,20 @@ service cloud.firestore {
     
     match /users/{userId}/prospects/{prospectId} {
       allow get, list, create, update, delete: if isOwner(userId);
+    }
+    
+    match /tasks/{taskId} {
+    	allow read: if isSignedIn() && (resource.data.ownerId == request.auth.uid || resource.data.delegateToId == request.auth.uid);
+      allow write: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+    }
+    
+    match /taskHistory/{historyId} {
+      allow read: if isSignedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.delegateToId == request.auth.uid
+      );
+      allow write: if false;
     }
 
     /**
