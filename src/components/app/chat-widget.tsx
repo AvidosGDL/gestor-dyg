@@ -13,7 +13,6 @@ import type { TeamMember } from '@/lib/types';
 import { collection } from 'firebase/firestore';
 import { Avatar, AvatarImage, AvatarFallback } from '../ui/avatar';
 
-// Placeholder components - these would be built out with full functionality
 const ConversationList = ({ onSelectConversation, activeConversationId }: any) => {
     const { conversations, loading } = useChat();
     const { user } = useUser();
@@ -50,12 +49,12 @@ const ConversationList = ({ onSelectConversation, activeConversationId }: any) =
         </div>
     );
 }
+
 const MessageView = ({ conversationId }: any) => {
     const { getMessagesForConversation } = useChat();
     const { messages, loading } = getMessagesForConversation(conversationId);
     
     if (loading) return <div className="p-4 text-center">Cargando mensajes...</div>;
-    if (!conversationId) return <div className="p-4 text-center text-muted-foreground">Selecciona una conversación</div>;
     
     return (
         <div className="flex-1 flex flex-col">
@@ -101,7 +100,13 @@ export default function ChatWidget() {
                         />
                     </div>
                     <div className="w-2/3 flex flex-col">
-                        <MessageView conversationId={activeConversationId} />
+                        {activeConversationId ? (
+                            <MessageView conversationId={activeConversationId} />
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-muted-foreground">
+                                <p>Selecciona una conversación</p>
+                            </div>
+                        )}
                     </div>
                 </CardContent>
             </Card>
