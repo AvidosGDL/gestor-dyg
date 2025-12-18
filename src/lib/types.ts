@@ -74,3 +74,22 @@ export interface Prospect {
   nextContactDate?: string; // ISO 8601 date string (YYYY-MM-DD)
   contactLog?: ContactLogEntry[];
 }
+
+export type MessageMediaType = 'image' | 'video' | 'audio' | 'file';
+
+export interface Message {
+  id: string;
+  senderId: string;
+  text?: string;
+  mediaUrl?: string;
+  mediaType?: MessageMediaType;
+  timestamp: any; // Firestore Timestamp
+  readBy: string[];
+}
+
+export interface Chat {
+  id: string;
+  memberIds: string[];
+  members: { [key: string]: Pick<UserProfile, 'name' | 'avatarUrl'> };
+  lastMessage?: Pick<Message, 'text' | 'timestamp' | 'senderId'>;
+}

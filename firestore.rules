@@ -119,8 +119,8 @@ service cloud.firestore {
     match /taskHistory/{historyId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && (
-        request.resource.data.ownerId == request.auth.uid ||
-        (request.resource.data.delegateToId != null && request.resource.data.delegateToId == request.auth.uid)
+        get(/databases/$(database)/documents/tasks/$(historyId)).data.ownerId == request.auth.uid ||
+        get(/databases/$(database)/documents/tasks/$(historyId)).data.delegateToId == request.auth.uid
       );
       allow update, delete: if false;
     }
@@ -141,6 +141,22 @@ service cloud.firestore {
       allow create: if isOwner(userId) && request.resource.data.id == taskId;
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for the chats collection. Ensures only members of a chat
+     * can access it.
+     */
+    match /chats/{chatId} {
+      allow get, list, create, update: if isSignedIn() && request.auth.uid in resource.data.memberIds;
+
+      /**
+       * @description Rules for messages within a chat.
+       */
+      match /messages/{messageId} {
+        allow get, list, create, update: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.memberIds;
+        allow delete: if false; // Messages cannot be deleted
+      }
     }
   }
 }

@@ -129,6 +129,72 @@
         "name",
         "businessDescription"
       ]
+    },
+    "Chat": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Chat",
+      "type": "object",
+      "description": "Represents a chat conversation between two or more users.",
+      "properties": {
+        "memberIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Array of user UIDs participating in the chat."
+        },
+        "lastMessageTimestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the last message sent in the chat."
+        }
+      }
+    },
+    "Message": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Message",
+      "type": "object",
+      "description": "Represents a single message within a chat.",
+      "properties": {
+        "senderId": {
+          "type": "string",
+          "description": "The UID of the user who sent the message."
+        },
+        "text": {
+          "type": "string",
+          "description": "The text content of the message."
+        },
+        "mediaUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of any media attached to the message."
+        },
+        "mediaType": {
+          "type": "string",
+          "enum": [
+            "image",
+            "video",
+            "audio"
+          ],
+          "description": "The type of media attached."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The time the message was sent."
+        },
+        "readBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Array of user UIDs who have read the message."
+        }
+      },
+      "required": [
+        "senderId",
+        "timestamp"
+      ]
     }
   },
   "auth": {
@@ -194,8 +260,44 @@
             }
           ]
         }
+      },
+      {
+        "path": "/chats/{chatId}",
+        "definition": {
+          "entityName": "Chat",
+          "schema": {
+            "$ref": "#/backend/entities/Chat"
+          },
+          "description": "Represents a single conversation thread between two users.",
+          "params": [
+            {
+              "name": "chatId",
+              "description": "The unique identifier for the chat session."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/chats/{chatId}/messages/{messageId}",
+        "definition": {
+          "entityName": "Message",
+          "schema": {
+            "$ref": "#/backend/entities/Message"
+          },
+          "description": "A subcollection containing all messages for a specific chat.",
+          "params": [
+            {
+              "name": "chatId",
+              "description": "The unique identifier for the chat session."
+            },
+            {
+              "name": "messageId",
+              "description": "The unique identifier for the message."
+            }
+          ]
+        }
       }
     ],
-    "reasoning": "The Firestore structure is designed to manage tasks and user profiles for the TaskMaster Pro application, prioritizing security, scalability, and debuggability. It emphasizes Authorization Independence by avoiding hierarchical authorization dependencies.\n\n**Authorization Independence and QAPs:**\n\n*   **User Profiles:** User profile data is stored under `/users/{userId}/profile`.  Authorization rules can directly check if `request.auth.uid == userId`. Segregation ensures only the user can access their profile.\n*   **Tasks:** Tasks are stored within a user's document in the `/users/{userId}/tasks/{taskId}` collection. This structure ensures that only the authenticated user can access and manipulate tasks under their ownership. The structure allows for secure listing of tasks, as the query will always be scoped to the user's own tasks, satisfying QAPs (Rules are not Filters) requirements.\n\nThis structure promotes clarity of intent and supports robust security rules without relying on complex `get()` calls. The path-based ownership model provides inherent security and facilitates simple, efficient rules."
+    "reasoning": "The Firestore structure is designed to manage tasks and user profiles for the TaskMaster Pro application, prioritizing security, scalability, and debuggability. It emphasizes Authorization Independence by avoiding hierarchical authorization dependencies.\n\n**Authorization Independence and QAPs:**\n\n*   **User Profiles:** User profile data is stored under `/users/{userId}/profile`.  Authorization rules can directly check if `request.auth.uid == userId`. Segregation ensures only the user can access their profile.\n*   **Tasks:** Tasks are stored within a user's document in the `/users/{userId}/tasks/{taskId}` collection. This structure ensures that only the authenticated user can access and manipulate tasks under their ownership. The structure allows for secure listing of tasks, as the query will always be scoped to the user's own tasks, satisfying QAPs (Rules are not Filters) requirements.\n* **Chats**: A top-level `/chats` collection stores conversation metadata. Each chat document contains an array `memberIds`. Security rules ensure only users whose UID is in `memberIds` can read/write to the chat document and its `messages` subcollection. This enforces privacy for 1-on-1 and group chats.\n\nThis structure promotes clarity of intent and supports robust security rules without relying on complex `get()` calls. The path-based ownership model provides inherent security and facilitates simple, efficient rules."
   }
 }
