@@ -90,6 +90,7 @@ export const sendEmailTask = onCall(
 interface InvitationEmailPayload {
   email: string;
   inviterName: string;
+  registrationUrl: string; // Add this line
 }
 
 export const sendInvitationEmail = onCall(
@@ -110,18 +111,16 @@ export const sendInvitationEmail = onCall(
 
     const data = request.data as InvitationEmailPayload;
 
-    if (!data.email || !data.inviterName) {
+    if (!data.email || !data.inviterName || !data.registrationUrl) {
       console.error('[sendInvitationEmail] Datos incompletos', { data });
        throw new HttpsError(
           "invalid-argument",
-          "Faltan el email o el nombre del remitente."
+          "Faltan el email, el nombre del remitente o la URL de registro."
         );
     }
 
     try {
-      const { email, inviterName } = data;
-      // TODO: Get the actual origin from the request if possible, or set as an environment variable.
-      const registrationUrl = `https://studio-8033020115-912ac.web.app/login`;
+      const { email, inviterName, registrationUrl } = data;
 
       const { data: resendData, error } = await resend.emails.send({
         from: 'Gestor D&G <gestor@fiscalflow.mx>',
@@ -164,5 +163,3 @@ export const sendInvitationEmail = onCall(
     }
   }
 );
-
-    

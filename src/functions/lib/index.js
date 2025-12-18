@@ -16,13 +16,13 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || (function (mod) {
+var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
     if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
     __setModuleDefault(result, mod);
     return result;
-});
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendInvitationEmail = exports.sendEmailTask = void 0;
 const https_1 = require("firebase-functions/v2/https");
@@ -90,14 +90,12 @@ exports.sendInvitationEmail = (0, https_1.onCall)({ region: 'us-central1' }, asy
         throw new https_1.HttpsError("unauthenticated", "Debes estar autenticado para enviar invitaciones.");
     }
     const data = request.data;
-    if (!data.email || !data.inviterName) {
+    if (!data.email || !data.inviterName || !data.registrationUrl) {
         console.error('[sendInvitationEmail] Datos incompletos', { data });
-        throw new https_1.HttpsError("invalid-argument", "Faltan el email o el nombre del remitente.");
+        throw new https_1.HttpsError("invalid-argument", "Faltan el email, el nombre del remitente o la URL de registro.");
     }
     try {
-        const { email, inviterName } = data;
-        // TODO: Get the actual origin from the request if possible, or set as an environment variable.
-        const registrationUrl = `https://studio-8033020115-912ac.web.app/login`;
+        const { email, inviterName, registrationUrl } = data;
         const { data: resendData, error } = await resend.emails.send({
             from: 'Gestor D&G <gestor@fiscalflow.mx>',
             to: [email],
@@ -132,5 +130,3 @@ exports.sendInvitationEmail = (0, https_1.onCall)({ region: 'us-central1' }, asy
     }
 });
 //# sourceMappingURL=index.js.map
-
-    

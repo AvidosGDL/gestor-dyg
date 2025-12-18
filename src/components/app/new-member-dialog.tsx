@@ -82,10 +82,14 @@ export default function NewMemberDialog({
       // 2. Call the Cloud Function to send the email
       const functions = getFunctions();
       const sendInvitationEmail = httpsCallable(functions, 'sendInvitationEmail');
+      
+      // Use the current window origin to build the registration URL
+      const registrationUrl = `${window.location.origin}/login`;
 
       await sendInvitationEmail({
         email: data.email,
         inviterName: user.displayName || 'Un colega',
+        registrationUrl: registrationUrl, // Pass the dynamic URL
       });
 
       toast({
