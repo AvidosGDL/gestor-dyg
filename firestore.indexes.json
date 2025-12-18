@@ -9,7 +9,7 @@
           "arrayConfig": "CONTAINS"
         },
         {
-          "fieldPath": "lastMessage.timestamp",
+          "fieldPath": "lastMessageTimestamp",
           "order": "DESCENDING"
         }
       ]

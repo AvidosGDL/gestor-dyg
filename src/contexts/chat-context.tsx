@@ -2,7 +2,7 @@
 'use client';
 
 import React, { createContext, useContext, ReactNode, useMemo } from 'react';
-import type { Chat, Message } from '@/lib/types';
+import type { Chat, Message, UserProfile } from '@/lib/types';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import {
   collection,
@@ -13,6 +13,7 @@ import {
   doc,
   serverTimestamp,
   orderBy,
+  getDocs,
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -41,7 +42,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return query(
       chatsCollectionRef,
       where('memberIds', 'array-contains', user.uid),
-      orderBy('lastMessage.timestamp', 'desc')
+      orderBy('lastMessageTimestamp', 'desc')
     );
   }, [user, chatsCollectionRef]);
 
@@ -79,11 +80,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     
     const messagesCollectionRef = collection(firestore, `chats/${chatId}/messages`);
     const chatDocRef = doc(firestore, `chats/${chatId}`);
+    const timestamp = serverTimestamp();
 
     const newMessage = {
       ...message,
       senderId: user.uid,
-      timestamp: serverTimestamp(),
+      timestamp: timestamp,
       readBy: [user.uid],
     };
 
@@ -100,9 +102,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     updateDoc(chatDocRef, {
       lastMessage: {
         text: message.text,
-        timestamp: serverTimestamp(),
+        timestamp: timestamp,
         senderId: user.uid,
       },
+      lastMessageTimestamp: timestamp,
     });
   };
   
@@ -129,6 +132,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           [memberId]: { name: 'Fetching...', avatarUrl: '' }
         },
         lastMessage: null,
+        lastMessageTimestamp: serverTimestamp(),
       });
       return newChatDoc.id;
     } catch (e) {

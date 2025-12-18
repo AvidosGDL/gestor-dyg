@@ -92,4 +92,5 @@ export interface Chat {
   memberIds: string[];
   members: { [key: string]: Pick<UserProfile, 'name' | 'avatarUrl'> };
   lastMessage?: Pick<Message, 'text' | 'timestamp' | 'senderId'>;
+  lastMessageTimestamp?: any; // Firestore Timestamp
 }
