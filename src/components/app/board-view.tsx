@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { ListTodo, Bell, Trash2 } from 'lucide-react';
+import { ListTodo, Bell, Trash2, CheckCheck } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus } from '@/lib/types';
 import TaskCard from './task-card';
@@ -80,7 +80,7 @@ const TaskColumn = ({
 };
 
 export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: BoardViewProps) {
-  const { tasks, updateTask } = useTasks();
+  const { tasks, updateTask, bulkUpdateTasks } = useTasks();
   const { user } = useUser();
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -128,22 +128,37 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
   
   const notifications = useMemo(() => {
     if(!user) return [];
-    // Notificaciones para el owner sobre el estado de sus tareas delegadas.
-    return tasks.filter(t => t.ownerId === user.uid && (t.delegationStatus === 'rejected' || (t.status === 'completado' && t.delegateToId !== null)));
+    // Notificaciones para el owner sobre el estado de sus tareas delegadas que no han sido descartadas.
+    return tasks.filter(t => t.ownerId === user.uid && !t.notificationDismissed && (t.delegationStatus === 'rejected' || (t.status === 'completado' && t.delegateToId !== null)));
   }, [tasks, user]);
 
   const dismissNotification = (task: Task) => {
     if (task.delegationStatus === 'rejected') {
-        // Al descartar, se quita la delegación para que no vuelva a aparecer.
+        // Al descartar una tarea rechazada, se quita la delegación para que no vuelva a aparecer.
         updateTask(task.id, { delegateToId: null, delegatedByName: null, delegationStatus: null, delegateToEmail: null }, user);
     }
     if (task.status === 'completado' && task.delegateToId) {
-        // Simplemente se podría "archivar" la notificación, aquí la eliminamos para simplicidad.
-        // En una app real, podría ser un campo "notificationDismissed: true".
-        console.log("Acknowledging completed task:", task.id);
-        // Para este ejemplo, no se hace nada, pero la tarea ya no aparecerá si se mueve de "completado".
+        // Al descartar una tarea completada, se marca como "descartada" para que no vuelva a aparecer.
+        updateTask(task.id, { notificationDismissed: true }, user);
     }
-};
+  };
+
+  const handleDismissAll = () => {
+    if (notifications.length === 0) return;
+
+    const updates = notifications.map(task => {
+        if (task.delegationStatus === 'rejected') {
+            return { id: task.id, changes: { delegateToId: null, delegatedByName: null, delegationStatus: null, delegateToEmail: null } };
+        }
+        return { id: task.id, changes: { notificationDismissed: true } };
+    });
+
+    bulkUpdateTasks(updates, user);
+    toast({
+        title: "Notificaciones descartadas",
+        description: "Se han limpiado todas las notificaciones."
+    })
+  };
 
 
   return (
@@ -152,8 +167,14 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
         { (delegatedToMe.length > 0 || notifications.length > 0) &&
           <div className="flex-shrink-0">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row justify-between items-center">
               <CardTitle className="text-lg flex items-center gap-2"><Bell size={20} className="text-primary"/> Notificaciones</CardTitle>
+               {(notifications.length > 0) && (
+                <Button variant="ghost" size="sm" onClick={handleDismissAll}>
+                  <CheckCheck size={16} className="mr-2" />
+                  Descartar Todas
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="space-y-3">
               {delegatedToMe.map(task => (

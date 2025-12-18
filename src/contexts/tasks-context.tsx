@@ -28,6 +28,7 @@ interface TasksContextType {
   tasks: Task[];
   addTask: (taskData: Omit<Task, 'id'>, user: User | null) => void;
   updateTask: (id: string, updatedData: Partial<Omit<Task, 'id'>>, user: User | null) => void;
+  bulkUpdateTasks: (updates: { id: string, changes: Partial<Task> }[], user: User | null) => void;
   deleteTask: (id: string) => void;
   setTasks: (tasks: Task[]) => void;
   loading: boolean;
@@ -188,6 +189,27 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const bulkUpdateTasks = async (updates: { id: string, changes: Partial<Task> }[], user: User | null) => {
+    if (!firestore || !tasksCollectionRef || !user) return;
+    
+    const batch = writeBatch(firestore);
+
+    updates.forEach(update => {
+        const docRef = doc(firestore, tasksCollectionRef.path, update.id);
+        batch.update(docRef, update.changes);
+    });
+
+    batch.commit().catch(async (serverError) => {
+      // Note: This error handling is simplified. A real app might need more granular error reporting.
+      const permissionError = new FirestorePermissionError({
+        path: tasksCollectionRef.path,
+        operation: 'update',
+        requestResourceData: {info: 'Bulk update operation failed'},
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    });
+  };
+
   const deleteTask = async (id: string) => {
     if (!firestore || !tasksCollectionRef) return;
     const taskToDeleteRef = doc(firestore, 'tasks', id);
@@ -247,6 +269,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     setTasks,
     addTask,
     updateTask,
+    bulkUpdateTasks,
     deleteTask,
   }), [tasks, loading]);
 

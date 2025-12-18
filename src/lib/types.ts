@@ -37,6 +37,7 @@ export interface Task {
   focusSessions?: FocusSession[];
   completionComment?: string;
   attachments?: Attachment[];
+  notificationDismissed?: boolean;
 }
 
 export interface TeamMember {
