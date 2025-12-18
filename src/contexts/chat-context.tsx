@@ -1,7 +1,6 @@
-
 'use client';
 
-import React, { createContext, useContext, ReactNode, useMemo } from 'react';
+import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import type { Chat, Message, UserProfile, TeamMember } from '@/lib/types';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import {
@@ -34,6 +33,7 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 export function ChatProvider({ children }: { children: ReactNode }) {
   const firestore = useFirestore();
   const { user } = useUser();
+  const [processedConversations, setProcessedConversations] = useState<Chat[]>([]);
 
   const chatsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -53,55 +53,74 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [teamMembersCollectionPath, firestore]);
 
   const { data: teamMembers, loading: membersLoading } = useCollection<TeamMember>(teamMembersCollectionRef);
+  
+  useEffect(() => {
+    if (!rawConversations || !firestore || !user) {
+        setProcessedConversations([]);
+        return;
+    }
 
-  const conversations = useMemo(() => {
-      if (!rawConversations || !firestore || !user) return [];
-      
-      const processedConversations = Promise.all(rawConversations.map(async (convo) => {
-          const newMembers: { [key: string]: Pick<UserProfile, 'name' | 'avatarUrl'> } = {};
-          let shouldUpdate = false;
+    let isMounted = true;
 
-          for (const memberId of convo.memberIds) {
-              if (!convo.members?.[memberId] || convo.members[memberId].name === 'Fetching...') {
-                  try {
-                      const userDocRef = doc(firestore, 'users', memberId);
-                      const userDocSnap = await getDoc(userDocRef);
-                      if (userDocSnap.exists()) {
-                          const userData = userDocSnap.data() as UserProfile;
-                          newMembers[memberId] = { name: userData.name, avatarUrl: userData.avatarUrl };
-                          shouldUpdate = true;
-                      } else {
-                          newMembers[memberId] = convo.members?.[memberId] || { name: 'Usuario Desconocido', avatarUrl: '' };
-                      }
-                  } catch (error) {
-                      console.error(`Failed to fetch profile for member ${memberId}:`, error);
-                      newMembers[memberId] = convo.members?.[memberId] || { name: 'Error al Cargar', avatarUrl: '' };
-                  }
-              } else {
-                  newMembers[memberId] = convo.members[memberId];
-              }
-          }
+    const processConversations = async () => {
+        const enrichedConversations = await Promise.all(rawConversations.map(async (convo) => {
+            const newMembersData: { [key: string]: Pick<UserProfile, 'name' | 'avatarUrl'> } = {};
+            let shouldUpdateInFirestore = false;
 
-          if (shouldUpdate) {
-              const chatDocRef = doc(firestore, 'chats', convo.id);
-              updateDoc(chatDocRef, { members: newMembers });
-          }
+            for (const memberId of convo.memberIds) {
+                // Check if member data is missing or incomplete
+                if (!convo.members?.[memberId] || !convo.members[memberId].name || convo.members[memberId].name === 'Usuario') {
+                    try {
+                        const userDocRef = doc(firestore, 'users', memberId);
+                        const userDocSnap = await getDoc(userDocRef);
 
-          return { ...convo, members: newMembers };
-      }));
-      
-      return rawConversations;
+                        if (userDocSnap.exists()) {
+                            const userData = userDocSnap.data() as UserProfile;
+                            newMembersData[memberId] = { name: userData.name, avatarUrl: userData.avatarUrl };
+                            shouldUpdateInFirestore = true; // Mark for DB update
+                        } else {
+                            // Fallback if user document doesn't exist
+                            newMembersData[memberId] = convo.members?.[memberId] || { name: 'Usuario Desconocido', avatarUrl: '' };
+                        }
+                    } catch (error) {
+                        console.error(`Failed to fetch profile for member ${memberId}:`, error);
+                        newMembersData[memberId] = convo.members?.[memberId] || { name: 'Error al Cargar', avatarUrl: '' };
+                    }
+                } else {
+                    // Data is already present and seems valid
+                    newMembersData[memberId] = convo.members[memberId];
+                }
+            }
+            
+            // If we fetched new data, update the document in Firestore asynchronously
+            if (shouldUpdateInFirestore) {
+                const chatDocRef = doc(firestore, 'chats', convo.id);
+                updateDoc(chatDocRef, { members: newMembersData }).catch(err => console.error("Failed to update chat members in Firestore:", err));
+            }
 
+            return { ...convo, members: newMembersData };
+        }));
+
+        if (isMounted) {
+            setProcessedConversations(enrichedConversations);
+        }
+    };
+
+    processConversations();
+
+    return () => {
+        isMounted = false;
+    };
   }, [rawConversations, firestore, user]);
 
   
   const unreadCount = useMemo(() => {
-    return (conversations || []).filter(c => 
+    return (processedConversations || []).filter(c => 
       c.lastMessage && 
       c.lastMessage.senderId !== user?.uid &&
-      !c.lastMessage.readBy?.includes(user.uid)
+      !c.lastMessage.readBy?.includes(user!.uid)
     ).length;
-  }, [conversations, user]);
+  }, [processedConversations, user]);
 
 
   const getMessagesForConversation = (chatId: string | null) => {
@@ -118,15 +137,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const { data: messages, loading } = useCollection<Message>(messagesQuery);
     
     // Mark messages as read
-    if (messages && messages.length > 0 && user && chatId) {
-        const lastMessage = messages[messages.length - 1];
-        if (lastMessage.senderId !== user.uid && !lastMessage.readBy.includes(user.uid)) {
-            const chatDocRef = doc(firestore, 'chats', chatId);
-            updateDoc(chatDocRef, {
-                'lastMessage.readBy': [...(lastMessage.readBy || []), user.uid]
-            });
+    useEffect(() => {
+        if (messages && messages.length > 0 && user && chatId) {
+            const lastMessage = messages[messages.length - 1];
+            if (lastMessage.senderId !== user.uid && !lastMessage.readBy?.includes(user.uid)) {
+                const chatDocRef = doc(firestore, 'chats', chatId);
+                updateDoc(chatDocRef, {
+                    'lastMessage.readBy': [...(lastMessage.readBy || []), user.uid]
+                });
+            }
         }
-    }
+    }, [messages, user, chatId, firestore]);
+
     
     if (!chatId) {
       return { messages: [], loading: false };
@@ -193,7 +215,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const userProfile = userDocSnap.exists() ? userDocSnap.data() as UserProfile : null;
       const memberProfile = memberDocSnap.exists() ? memberDocSnap.data() as UserProfile : null;
 
-      const newChatDoc = await addDoc(chatsCollectionRef, {
+      const newChatData = {
         memberIds: memberIds, 
         members: {
           [user.uid]: { name: userProfile?.name || 'Usuario', avatarUrl: userProfile?.avatarUrl || '' },
@@ -201,7 +223,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         },
         lastMessage: null,
         lastMessageTimestamp: serverTimestamp(),
-      });
+      };
+
+      const newChatDoc = await addDoc(chatsCollectionRef, newChatData);
       return newChatDoc.id;
     } catch (e: any) {
       console.error("Error creating or finding conversation", e);
@@ -217,14 +241,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 
   const contextValue = useMemo(() => ({
-    conversations: conversations || [],
+    conversations: processedConversations,
     teamMembers: teamMembers || [],
-    loading: chatsLoading || membersLoading,
+    loading: chatsLoading || membersLoading || (rawConversations && processedConversations.length !== rawConversations.length),
     getMessagesForConversation,
     sendMessage,
     getOrCreateConversation,
     unreadCount,
-  }), [conversations, teamMembers, chatsLoading, membersLoading, unreadCount]);
+  }), [processedConversations, teamMembers, chatsLoading, membersLoading, rawConversations, unreadCount]);
 
   return (
     <ChatContext.Provider value={contextValue}>{children}</ChatContext.Provider>
