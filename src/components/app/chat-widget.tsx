@@ -170,7 +170,7 @@ export default function ChatWidget() {
                             <MessageView conversationId={activeConversationId} />
                         ) : (
                             <div className="flex items-center justify-center h-full text-muted-foreground">
-                                <p>Selecciona una conversación</p>
+                                <p>Selecciona una conversación para empezar a chatear.</p>
                             </div>
                         )}
                     </div>

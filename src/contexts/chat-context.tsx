@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
@@ -70,11 +71,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         const enrichedConversations = await Promise.all(rawConversations.map(async (convo) => {
             const newMembersData: Chat['members'] = { ...convo.members };
             let needsUpdateInFirestore = false;
+            let memberIdsCorrected = false;
+            const newMemberIds = [...convo.memberIds];
 
-            for (const memberId of convo.memberIds) {
+            for (let i = 0; i < newMemberIds.length; i++) {
+                const memberId = newMemberIds[i];
                 const memberInfo = newMembersData[memberId];
-                
-                if (!memberInfo || !memberInfo.name || memberInfo.name === 'Usuario' || !memberInfo.email) {
+
+                if (!memberInfo || !memberInfo.name || memberInfo.name === 'Usuario' || !memberInfo.email || memberInfo.name === null) {
                     try {
                         const userDocRef = doc(firestore, 'users', memberId);
                         const userDocSnap = await getDoc(userDocRef);
@@ -84,10 +88,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                             newMembersData[memberId] = { name: userData.name, avatarUrl: userData.avatarUrl, email: userData.email };
                             needsUpdateInFirestore = true;
                         } else {
-                            console.error(`[ChatContext] No se encontró el perfil para el miembro con ID: ${memberId}. Intentando auto-corrección.`);
-                            const memberEmailToFind = memberInfo?.email;
-                            
-                            if (memberEmailToFind) {
+                            // SELF-HEALING ATTEMPT
+                             console.error(`[ChatContext] No se encontró el perfil para el miembro con ID: ${memberId}. Intentando auto-corrección.`);
+                             const memberEmailToFind = convo.members?.[memberId]?.email;
+                             
+                             if (memberEmailToFind) {
                                 const usersQuery = query(collection(firestore, 'users'), where('email', '==', memberEmailToFind));
                                 const userSnap = await getDocs(usersQuery);
                                 if (!userSnap.empty) {
@@ -95,17 +100,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                                     const correctUid = correctUserDoc.id;
                                     const correctUserData = correctUserDoc.data() as UserProfile;
 
-                                    delete newMembersData[memberId];
+                                    // Replace incorrect ID with correct UID
+                                    newMemberIds[i] = correctUid;
+                                    delete newMembersData[memberId]; // Remove old incorrect data
                                     newMembersData[correctUid] = { name: correctUserData.name, avatarUrl: correctUserData.avatarUrl, email: correctUserData.email };
                                     
-                                    const chatDocRef = doc(firestore, 'chats', convo.id);
-                                    const newMemberIds = convo.memberIds.map(id => id === memberId ? correctUid : id);
-                                    
-                                    batch.update(chatDocRef, { memberIds: newMemberIds, members: newMembersData });
+                                    memberIdsCorrected = true;
                                     batchHasWrites = true;
                                     console.log(`[ChatContext] Auto-corrección exitosa. ID ${memberId} -> ${correctUid}`);
                                 }
-                            } else {
+                             } else {
                                newMembersData[memberId] = newMembersData[memberId] || { name: 'Usuario Desconocido', avatarUrl: '', email: '' };
                             }
                         }
@@ -116,13 +120,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 }
             }
             
-            if (needsUpdateInFirestore && !batchHasWrites) { // Solo actualiza si no se hizo una corrección de ID más importante
+            const finalMemberIds = memberIdsCorrected ? newMemberIds : convo.memberIds;
+
+            if (batchHasWrites) {
+                const chatDocRef = doc(firestore, 'chats', convo.id);
+                batch.update(chatDocRef, { memberIds: finalMemberIds, members: newMembersData });
+            } else if (needsUpdateInFirestore) {
                 const chatDocRef = doc(firestore, 'chats', convo.id);
                 batch.update(chatDocRef, { members: newMembersData });
                 batchHasWrites = true;
             }
 
-            return { ...convo, members: newMembersData };
+            return { ...convo, memberIds: finalMemberIds, members: newMembersData };
         }));
 
         if (batchHasWrites) {
