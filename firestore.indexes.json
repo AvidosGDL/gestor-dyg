@@ -1,0 +1,32 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "chats",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "memberIds",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lastMessage.timestamp",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "delegateToEmail",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "delegateToId",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ]
+}
