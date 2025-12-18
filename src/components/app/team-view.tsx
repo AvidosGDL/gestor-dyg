@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useRef } from 'react';
@@ -425,7 +426,7 @@ export default function TeamView() {
           <CardHeader>
             <CardTitle>Miembros del Equipo</CardTitle>
             <CardDescription>
-              Aquí puedes ver y administrar los miembros de tu equipo. Haz clic en un miembro para iniciar una conversación.
+              Aquí puedes ver y administrar los miembros de tu equipo.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -450,8 +451,8 @@ export default function TeamView() {
                 )}
                 {!isLoading &&
                   members &&
-                  members.map((member, index) => (
-                    <TableRow key={member.id} className="cursor-pointer hover:bg-muted/50">
+                  members.map((member) => (
+                    <TableRow key={member.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar>
@@ -475,8 +476,7 @@ export default function TeamView() {
                         <Badge variant="secondary">{member.role}</Badge>
                       </TableCell>
                        <TableCell>
-                        {/* Simulate notification for demonstration */}
-                        {index === 0 && <Badge variant="default" className="bg-accent text-accent-foreground">Nuevo Mensaje</Badge>}
+                         <Badge variant="outline">Activo</Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
