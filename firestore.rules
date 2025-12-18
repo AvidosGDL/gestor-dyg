@@ -117,11 +117,7 @@ service cloud.firestore {
     }
     
     match /taskHistory/{historyId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && (
-        get(/databases/$(database)/documents/tasks/$(historyId)).data.ownerId == request.auth.uid ||
-        get(/databases/$(database)/documents/tasks/$(historyId)).data.delegateToId == request.auth.uid
-      );
+      allow read, create: if isSignedIn();
       allow update, delete: if false;
     }
 
