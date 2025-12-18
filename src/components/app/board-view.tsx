@@ -237,11 +237,11 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
               ))}
                {notifications.map(({ task, type, message }) => (
                   <div key={task.id + type} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                    <p className="text-sm flex items-center">
+                    <div className="text-sm flex items-center">
                         {renderNotificationIcon(type)}
                         <span className="italic mr-1">"{task.title}":</span>
                         <span className="ml-1">{message}</span>
-                    </p>
+                    </div>
                     <Button size="sm" variant="ghost" onClick={() => dismissNotification(task)}>Descartar</Button>
                   </div>
                 ))}
