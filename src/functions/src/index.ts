@@ -4,6 +4,7 @@ import * as admin from "firebase-admin";
 import { Resend } from 'resend';
 
 admin.initializeApp();
+
 // Clave de API unificada y correcta para Resend
 const resend = new Resend('[REMOVED_RESEND_API_KEY]');
 
@@ -91,7 +92,7 @@ export const sendEmailTask = onCall(
 interface InvitationEmailPayload {
   email: string;
   inviterName: string;
-  registrationUrl: string; // Add this line
+  registrationUrl: string;
 }
 
 export const sendInvitationEmail = onCall(
@@ -164,5 +165,3 @@ export const sendInvitationEmail = onCall(
     }
   }
 );
-
-    

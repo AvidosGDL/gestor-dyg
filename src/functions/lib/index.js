@@ -1,4 +1,3 @@
-
 "use strict";
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -131,5 +130,3 @@ exports.sendInvitationEmail = (0, https_1.onCall)({ region: 'us-central1' }, asy
     }
 });
 //# sourceMappingURL=index.js.map
-
-    
