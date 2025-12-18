@@ -263,7 +263,11 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                 <FormItem>
                   <FormLabel>Título de la Tarea</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ej. Revisar el diseño del landing page" {...field} />
+                    <Textarea
+                      placeholder="Ej. Revisar el diseño del landing page"
+                      rows={2}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

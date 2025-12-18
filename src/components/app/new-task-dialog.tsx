@@ -34,6 +34,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
 import { Calendar } from '../ui/calendar';
+import { Textarea } from '../ui/textarea';
 
 const taskSchema = z.object({
   title: z.string().min(1, 'El título es requerido'),
@@ -125,7 +126,11 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                 <FormItem>
                   <FormLabel>Título de la Tarea</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ej. Revisar el diseño del landing page" {...field} />
+                    <Textarea
+                      placeholder="Ej. Revisar el diseño del landing page"
+                      rows={2}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
