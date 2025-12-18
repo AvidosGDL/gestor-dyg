@@ -78,6 +78,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 const memberId = newMemberIds[i];
                 const memberInfo = newMembersData[memberId];
 
+                // Check if info is missing or incomplete
                 if (!memberInfo || !memberInfo.name || memberInfo.name === 'Usuario' || !memberInfo.email || memberInfo.name === null) {
                     try {
                         const userDocRef = doc(firestore, 'users', memberId);
@@ -88,7 +89,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                             newMembersData[memberId] = { name: userData.name, avatarUrl: userData.avatarUrl, email: userData.email };
                             needsUpdateInFirestore = true;
                         } else {
-                            // SELF-HEALING ATTEMPT
+                            // SELF-HEALING ATTEMPT: User not found by ID. Try to find by email.
                              console.error(`[ChatContext] No se encontró el perfil para el miembro con ID: ${memberId}. Intentando auto-corrección.`);
                              const memberEmailToFind = convo.members?.[memberId]?.email;
                              
@@ -106,7 +107,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                                     newMembersData[correctUid] = { name: correctUserData.name, avatarUrl: correctUserData.avatarUrl, email: correctUserData.email };
                                     
                                     memberIdsCorrected = true;
-                                    batchHasWrites = true;
+                                    needsUpdateInFirestore = true; // Mark for update
                                     console.log(`[ChatContext] Auto-corrección exitosa. ID ${memberId} -> ${correctUid}`);
                                 }
                              } else {
@@ -122,12 +123,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             
             const finalMemberIds = memberIdsCorrected ? newMemberIds : convo.memberIds;
 
-            if (batchHasWrites) {
+            if (needsUpdateInFirestore) { // Consolidate batch writes
                 const chatDocRef = doc(firestore, 'chats', convo.id);
                 batch.update(chatDocRef, { memberIds: finalMemberIds, members: newMembersData });
-            } else if (needsUpdateInFirestore) {
-                const chatDocRef = doc(firestore, 'chats', convo.id);
-                batch.update(chatDocRef, { members: newMembersData });
                 batchHasWrites = true;
             }
 
@@ -228,8 +226,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   
   const getOrCreateConversation = async (memberId: string): Promise<string | null> => {
     if (!firestore || !user) return null;
-    const chatsCollectionRef = collection(firestore, 'chats');
 
+    // Safety Belt: Validate that the memberId looks like a UID.
+    const looksLikeUid = (s: string) => typeof s === 'string' && s.length >= 20 && !s.includes('/');
+    if (!looksLikeUid(memberId)) {
+        console.error(`[ChatContext] Se intentó crear una conversación con un ID inválido: ${memberId}`);
+        return null;
+    }
+
+    const chatsCollectionRef = collection(firestore, 'chats');
     const memberIds = [user.uid, memberId].sort();
     
     const existingChatQuery = query(
@@ -243,6 +248,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return existingChatSnap.docs[0].id;
       }
 
+      // Fetch full profiles to ensure correct data at creation
       const userDocRef = doc(firestore, 'users', user.uid);
       const memberDocRef = doc(firestore, 'users', memberId);
 

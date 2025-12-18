@@ -44,6 +44,7 @@ export interface Task {
 
 export interface TeamMember {
   id: string;
+  uid: string; // Explicitly add the user's UID
   name: string;
   email: string;
   role: string;

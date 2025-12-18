@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -32,6 +32,8 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import { type TeamMember } from '@/lib/types';
+
 
 const memberSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
@@ -39,7 +41,6 @@ const memberSchema = z.object({
   role: z.string().min(1, 'El rol es requerido'),
   phone: z.string().optional(),
   avatarUrl: z.string().url('Por favor, selecciona un avatar'),
-  authType: z.enum(['google', 'email']).default('email'),
 });
 
 type MemberFormValues = z.infer<typeof memberSchema>;
@@ -85,7 +86,6 @@ export default function NewMemberDialog({
       role: '',
       phone: '',
       avatarUrl: '',
-      authType: 'email',
     }
   });
   
@@ -153,9 +153,10 @@ export default function NewMemberDialog({
         finalAvatarUrl = await uploadAvatar(data.email, customAvatarFile);
       }
       
-      const newMemberData = { 
+      const newMemberData: TeamMember = { 
         ...data, 
         id: memberUid, // Use the real UID as the ID
+        uid: memberUid, // Explicitly add uid field
         avatarUrl: finalAvatarUrl,
         authType: data.email.endsWith('@gmail.com') ? 'google' : 'email',
       };
@@ -163,7 +164,7 @@ export default function NewMemberDialog({
       // 2. Add to team members subcollection using the member's UID as doc ID
       const teamMemberDocRef = doc(firestore, `users/${user.uid}/teamMembers`, memberUid);
       
-      const memberDocPromise = setDoc(teamMemberDocRef, newMemberData).catch(async (serverError) => {
+      await setDoc(teamMemberDocRef, newMemberData, { merge: true }).catch(async (serverError) => {
           const permissionError = new FirestorePermissionError({
             path: teamMemberDocRef.path,
             operation: 'create',
@@ -173,7 +174,7 @@ export default function NewMemberDialog({
           throw serverError;
       });
 
-      // 3. Add to global invitations collection (or ensure it's there)
+      // 3. Ensure an invitation exists
       const invitationPath = `invitations/${data.email}`;
       const invitationRef = doc(firestore, invitationPath);
       const invitationData = {
@@ -182,18 +183,7 @@ export default function NewMemberDialog({
         inviterName: user.displayName || 'un administrador',
         createdAt: serverTimestamp(),
       };
-
-      const invitationPromise = setDoc(invitationRef, invitationData, { merge: true }).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: invitationPath,
-          operation: 'create',
-          requestResourceData: invitationData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-      });
-
-      await Promise.all([memberDocPromise, invitationPromise]);
+      await setDoc(invitationRef, invitationData, { merge: true });
 
       toast({
         title: 'Miembro Agregado',

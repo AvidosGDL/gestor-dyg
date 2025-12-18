@@ -17,8 +17,8 @@ const ConversationList = ({ onSelectConversation, activeConversationId }: any) =
     const { conversations, teamMembers, loading, getOrCreateConversation } = useChat();
     const { user } = useUser();
     
-    const handleSelectMember = async (memberId: string) => {
-        const conversationId = await getOrCreateConversation(memberId);
+    const handleSelectMember = async (memberUid: string) => {
+        const conversationId = await getOrCreateConversation(memberUid);
         if (conversationId) {
             onSelectConversation(conversationId);
         }
@@ -29,7 +29,7 @@ const ConversationList = ({ onSelectConversation, activeConversationId }: any) =
     );
 
     const uncontactedMembers = teamMembers.filter(
-        m => m.id !== user?.uid && !existingConversationMemberIds.has(m.id)
+        m => m.uid !== user?.uid && !existingConversationMemberIds.has(m.uid)
     );
 
     if (loading) return <div className="p-4 text-center text-sm">Cargando...</div>;
@@ -53,7 +53,7 @@ const ConversationList = ({ onSelectConversation, activeConversationId }: any) =
                     >
                         <Avatar className="h-10 w-10">
                             <AvatarImage src={otherMember?.avatarUrl} alt={otherMember?.name} />
-                            <AvatarFallback>{otherMember?.name?.[0]}</AvatarFallback>
+                            <AvatarFallback>{otherMember?.name?.[0] || '?'}</AvatarFallback>
                         </Avatar>
                         <div className="flex-1 truncate">
                             <p className={cn("font-semibold text-sm truncate", isUnread && "font-bold")}>{otherMember?.name || 'Usuario'}</p>
@@ -74,7 +74,7 @@ const ConversationList = ({ onSelectConversation, activeConversationId }: any) =
                     {uncontactedMembers.map(member => (
                          <div 
                             key={member.id} 
-                            onClick={() => handleSelectMember(member.id)}
+                            onClick={() => handleSelectMember(member.uid)}
                             className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50"
                         >
                             <Avatar className="h-10 w-10">
