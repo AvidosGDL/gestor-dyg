@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { ListTodo, Bell, Trash2, CheckCheck } from 'lucide-react';
+import { ListTodo, Bell, Trash2, CheckCheck, MessageSquare, ArrowRightLeft } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus } from '@/lib/types';
 import TaskCard from './task-card';
@@ -127,30 +127,69 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
   }, [tasks, user]);
   
   const notifications = useMemo(() => {
-    if(!user) return [];
-    // Notificaciones para el owner sobre el estado de sus tareas delegadas que no han sido descartadas.
-    return tasks.filter(t => t.ownerId === user.uid && !t.notificationDismissed && (t.delegationStatus === 'rejected' || (t.status === 'completado' && t.delegateToId !== null)));
+    if (!user) return [];
+    return tasks
+      .filter((task) => task.ownerId === user.uid && task.delegateToId)
+      .map((task) => {
+        // Ignorar si la notificación ya fue descartada.
+        if (task.notificationDismissed) return null;
+
+        // Caso 1: Tarea rechazada
+        if (task.delegationStatus === 'rejected') {
+          return { task, type: 'rejected', message: `La tarea fue rechazada por la persona a la que se delegó.` };
+        }
+
+        // Caso 2: Tarea completada por el delegado
+        if (task.status === 'completado') {
+          return { task, type: 'completed', message: `La tarea delegada ha sido completada.` };
+        }
+
+        // --- Nuevos Casos ---
+        const lastOwnerView = task.lastOwnerUpdateTimestamp ? new Date(task.lastOwnerUpdateTimestamp).getTime() : 0;
+        const lastUpdate = task.updatedAt ? new Date(task.updatedAt).getTime() : 0;
+
+        // Si la última actualización es más reciente que la última vez que el owner la vio.
+        if (lastUpdate > lastOwnerView) {
+            // Notificación por cambio de estado
+            if (task.status === 'en-progreso' || task.status === 'cierre') {
+                 return { task, type: 'status_change', message: `El estado de la tarea cambió a: ${task.status}.` };
+            }
+            // Notificación por nuevo comentario o adjunto (asumiendo que `updatedAt` se actualiza)
+            const hasNewComment = (task.completionComment?.length || 0) > 0;
+            const hasNewAttachment = (task.attachments?.length || 0) > 0;
+            if (hasNewComment || hasNewAttachment) {
+                return { task, type: 'comment', message: `Se añadió un nuevo comentario o archivo adjunto.` };
+            }
+        }
+        
+        return null;
+      })
+      .filter(Boolean) as { task: Task; type: string; message: string }[];
   }, [tasks, user]);
+
 
   const dismissNotification = (task: Task) => {
     if (task.delegationStatus === 'rejected') {
-        // Al descartar una tarea rechazada, se quita la delegación para que no vuelva a aparecer.
         updateTask(task.id, { delegateToId: null, delegatedByName: null, delegationStatus: null, delegateToEmail: null }, user);
-    }
-    if (task.status === 'completado' && task.delegateToId) {
-        // Al descartar una tarea completada, se marca como "descartada" para que no vuelva a aparecer.
+    } else if (task.status === 'completado') {
         updateTask(task.id, { notificationDismissed: true }, user);
+    } else {
+        // Para otros tipos de notificaciones, actualizamos el timestamp para "marcar como leída"
+        updateTask(task.id, { lastOwnerUpdateTimestamp: new Date().toISOString() }, user);
     }
   };
 
   const handleDismissAll = () => {
     if (notifications.length === 0) return;
 
-    const updates = notifications.map(task => {
+    const updates = notifications.map(({ task }) => {
         if (task.delegationStatus === 'rejected') {
             return { id: task.id, changes: { delegateToId: null, delegatedByName: null, delegationStatus: null, delegateToEmail: null } };
         }
-        return { id: task.id, changes: { notificationDismissed: true } };
+        if (task.status === 'completado') {
+            return { id: task.id, changes: { notificationDismissed: true } };
+        }
+        return { id: task.id, changes: { lastOwnerUpdateTimestamp: new Date().toISOString() }};
     });
 
     bulkUpdateTasks(updates, user);
@@ -159,6 +198,16 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
         description: "Se han limpiado todas las notificaciones."
     })
   };
+
+  const renderNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'rejected': return <Badge variant="destructive" className="mr-2">Rechazada</Badge>;
+      case 'completed': return <Badge className="bg-emerald-500 mr-2">Completada</Badge>;
+      case 'status_change': return <Badge variant="secondary" className="mr-2"><ArrowRightLeft size={12} className="mr-1"/> Estado</Badge>;
+      case 'comment': return <Badge variant="secondary" className="mr-2"><MessageSquare size={12} className="mr-1"/> Comentario</Badge>;
+      default: return null;
+    }
+  }
 
 
   return (
@@ -186,10 +235,13 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
                   </div>
                 </div>
               ))}
-               {notifications.map(task => (
-                  <div key={task.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                    {task.delegationStatus === 'rejected' && <p className="text-sm">La tarea <span className="italic">"{task.title}"</span> fue <span className="font-bold text-destructive">rechazada</span> por la persona a la que se delegó.</p>}
-                    {task.status === 'completado' && task.delegateToId && <p className="text-sm">La tarea delegada <span className="italic">"{task.title}"</span> ha sido <span className="font-bold text-emerald-500">completada</span>.</p>}
+               {notifications.map(({ task, type, message }) => (
+                  <div key={task.id + type} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    <p className="text-sm flex items-center">
+                        {renderNotificationIcon(type)}
+                        <span className="italic mr-1">"{task.title}":</span>
+                        <span className="ml-1">{message}</span>
+                    </p>
                     <Button size="sm" variant="ghost" onClick={() => dismissNotification(task)}>Descartar</Button>
                   </div>
                 ))}

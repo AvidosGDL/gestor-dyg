@@ -72,6 +72,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       delegatedByName: null,
       delegateToId: null,
       delegationStatus: isDelegating ? 'pending' : null,
+      updatedAt: new Date().toISOString(),
     };
 
     if (isDelegating) {
@@ -149,7 +150,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     if (!firestore || !tasksCollectionRef || !user) return;
     const docRef = doc(firestore, tasksCollectionRef.path, id);
     
-    const finalData = { ...updatedData };
+    const finalData: Partial<Task> = { ...updatedData, updatedAt: new Date().toISOString() };
     const isDelegating = finalData.hasOwnProperty('delegateToEmail');
 
     if (isDelegating) {

@@ -152,7 +152,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
       };
       
       const updatedSessions = [...(task.focusSessions || []), newSession];
-      updateTask(task.id, { focusSessions: updatedSessions }, user);
+      updateTask(task.id, { focusSessions: updatedSessions, updatedAt: new Date().toISOString() }, user);
       
       const durationMs = endTime.getTime() - sessionStart.getTime();
 
@@ -173,6 +173,10 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
 
   useEffect(() => {
     if (task && open) {
+        // Si el usuario actual es el propietario de la tarea, marcamos la notificación como "leída"
+        if (user && user.uid === task.ownerId) {
+            updateTask(task.id, { lastOwnerUpdateTimestamp: new Date().toISOString() }, user);
+        }
         form.reset({
             ...task,
             delegateToEmail: task.delegateToEmail || 'null',
@@ -184,7 +188,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
         setSessionStart(null);
         setElapsedTime(0);
     }
-  }, [task, open, form]);
+  }, [task, open, form, user, updateTask]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -208,6 +212,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
       ...data,
       attachments: [...(task.attachments || []), ...fileMetadata],
       delegateToEmail: data.delegateToEmail === 'null' ? null : data.delegateToEmail,
+      updatedAt: new Date().toISOString(), // Marcar la hora de actualización
     };
 
     updateTask(task.id, finalData, user);

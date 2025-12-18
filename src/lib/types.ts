@@ -38,6 +38,8 @@ export interface Task {
   completionComment?: string;
   attachments?: Attachment[];
   notificationDismissed?: boolean;
+  updatedAt?: string; // ISO 8601 string for the last update time
+  lastOwnerUpdateTimestamp?: string; // ISO 8601 string for when the owner last interacted
 }
 
 export interface TeamMember {
