@@ -66,7 +66,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
     const isDelegating = !!taskData.delegateToEmail;
     
-    const newTask: Omit<Task, 'id' | 'delegatedByName' | 'delegateToId'> & { delegatedByName: string | null; delegateToId: string | null; } = {
+    const newTask: Omit<Task, 'id'> = {
       ...taskData,
       ownerId: user.uid,
       delegatedByName: null,
@@ -97,34 +97,25 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     try {
       const docRef = await addDoc(tasksCollectionRef, newTask);
 
-      if (isDelegating && newTask.delegateToEmail) {
-         // Find the team member to get their name for the email
-        const membersQuery = query(collection(firestore, `users/${user.uid}/teamMembers`), where('email', '==', newTask.delegateToEmail));
-        const membersSnap = await getDocs(membersQuery);
-        
-        if (!membersSnap.empty) {
-            const member = membersSnap.docs[0].data() as TeamMember;
+      if (isDelegating && newTask.delegateToEmail && newTask.delegateToId) {
             try {
                 const functions = getFunctions();
                 const sendEmailFunction = httpsCallable(functions, 'sendEmailTask');
 
                 const payload = {
-                    to: member.email,
-                    delegateName: member.name,
+                    to: newTask.delegateToEmail,
+                    delegateName: (await getDoc(doc(firestore, 'users', newTask.delegateToId))).data()?.name || 'un miembro del equipo',
                     taskId: docRef.id,
                     taskTitle: newTask.title,
                     delegatorName: newTask.delegatedByName,
+                    taskUrl: `${window.location.origin}/?task=${docRef.id}`
                 };
                 
-                const result: any = await sendEmailFunction(payload);
-
-                if (!result.data.success) {
-                    throw new Error(result.data.error || 'La Cloud Function reportó un error.');
-                }
+                await sendEmailFunction(payload);
 
                 toast({
                     title: "Notificación enviada",
-                    description: `Se ha notificado a ${member.name} sobre la nueva tarea.`,
+                    description: `Se ha notificado a ${payload.delegateName} sobre la nueva tarea.`,
                 });
             } catch (emailError: any) {
                 console.error('[addTask] Error calling sendEmailTask:', emailError);
@@ -134,7 +125,6 @@ export function TasksProvider({ children }: { children: ReactNode }) {
                     description: "La tarea se creó, pero no se pudo enviar el correo. " + emailError.message,
                 });
             }
-        }
       }
     } catch (firestoreError: any) {
       const permissionError = new FirestorePermissionError({

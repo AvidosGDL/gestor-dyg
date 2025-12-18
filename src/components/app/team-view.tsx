@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useRef } from 'react';
@@ -326,43 +325,32 @@ export default function TeamView() {
     try {
         const tasksRef = collection(firestore, "tasks");
         const usersRef = collection(firestore, "users");
-        const teamMembersGroupRef = collectionGroup(firestore, 'teamMembers');
-
-        const [tasksSnap, usersSnap, teamMembersSnap] = await Promise.all([
+        
+        const [tasksSnap, usersSnap] = await Promise.all([
             getDocs(tasksRef),
             getDocs(usersRef),
-            getDocs(teamMembersGroupRef)
         ]);
 
-        const allTasks = tasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as Omit<TeamMember, 'id'> }));
-        const allUsers = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
-        const allTeamMembers = teamMembersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
-        
-        const usersByEmail = new Map(allUsers.map(u => [u.email, u.id]));
-        const teamMembersById = new Map(allTeamMembers.map(tm => [tm.id, tm]));
+        const allTasks = tasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+        const usersByEmail = new Map(usersSnap.docs.map(u => [u.data().email, u.id]));
         
         const batch = writeBatch(firestore);
         let updatedCount = 0;
 
-        allTasks.forEach(task => {
-            const currentDelegateId = task.delegateToId;
-            if (currentDelegateId && !usersByEmail.has(task.delegateToEmail)) { // Check if it's not already a UID
-                const member = teamMembersById.get(currentDelegateId);
-                if (member) {
-                    const memberEmail = member.email;
-                    const correctUid = usersByEmail.get(memberEmail);
-
-                    if (correctUid) {
-                        const taskRef = doc(firestore, "tasks", task.id);
-                        batch.update(taskRef, { 
-                            delegateToId: correctUid,
-                            delegateToEmail: memberEmail 
-                        });
-                        updatedCount++;
-                    }
+        for (const task of allTasks) {
+            // Solo migrar si hay un email de delegado, pero no un ID de delegado correcto (UID)
+            if (task.delegateToEmail && (!task.delegateToId || !usersByEmail.has(task.delegateToEmail))) {
+                const correctUid = usersByEmail.get(task.delegateToEmail);
+                if (correctUid && task.delegateToId !== correctUid) {
+                    const taskRef = doc(firestore, "tasks", task.id);
+                    batch.update(taskRef, { 
+                        delegateToId: correctUid,
+                    });
+                    console.log(`Migrando Tarea ID: ${task.id} - Cambiando delegateToId a ${correctUid}`);
+                    updatedCount++;
                 }
             }
-        });
+        }
 
         if (updatedCount > 0) {
             await batch.commit();
@@ -407,7 +395,7 @@ export default function TeamView() {
                             <AlertDialogHeader>
                                 <AlertDialogTitle>¿Confirmar Migración de Datos?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                    Esta acción es irreversible. Se intentará actualizar todas las tareas existentes para usar el nuevo sistema de delegación por UID de usuario. Este proceso se debe ejecutar una sola vez.
+                                    Esta acción es irreversible. Se intentará actualizar todas las tareas existentes para usar el nuevo sistema de delegación por UID de usuario. Este proceso se debe ejecutar una sola vez para corregir datos antiguos.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
@@ -417,7 +405,7 @@ export default function TeamView() {
                         </AlertDialogContent>
                     </AlertDialog>
                     <p className="text-xs text-muted-foreground mt-2">
-                        Esta herramienta corrige las tareas antiguas para que apunten al UID del usuario delegado en lugar del ID del documento del miembro del equipo.
+                        Esta herramienta corrige las tareas antiguas para que apunten al UID del usuario delegado en lugar de un ID de documento obsoleto.
                     </p>
                 </CardContent>
             </Card>
