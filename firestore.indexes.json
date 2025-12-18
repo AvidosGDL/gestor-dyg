@@ -6,7 +6,7 @@
       "fields": [
         {
           "fieldPath": "memberIds",
-          "order": "ASCENDING"
+          "arrayConfig": "CONTAINS"
         },
         {
           "fieldPath": "lastMessage.timestamp",
