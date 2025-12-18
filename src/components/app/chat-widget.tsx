@@ -2,16 +2,19 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, X, Send, Users } from 'lucide-react';
+import { MessageSquare, X, Send, Users, Paperclip, File, Film, Music, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { cn } from '@/lib/utils';
 import { useChat } from '@/contexts/chat-context';
 import { useUser } from '@/firebase';
-import type { TeamMember } from '@/lib/types';
+import type { TeamMember, Message } from '@/lib/types';
 import { Avatar, AvatarImage, AvatarFallback } from '../ui/avatar';
 import { Separator } from '../ui/separator';
+import { formatDistanceToNow } from 'date-fns';
+import { es } from 'date-fns/locale';
+import Image from 'next/image';
 
 const ConversationList = ({ onSelectConversation, activeConversationId }: any) => {
     const { conversations, teamMembers, loading, getOrCreateConversation } = useChat();
@@ -40,6 +43,16 @@ const ConversationList = ({ onSelectConversation, activeConversationId }: any) =
 
     if (loading) return <div className="p-4 text-center text-sm">Cargando...</div>;
 
+    const renderLastMessage = (convo: any) => {
+        const { lastMessage } = convo;
+        if (!lastMessage) return 'Sin mensajes aún';
+        if (lastMessage.mediaType === 'image') return '📷 Imagen';
+        if (lastMessage.mediaType === 'video') return '📹 Video';
+        if (lastMessage.mediaType === 'audio') return '🎵 Audio';
+        if (lastMessage.mediaType === 'file') return '📄 Archivo';
+        return lastMessage.text || '...';
+    }
+
     return (
         <div className="flex-1 overflow-y-auto">
              {conversations.length > 0 && conversations.map(convo => {
@@ -63,7 +76,7 @@ const ConversationList = ({ onSelectConversation, activeConversationId }: any) =
                         </Avatar>
                         <div className="flex-1 truncate">
                             <p className={cn("font-semibold text-sm truncate", isUnread && "font-bold")}>{otherMember?.name || 'Usuario'}</p>
-                            <p className={cn("text-xs text-muted-foreground truncate", isUnread && "text-foreground")}>{lastMessage?.text || 'Sin mensajes aún'}</p>
+                            <p className={cn("text-xs text-muted-foreground truncate", isUnread && "text-foreground")}>{renderLastMessage(convo)}</p>
                         </div>
                         {isUnread && <div className="h-2 w-2 rounded-full bg-primary"></div>}
                     </div>
@@ -104,7 +117,10 @@ const MessageView = ({ conversationId }: any) => {
     const { user } = useUser();
     const { messages, loading } = getMessagesForConversation(conversationId);
     const [newMessage, setNewMessage] = useState('');
+    const [fileToSend, setFileToSend] = useState<File | null>(null);
+    const [isSending, setIsSending] = useState(false);
     const messagesEndRef = useRef<null | HTMLDivElement>(null);
+    const fileInputRef = useRef<null | HTMLInputElement>(null);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -114,12 +130,55 @@ const MessageView = ({ conversationId }: any) => {
         scrollToBottom();
     }, [messages]);
 
-    const handleSendMessage = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (newMessage.trim()) {
-            sendMessage(conversationId, { text: newMessage });
-            setNewMessage('');
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            setFileToSend(e.target.files[0]);
         }
+    }
+
+    const handleSendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if ((!newMessage.trim() && !fileToSend) || isSending) return;
+
+        setIsSending(true);
+        try {
+            await sendMessage(conversationId, { text: newMessage }, fileToSend || undefined);
+            setNewMessage('');
+            setFileToSend(null);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+            }
+        } catch (error) {
+            console.error("Error al enviar mensaje:", error);
+        } finally {
+            setIsSending(false);
+        }
+    }
+    
+    const renderMedia = (msg: Message) => {
+        if (!msg.mediaUrl || !msg.mediaType) return null;
+
+        if (msg.mediaType === 'image') {
+            return (
+                <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer">
+                    <Image src={msg.mediaUrl} alt={msg.mediaName || 'Imagen adjunta'} width={200} height={200} className="rounded-lg object-cover mt-2"/>
+                </a>
+            )
+        }
+        if (msg.mediaType === 'video') {
+             return (
+                <video controls src={msg.mediaUrl} className="rounded-lg max-w-xs mt-2" />
+            )
+        }
+        if (msg.mediaType === 'audio') {
+            return <audio controls src={msg.mediaUrl} className="mt-2" />
+        }
+        return (
+            <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center gap-2 p-2 bg-background rounded-lg border">
+                <File size={24} className="text-primary"/>
+                <span className="text-sm font-medium underline truncate">{msg.mediaName || 'Archivo adjunto'}</span>
+            </a>
+        );
     }
     
     if (loading) return <div className="p-4 text-center">Cargando mensajes...</div>;
@@ -128,22 +187,46 @@ const MessageView = ({ conversationId }: any) => {
         <div className="flex-1 flex flex-col">
             <div className="flex-1 p-4 space-y-4 overflow-y-auto">
                 {messages.map(msg => (
-                    <div key={msg.id} className={cn("flex", msg.senderId === user?.uid ? "justify-end" : "justify-start")}>
-                        <div className={cn("p-2 px-3 rounded-xl max-w-sm", msg.senderId === user?.uid ? "bg-primary text-primary-foreground" : "bg-muted")}>
-                           <p className="text-sm">{msg.text}</p>
+                    <div key={msg.id} className={cn("flex items-end gap-2", msg.senderId === user?.uid ? "justify-end" : "justify-start")}>
+                        <div className={cn("p-2 px-3 rounded-xl max-w-sm flex flex-col", msg.senderId === user?.uid ? "bg-primary text-primary-foreground" : "bg-muted")}>
+                           {msg.text && <p className="text-sm">{msg.text}</p>}
+                           {renderMedia(msg)}
+                           <p className="text-xs opacity-70 mt-1 self-end">
+                                {msg.timestamp ? formatDistanceToNow(msg.timestamp.toDate(), { addSuffix: true, locale: es }) : 'enviando...'}
+                           </p>
                         </div>
                     </div>
                 ))}
                 <div ref={messagesEndRef} />
             </div>
              <form onSubmit={handleSendMessage} className="p-2 border-t flex items-center gap-2">
-                <input 
-                    placeholder="Escribe un mensaje..." 
-                    className="flex-1 bg-transparent focus:outline-none text-sm px-2"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                />
-                <Button type="submit" size="icon"><Send size={16}/></Button>
+                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+                <Button type="button" size="icon" variant="ghost" onClick={() => fileInputRef.current?.click()}>
+                    <Paperclip size={18} />
+                </Button>
+                <div className="flex-1 relative">
+                    <input 
+                        placeholder={fileToSend ? fileToSend.name : "Escribe un mensaje..."} 
+                        className="w-full bg-transparent focus:outline-none text-sm px-2 pr-10"
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        disabled={!!fileToSend}
+                    />
+                    {fileToSend && (
+                        <Button 
+                            type="button" 
+                            size="icon" 
+                            variant="ghost" 
+                            className="absolute right-0 top-1/2 -translate-y-1/2 h-6 w-6" 
+                            onClick={() => { setFileToSend(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                        >
+                            <X size={14}/>
+                        </Button>
+                    )}
+                </div>
+                <Button type="submit" size="icon" disabled={isSending}>
+                    {isSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16}/>}
+                </Button>
             </form>
         </div>
     );

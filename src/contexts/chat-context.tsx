@@ -17,6 +17,7 @@ import {
   getDoc,
   writeBatch,
 } from 'firebase/firestore';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -24,7 +25,7 @@ interface ChatContextType {
   conversations: Chat[];
   teamMembers: TeamMember[];
   getMessagesForConversation: (chatId: string | null) => { messages: Message[], loading: boolean };
-  sendMessage: (chatId: string, message: Partial<Message>) => void;
+  sendMessage: (chatId: string, message: Partial<Message>, file?: File) => void;
   getOrCreateConversation: (memberId: string) => Promise<string | null>;
   unreadCount: number;
   loading: boolean;
@@ -71,15 +72,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         const enrichedConversations = await Promise.all(rawConversations.map(async (convo) => {
             const newMembersData: Chat['members'] = { ...convo.members };
             let needsUpdateInFirestore = false;
-            let memberIdsCorrected = false;
-            const newMemberIds = [...convo.memberIds];
 
-            for (let i = 0; i < newMemberIds.length; i++) {
-                let memberId = newMemberIds[i];
-                let memberInfo = newMembersData[memberId];
+            for (const memberId of convo.memberIds) {
+                const memberInfo = newMembersData[memberId];
 
-                // Check if info is missing or incomplete
-                if (!memberInfo || !memberInfo.name || memberInfo.name === 'Usuario' || !memberInfo.email || memberInfo.name === null) {
+                if (!memberInfo || !memberInfo.name || !memberInfo.avatarUrl || !memberInfo.email) {
                     try {
                         const userDocRef = doc(firestore, 'users', memberId);
                         const userDocSnap = await getDoc(userDocRef);
@@ -89,47 +86,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                             newMembersData[memberId] = { name: userData.name, avatarUrl: userData.avatarUrl, email: userData.email };
                             needsUpdateInFirestore = true;
                         } else {
-                             // SELF-HEALING ATTEMPT: User not found by ID. Try to find by email.
-                             const memberEmailToFind = convo.members?.[memberId]?.email;
-                             
-                             if (memberEmailToFind) {
-                                const usersQuery = query(collection(firestore, 'users'), where('email', '==', memberEmailToFind));
-                                const userSnap = await getDocs(usersQuery);
-                                if (!userSnap.empty) {
-                                    const correctUserDoc = userSnap.docs[0];
-                                    const correctUid = correctUserDoc.id;
-                                    const correctUserData = correctUserDoc.data() as UserProfile;
-
-                                    // Replace incorrect ID with correct UID
-                                    newMemberIds[i] = correctUid;
-                                    delete newMembersData[memberId]; // Remove old incorrect data
-                                    newMembersData[correctUid] = { name: correctUserData.name, avatarUrl: correctUserData.avatarUrl, email: correctUserData.email };
-                                    
-                                    memberIdsCorrected = true;
-                                    needsUpdateInFirestore = true; // Mark for update
-                                } else {
-                                   newMembersData[memberId] = newMembersData[memberId] || { name: 'Usuario Desconocido', avatarUrl: '', email: '' };
-                                }
-                             } else {
-                               newMembersData[memberId] = newMembersData[memberId] || { name: 'Usuario Desconocido', avatarUrl: '', email: '' };
+                            console.error(`[ChatContext] No se encontró el perfil para el miembro con ID: ${memberId}.`);
+                            if (!newMembersData[memberId]) {
+                                newMembersData[memberId] = { name: 'Usuario Desconocido', avatarUrl: '', email: '' };
+                                needsUpdateInFirestore = true;
                             }
                         }
                     } catch (error) {
                         console.error(`[ChatContext] Falló la obtención del perfil para el miembro ${memberId}:`, error);
-                        newMembersData[memberId] = newMembersData[memberId] || { name: 'Error al Cargar', avatarUrl: '', email: '' };
+                        if (!newMembersData[memberId]) {
+                            newMembersData[memberId] = { name: 'Error al Cargar', avatarUrl: '', email: '' };
+                            needsUpdateInFirestore = true;
+                        }
                     }
                 }
             }
             
-            const finalMemberIds = memberIdsCorrected ? newMemberIds : convo.memberIds;
-
-            if (needsUpdateInFirestore) { // Consolidate batch writes
+            if (needsUpdateInFirestore) {
                 const chatDocRef = doc(firestore, 'chats', convo.id);
-                batch.update(chatDocRef, { memberIds: finalMemberIds, members: newMembersData });
+                batch.update(chatDocRef, { members: newMembersData });
                 batchHasWrites = true;
             }
 
-            return { ...convo, memberIds: finalMemberIds, members: newMembersData };
+            return { ...convo, members: newMembersData };
         }));
 
         if (batchHasWrites) {
@@ -191,18 +170,46 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return { messages: messages || [], loading };
   };
   
-  const sendMessage = (chatId: string, message: Partial<Message>) => {
+  const sendMessage = async (chatId: string, message: Partial<Message>, file?: File) => {
     if (!firestore || !user) return;
     
+    let mediaUrl: string | undefined = undefined;
+    let mediaType: string | undefined = undefined;
+    let mediaName: string | undefined = undefined;
+
+    if (file) {
+      const storage = getStorage();
+      const filePath = `chat_media/${chatId}/${Date.now()}_${file.name}`;
+      const fileRef = storageRef(storage, filePath);
+      
+      try {
+        const snapshot = await uploadBytes(fileRef, file);
+        mediaUrl = await getDownloadURL(snapshot.ref);
+        
+        if (file.type.startsWith('image/')) mediaType = 'image';
+        else if (file.type.startsWith('video/')) mediaType = 'video';
+        else if (file.type.startsWith('audio/')) mediaType = 'audio';
+        else mediaType = 'file';
+
+        mediaName = file.name;
+
+      } catch (error) {
+        console.error("Error al subir archivo:", error);
+        // Opcional: mostrar un toast de error
+        return;
+      }
+    }
+
     const messagesCollectionRef = collection(firestore, `chats/${chatId}/messages`);
     const chatDocRef = doc(firestore, `chats/${chatId}`);
     const timestamp = serverTimestamp();
 
-    const newMessage = {
+    const newMessage: Omit<Message, 'id'> = {
       ...message,
       senderId: user.uid,
       timestamp: timestamp,
       readBy: [user.uid],
+      ...(mediaUrl && { mediaUrl, mediaType, mediaName }),
     };
 
     addDoc(messagesCollectionRef, newMessage).catch(async (serverError) => {
@@ -214,51 +221,35 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       errorEmitter.emit('permission-error', permissionError);
     });
 
+    let lastMessageText = message.text;
+    if (mediaType === 'image') lastMessageText = '📷 Imagen';
+    else if (mediaType === 'video') lastMessageText = '📹 Video';
+    else if (mediaType === 'audio') lastMessageText = '🎵 Audio';
+    else if (mediaType === 'file') lastMessageText = `📄 ${mediaName}`;
+
+
     updateDoc(chatDocRef, {
       lastMessage: {
-        text: message.text,
+        text: lastMessageText,
         senderId: user.uid,
-        readBy: [user.uid]
+        readBy: [user.uid],
+        mediaType: mediaType || null,
       },
       lastMessageTimestamp: timestamp,
     });
   };
   
-  const getOrCreateConversation = async (memberId: string): Promise<string | null> => {
+ const getOrCreateConversation = async (memberId: string): Promise<string | null> => {
     if (!firestore || !user) return null;
 
-    let resolvedMemberUid = memberId;
     const looksLikeUid = (s: any) => typeof s === 'string' && s.length >= 20 && !s.includes('/');
-
-    if (!looksLikeUid(resolvedMemberUid)) {
-      console.warn(`[ChatContext] Se recibió un ID inválido (${memberId}). Intentando resolver...`);
-      const tmRef = doc(firestore, `users/${user.uid}/teamMembers/${memberId}`);
-      const tmSnap = await getDoc(tmRef);
-      if (tmSnap.exists()) {
-        const tm = tmSnap.data() as TeamMember;
-        if (tm.uid && looksLikeUid(tm.uid)) {
-          resolvedMemberUid = tm.uid;
-          console.log(`[ChatContext] ID resuelto a ${resolvedMemberUid} a través del campo 'uid'.`);
-        } else if (tm.email) {
-          console.log(`[ChatContext] Intentando resolver por email: ${tm.email}`);
-          const q = query(collection(firestore, 'users'), where('email', '==', tm.email));
-          const userSnap = await getDocs(q);
-          if (!userSnap.empty) {
-            resolvedMemberUid = userSnap.docs[0].id;
-            console.log(`[ChatContext] ID resuelto a ${resolvedMemberUid} a través del email.`);
-          }
-        }
-      }
-    }
-    
-    if (!looksLikeUid(resolvedMemberUid)) {
-        console.error(`[ChatContext] No se pudo resolver un UID válido para el ID: ${memberId}`);
+    if (!looksLikeUid(memberId)) {
+        console.error(`[ChatContext] Se intentó crear una conversación con un ID inválido: ${memberId}`);
         return null;
     }
 
-
     const chatsCollectionRef = collection(firestore, 'chats');
-    const memberIds = [user.uid, resolvedMemberUid].sort();
+    const memberIds = [user.uid, memberId].sort();
     
     const existingChatQuery = query(
       chatsCollectionRef,
@@ -271,9 +262,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return existingChatSnap.docs[0].id;
       }
 
-      // Fetch full profiles to ensure correct data at creation
       const userDocRef = doc(firestore, 'users', user.uid);
-      const memberDocRef = doc(firestore, 'users', resolvedMemberUid);
+      const memberDocRef = doc(firestore, 'users', memberId);
 
       const [userDocSnap, memberDocSnap] = await Promise.all([getDoc(userDocRef), getDoc(memberDocRef)]);
 
@@ -281,7 +271,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const memberProfile = memberDocSnap.exists() ? memberDocSnap.data() as UserProfile : null;
       
       if (!userProfile || !memberProfile) {
-        console.error(`No se pudo crear la conversación. Perfil no encontrado para el usuario actual o el miembro ${resolvedMemberUid}.`);
+        console.error(`No se pudo crear la conversación. Perfil no encontrado para el usuario actual o el miembro ${memberId}.`);
         return null;
       }
 
@@ -289,7 +279,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         memberIds: memberIds, 
         members: {
           [user.uid]: { name: userProfile.name, avatarUrl: userProfile.avatarUrl, email: userProfile.email },
-          [resolvedMemberUid]: { name: memberProfile.name, avatarUrl: memberProfile.avatarUrl, email: memberProfile.email }
+          [memberId]: { name: memberProfile.name, avatarUrl: memberProfile.avatarUrl, email: memberProfile.email }
         },
         lastMessage: null,
         lastMessageTimestamp: serverTimestamp(),
@@ -313,7 +303,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const contextValue = useMemo(() => ({
     conversations: processedConversations,
     teamMembers: teamMembers || [],
-    loading: chatsLoading || membersLoading || (rawConversations && processedConversations.length !== rawConversations.length),
+    loading: chatsLoading || membersLoading,
     getMessagesForConversation,
     sendMessage,
     getOrCreateConversation,

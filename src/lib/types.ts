@@ -84,6 +84,7 @@ export interface Message {
   text?: string;
   mediaUrl?: string;
   mediaType?: MessageMediaType;
+  mediaName?: string;
   timestamp: any; // Firestore Timestamp
   readBy: string[];
 }
@@ -92,6 +93,6 @@ export interface Chat {
   id: string;
   memberIds: string[];
   members: { [key: string]: { name: string; avatarUrl: string; email: string; } };
-  lastMessage?: Pick<Message, 'text' | 'timestamp' | 'senderId' | 'readBy'>;
+  lastMessage?: Pick<Message, 'text' | 'timestamp' | 'senderId' | 'readBy' | 'mediaType'>;
   lastMessageTimestamp?: any; // Firestore Timestamp
 }
