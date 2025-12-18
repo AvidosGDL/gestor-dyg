@@ -22,7 +22,7 @@ export default function SidebarNav({ view, setView }: SidebarNavProps) {
     { id: 'planning', label: 'Planeación Diaria', icon: Calendar },
     { id: 'prospects', label: 'Prospectos', icon: Handshake },
     { id: 'analytics', label: 'Análisis', icon: LineChart },
-    { id: 'team', label: 'Equipo', icon: Users, notification: true }, // Notification simulation
+    { id: 'team', label: 'Equipo', icon: Users },
     { id: 'import', label: 'Importar Tareas', icon: FileUp },
     { id: 'history', label: 'Histórico de Tareas', icon: Archive },
   ];
@@ -44,7 +44,7 @@ export default function SidebarNav({ view, setView }: SidebarNavProps) {
           >
             <item.icon size={20} />
             <span>{item.label}</span>
-             {item.notification && (
+             {(item as any).notification && (
               <SidebarMenuBadge className="bg-accent" />
             )}
           </SidebarMenuButton>
