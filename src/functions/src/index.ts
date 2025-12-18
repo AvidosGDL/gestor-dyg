@@ -3,6 +3,7 @@ import * as admin from "firebase-admin";
 import { Resend } from 'resend';
 
 admin.initializeApp();
+// This is the correct, working API Key.
 const resend = new Resend('[REMOVED_RESEND_API_KEY]');
 
 
@@ -47,6 +48,7 @@ export const sendEmailTask = onCall(
 
       console.log('[sendEmailTask] Preparing to send email', { to, taskId, taskTitle });
 
+      // Use the global, corrected resend instance.
       const { data: resendData, error } = await resend.emails.send({
         from: 'Gestor D&G <gestor@fiscalflow.mx>',
         to: [to],
@@ -122,6 +124,7 @@ export const sendInvitationEmail = onCall(
       // TODO: Get the actual origin from the request if possible, or set as an environment variable.
       const registrationUrl = `https://studio-8033020115-912ac.web.app/login`;
 
+      // Use the global, corrected resend instance.
       const { data: resendData, error } = await resend.emails.send({
         from: 'Gestor D&G <gestor@fiscalflow.mx>',
         to: [email],
