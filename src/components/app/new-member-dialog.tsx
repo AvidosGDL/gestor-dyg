@@ -155,8 +155,8 @@ export default function NewMemberDialog({
       
       const newMemberData: TeamMember = { 
         ...data, 
-        id: memberUid, // Use the real UID as the ID
-        uid: memberUid, // Explicitly add uid field
+        id: memberUid,
+        uid: memberUid,
         avatarUrl: finalAvatarUrl,
         authType: data.email.endsWith('@gmail.com') ? 'google' : 'email',
       };
