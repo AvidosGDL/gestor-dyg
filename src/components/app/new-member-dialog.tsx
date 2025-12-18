@@ -17,7 +17,15 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Loader2, ImageUp } from 'lucide-react';
 import { useFirestore, useUser } from '@/firebase';
-import { addDoc, collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  setDoc,
+  serverTimestamp,
+  query,
+  where,
+  getDocs,
+} from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -44,7 +52,7 @@ const generateAvatarUrl = (seed: string) => `https://api.dicebear.com/8.x/${avat
 interface NewMemberDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  user: any; // Accept user as a prop
+  user: any; 
 }
 
 export default function NewMemberDialog({
@@ -123,6 +131,23 @@ export default function NewMemberDialog({
     }
 
     try {
+      // 1. Find the user by email to get their UID
+      const usersCollectionRef = collection(firestore, 'users');
+      const userQuery = query(usersCollectionRef, where('email', '==', data.email));
+      const userQuerySnap = await getDocs(userQuery);
+
+      if (userQuerySnap.empty) {
+        toast({
+          variant: 'destructive',
+          title: 'Usuario no encontrado',
+          description: `El usuario con el correo ${data.email} no se ha registrado aún. Por favor, invita al usuario a crear una cuenta primero.`,
+        });
+        return;
+      }
+
+      const memberUserDoc = userQuerySnap.docs[0];
+      const memberUid = memberUserDoc.id;
+
       let finalAvatarUrl = data.avatarUrl;
       if (customAvatarFile) {
         finalAvatarUrl = await uploadAvatar(data.email, customAvatarFile);
@@ -130,17 +155,17 @@ export default function NewMemberDialog({
       
       const newMemberData = { 
         ...data, 
+        id: memberUid, // Use the real UID as the ID
         avatarUrl: finalAvatarUrl,
         authType: data.email.endsWith('@gmail.com') ? 'google' : 'email',
       };
 
-      // 1. Add to team members subcollection
-      const teamMembersPath = `users/${user.uid}/teamMembers`;
-      const membersCollection = collection(firestore, teamMembersPath);
+      // 2. Add to team members subcollection using the member's UID as doc ID
+      const teamMemberDocRef = doc(firestore, `users/${user.uid}/teamMembers`, memberUid);
       
-      const memberDocPromise = addDoc(membersCollection, newMemberData).catch(async (serverError) => {
+      const memberDocPromise = setDoc(teamMemberDocRef, newMemberData).catch(async (serverError) => {
           const permissionError = new FirestorePermissionError({
-            path: teamMembersPath,
+            path: teamMemberDocRef.path,
             operation: 'create',
             requestResourceData: newMemberData,
           });
@@ -148,7 +173,7 @@ export default function NewMemberDialog({
           throw serverError;
       });
 
-      // 2. Add to global invitations collection
+      // 3. Add to global invitations collection (or ensure it's there)
       const invitationPath = `invitations/${data.email}`;
       const invitationRef = doc(firestore, invitationPath);
       const invitationData = {
@@ -171,8 +196,8 @@ export default function NewMemberDialog({
       await Promise.all([memberDocPromise, invitationPromise]);
 
       toast({
-        title: 'Miembro Invitado',
-        description: `${data.name} ha sido añadido al equipo e invitado al sistema.`,
+        title: 'Miembro Agregado',
+        description: `${data.name} ha sido añadido al equipo.`,
       });
       onOpenChange(false);
 
@@ -180,7 +205,7 @@ export default function NewMemberDialog({
       toast({
         variant: 'destructive',
         title: 'Error al agregar miembro',
-        description: error.message || 'Ocurrió un error inesperado al invitar o agregar al miembro.',
+        description: error.message || 'Ocurrió un error inesperado.',
       });
     }
   };
@@ -191,7 +216,7 @@ export default function NewMemberDialog({
         <DialogHeader>
           <DialogTitle>Agregar Nuevo Miembro del Equipo</DialogTitle>
           <DialogDescription>
-            Añade los detalles del nuevo miembro. Se le enviará una invitación para unirse al sistema.
+            Añade los detalles del nuevo miembro. El usuario ya debe tener una cuenta en el sistema para poder ser agregado.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
