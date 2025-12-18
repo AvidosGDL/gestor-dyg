@@ -13,6 +13,7 @@ import {
   serverTimestamp,
   orderBy,
   getDocs,
+  getDoc,
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -147,7 +148,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     updateDoc(chatDocRef, {
       lastMessage: {
         text: message.text,
-        timestamp: timestamp,
         senderId: user.uid,
       },
       lastMessageTimestamp: timestamp,
