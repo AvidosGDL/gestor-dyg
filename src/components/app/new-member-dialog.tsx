@@ -155,8 +155,8 @@ export default function NewMemberDialog({
       
       const newMemberData: TeamMember = { 
         ...data, 
-        id: memberUid,
-        uid: memberUid,
+        id: memberUid, // The doc ID is now the member's UID
+        uid: memberUid, // Also store it inside the doc for consistency
         avatarUrl: finalAvatarUrl,
         authType: data.email.endsWith('@gmail.com') ? 'google' : 'email',
       };
@@ -174,7 +174,7 @@ export default function NewMemberDialog({
           throw serverError;
       });
 
-      // 3. Ensure an invitation exists
+      // 3. Ensure an invitation exists (optional, but good practice)
       const invitationPath = `invitations/${data.email}`;
       const invitationRef = doc(firestore, invitationPath);
       const invitationData = {

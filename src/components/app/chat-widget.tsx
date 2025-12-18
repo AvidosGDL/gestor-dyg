@@ -17,8 +17,13 @@ const ConversationList = ({ onSelectConversation, activeConversationId }: any) =
     const { conversations, teamMembers, loading, getOrCreateConversation } = useChat();
     const { user } = useUser();
     
-    const handleSelectMember = async (memberId: string) => {
-        const conversationId = await getOrCreateConversation(memberId);
+    const handleSelectMember = async (member: TeamMember) => {
+        const uid = member.uid ?? member.id;
+        if (!uid) {
+            console.error("TeamMember sin UID válido:", member);
+            return;
+        }
+        const conversationId = await getOrCreateConversation(uid);
         if (conversationId) {
             onSelectConversation(conversationId);
         }
@@ -28,9 +33,10 @@ const ConversationList = ({ onSelectConversation, activeConversationId }: any) =
         conversations.flatMap(c => c.memberIds)
     );
 
-    const uncontactedMembers = teamMembers.filter(
-        m => m.id !== user?.uid && !existingConversationMemberIds.has(m.id)
-    );
+    const uncontactedMembers = teamMembers.filter(m => {
+        const uid = m.uid ?? m.id;
+        return uid !== user?.uid && !existingConversationMemberIds.has(uid);
+    });
 
     if (loading) return <div className="p-4 text-center text-sm">Cargando...</div>;
 
@@ -74,7 +80,7 @@ const ConversationList = ({ onSelectConversation, activeConversationId }: any) =
                     {uncontactedMembers.map(member => (
                          <div 
                             key={member.id} 
-                            onClick={() => handleSelectMember(member.id)}
+                            onClick={() => handleSelectMember(member)}
                             className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50"
                         >
                             <Avatar className="h-10 w-10">
