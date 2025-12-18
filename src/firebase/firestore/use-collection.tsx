@@ -96,11 +96,9 @@ export function useCollection<T = any>(
         // --- INICIO: LOGS DE DIAGNÓSTICO ---
         try {
           const auth = getAuth();
-          console.log("PERMISSION_DENIED details:");
-          console.log("- Operation: list");
-          console.log("- Path:", path);
-          console.log("- Query Object:", memoizedTargetRefOrQuery);
-          console.log("- Current User UID:", auth?.currentUser?.uid);
+          console.log("DENIED operation=list path=", path);
+          console.log("DENIED query=", memoizedTargetRefOrQuery);
+          console.log("UID=", auth?.currentUser?.uid);
         } catch (e) {
           console.error("Error al obtener datos de diagnóstico:", e);
         }
