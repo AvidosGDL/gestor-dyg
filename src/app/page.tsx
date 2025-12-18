@@ -67,22 +67,33 @@ function Dashboard() {
               collapsible="icon"
               className="text-sidebar-foreground z-20"
             >
-              <div className="flex h-full flex-col group">
-                <div className="p-4 lg:p-6 flex items-center gap-3">
-                  <span className="font-bold text-lg group-data-[state=collapsed]:hidden">Gestor D&G</span>
+              <div className="group flex h-full flex-col">
+                <div className="hidden group-data-[state=collapsed]:flex h-16 items-center justify-center p-2">
+                  <Image
+                      src="https://firebasestorage.googleapis.com/v0/b/studio-8033020115-912ac.firebasestorage.app/o/public%2Flogo%20DyG.jpeg?alt=media&token=578d1bd8-b8a4-47b6-a97f-e7731dc39bf1"
+                      alt="Gestor D&G Logo"
+                      width={36}
+                      height={36}
+                      className="rounded-lg"
+                    />
                 </div>
-              
+                <div className="flex h-16 items-center justify-between p-4 group-data-[state=collapsed]:hidden">
+                    <div className="flex items-center gap-3">
+                        <span className="font-bold text-lg">Gestor D&G</span>
+                    </div>
+                </div>
+
                 <SidebarRail />
 
                 <div className="flex flex-col h-full">
                   <SidebarNav view={view} setView={setView} />
                   <div className="p-4 mt-auto space-y-4">
-                    <div className="bg-sidebar-accent rounded-xl p-4 space-y-4 flex flex-col items-center group-data-[state=collapsed]:hidden">
+                    <div className="bg-sidebar-border rounded-xl p-3 space-y-2 group-data-[state=collapsed]:hidden">
                       <div className="group-data-[collapsible=icon]:hidden">
-                        <h5 className="text-xs font-bold text-muted-foreground uppercase mb-2">
+                        <h5 className="text-xs font-bold text-muted-foreground uppercase mb-1">
                           Consejo Productividad
                         </h5>
-                        <p className="text-xs text-sidebar-foreground/80 italic">
+                        <p className="text-sm text-sidebar-foreground/80 italic">
                           "{currentTip}"
                         </p>
                       </div>
