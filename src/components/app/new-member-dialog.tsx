@@ -18,8 +18,10 @@ import * as z from 'zod';
 import { Loader2 } from 'lucide-react';
 import { useFirestore, useUser } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+
 
 const memberSchema = z.object({
   email: z.string().email('El correo electrónico no es válido'),
@@ -70,39 +72,39 @@ export default function NewMemberDialog({
     }
 
     try {
-      // 1. Create invitation document in Firestore
+      // Create invitation document in Firestore.
+      // A Cloud Function trigger will handle sending the email.
       const invitationRef = doc(firestore, 'invitations', data.email);
-      await setDoc(invitationRef, {
+      const invitationData = {
         email: data.email,
         inviterId: user.uid,
         inviterName: user.displayName || 'un administrador',
+        registrationUrl: `${window.location.origin}/login`,
         createdAt: serverTimestamp(),
-      });
+      };
       
-      // 2. Call the Cloud Function to send the email
-      const functions = getFunctions();
-      const sendInvitationEmail = httpsCallable(functions, 'sendInvitationEmail');
-      
-      // Use the current window origin to build the registration URL
-      const registrationUrl = `${window.location.origin}/login`;
-
-      await sendInvitationEmail({
-        email: data.email,
-        inviterName: user.displayName || 'Un colega',
-        registrationUrl: registrationUrl, // Pass the dynamic URL
+      await setDoc(invitationRef, invitationData).catch(serverError => {
+        const permissionError = new FirestorePermissionError({
+          path: invitationRef.path,
+          operation: 'create',
+          requestResourceData: invitationData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        // Re-throw to be caught by the outer try-catch
+        throw serverError;
       });
 
       toast({
-        title: 'Invitación Enviada',
-        description: `Se ha enviado una invitación por correo electrónico a ${data.email}.`,
+        title: 'Invitación Creada',
+        description: `Se ha generado una invitación para ${data.email}. El correo se enviará en breve.`,
       });
       onOpenChange(false);
 
     } catch (error: any) {
-      console.error("Error sending invitation:", error);
+      console.error("Error creating invitation:", error);
       toast({
         variant: 'destructive',
-        title: 'Error al enviar la invitación',
+        title: 'Error al crear la invitación',
         description: error.message || 'Ocurrió un error inesperado.',
       });
     }

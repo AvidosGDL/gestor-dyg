@@ -1,11 +1,11 @@
 
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
 import { Resend } from 'resend';
 
 admin.initializeApp();
 
-// Clave de API unificada y correcta para Resend
 const resend = new Resend('[REMOVED_RESEND_API_KEY]');
 
 
@@ -89,42 +89,33 @@ export const sendEmailTask = onCall(
   }
 );
 
-interface InvitationEmailPayload {
-  email: string;
-  inviterName: string;
-  registrationUrl: string;
-}
-
-export const sendInvitationEmail = onCall(
-  { region: 'us-central1' },
-  async (request) => {
-    console.log('[sendInvitationEmail] Petición recibida', {
-      data: request.data,
-      authUid: request.auth?.uid ?? null,
-    });
-    
-    if (!request.auth) {
-      console.error('[sendInvitationEmail] Unauthenticated call.');
-      throw new HttpsError(
-        "unauthenticated",
-        "Debes estar autenticado para enviar invitaciones."
-      );
+// --- NEW Firestore Trigger Function ---
+export const onInvitationCreatedSendEmail = onDocumentCreated(
+  {
+    document: "invitations/{email}",
+    region: 'us-central1'
+  },
+  async (event) => {
+    const snapshot = event.data;
+    if (!snapshot) {
+      console.log("No data associated with the event");
+      return;
     }
 
-    const data = request.data as InvitationEmailPayload;
+    const data = snapshot.data();
+    const email = data.email;
+    const inviterName = data.inviterName || 'Un colega';
+    const registrationUrl = data.registrationUrl;
 
-    if (!data.email || !data.inviterName || !data.registrationUrl) {
-      console.error('[sendInvitationEmail] Datos incompletos', { data });
-       throw new HttpsError(
-          "invalid-argument",
-          "Faltan el email, el nombre del remitente o la URL de registro."
-        );
+    if (!email || !registrationUrl) {
+      console.error('Documento de invitación incompleto, falta email o URL.', { id: snapshot.id, data });
+      return;
     }
+
+    console.log(`[onInvitationCreatedSendEmail] Nueva invitación detectada para ${email}. Enviando correo.`);
 
     try {
-      const { email, inviterName, registrationUrl } = data;
-
-      const { data: resendData, error } = await resend.emails.send({
+       const { data: resendData, error } = await resend.emails.send({
         from: 'Gestor D&G <gestor@fiscalflow.mx>',
         to: [email],
         subject: `Invitación para unirte a Gestor D&G`,
@@ -142,26 +133,20 @@ export const sendInvitationEmail = onCall(
       });
 
       if (error) {
-        console.error('[sendInvitationEmail] Error returned by Resend', { email, error });
-        throw new HttpsError("internal", `Error sending email with Resend: ${error.message ?? 'no message'}`);
+        console.error(`[onInvitationCreatedSendEmail] Error de Resend para ${email}:`, error);
+        // We typically don't throw an error here to prevent retries for permanent email failures.
+        // The error is logged for monitoring.
+        return;
       }
 
-      console.log('[sendInvitationEmail] Email sent successfully', { email, resendId: resendData?.id });
-      return { success: true, id: resendData?.id };
+      console.log(`[onInvitationCreatedSendEmail] Correo de invitación enviado a ${email}. Resend ID: ${resendData?.id}`);
 
     } catch (err) {
-      console.error('[sendInvitationEmail] Exception while sending email', {
+      console.error('[onInvitationCreatedSendEmail] Excepción al enviar correo:', {
+        email: email,
         error: err instanceof Error ? { message: err.message, stack: err.stack } : { value: String(err) },
       });
-
-      if (err instanceof HttpsError) {
-        throw err;
-      }
-      
-      throw new HttpsError(
-          "internal",
-          err instanceof Error ? err.message : "Error desconocido al enviar correo de invitación."
-      );
+      // Log the error, but don't re-throw to avoid function retries on unrecoverable errors.
     }
   }
 );
