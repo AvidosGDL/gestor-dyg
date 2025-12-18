@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { getAuth } from 'firebase/auth';
 
 /** Utility type to add an 'id' field to a given type T. */
 export type WithId<T> = T & { id: string };
@@ -91,6 +92,19 @@ export function useCollection<T = any>(
           memoizedTargetRefOrQuery.type === 'collection'
             ? (memoizedTargetRefOrQuery as CollectionReference).path
             : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString()
+
+        // --- INICIO: LOGS DE DIAGNÓSTICO ---
+        try {
+          const auth = getAuth();
+          console.log("PERMISSION_DENIED details:");
+          console.log("- Operation: list");
+          console.log("- Path:", path);
+          console.log("- Query Object:", memoizedTargetRefOrQuery);
+          console.log("- Current User UID:", auth?.currentUser?.uid);
+        } catch (e) {
+          console.error("Error al obtener datos de diagnóstico:", e);
+        }
+        // --- FIN: LOGS DE DIAGNÓSTICO ---
 
         const contextualError = new FirestorePermissionError({
           operation: 'list',
