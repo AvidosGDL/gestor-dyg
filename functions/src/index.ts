@@ -164,5 +164,3 @@ export const sendInvitationEmail = onCall(
     }
   }
 );
-
-    
