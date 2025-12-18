@@ -90,7 +90,7 @@ export interface Message {
 export interface Chat {
   id: string;
   memberIds: string[];
-  members: { [key: string]: Pick<UserProfile, 'name' | 'avatarUrl'> };
+  members: { [key: string]: { name: string; avatarUrl: string; email: string; } };
   lastMessage?: Pick<Message, 'text' | 'timestamp' | 'senderId' | 'readBy'>;
   lastMessageTimestamp?: any; // Firestore Timestamp
 }

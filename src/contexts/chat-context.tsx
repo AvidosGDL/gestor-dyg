@@ -68,42 +68,55 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         let batchHasWrites = false;
 
         const enrichedConversations = await Promise.all(rawConversations.map(async (convo) => {
-            const newMembersData: { [key: string]: Pick<UserProfile, 'name' | 'avatarUrl'> } = {};
-            const correctMemberIds = [...convo.memberIds];
+            const newMembersData: Chat['members'] = { ...convo.members };
             let needsUpdateInFirestore = false;
 
-            for (let i = 0; i < correctMemberIds.length; i++) {
-                const memberId = correctMemberIds[i];
-                const memberInfo = convo.members?.[memberId];
+            for (const memberId of convo.memberIds) {
+                const memberInfo = newMembersData[memberId];
                 
-                if (!memberInfo || !memberInfo.name || memberInfo.name === 'Usuario') {
+                if (!memberInfo || !memberInfo.name || memberInfo.name === 'Usuario' || !memberInfo.email) {
                     try {
                         const userDocRef = doc(firestore, 'users', memberId);
                         const userDocSnap = await getDoc(userDocRef);
 
                         if (userDocSnap.exists()) {
                             const userData = userDocSnap.data() as UserProfile;
-                            newMembersData[memberId] = { name: userData.name, avatarUrl: userData.avatarUrl };
+                            newMembersData[memberId] = { name: userData.name, avatarUrl: userData.avatarUrl, email: userData.email };
                             needsUpdateInFirestore = true;
                         } else {
-                            // SELF-HEALING ATTEMPT: User not found by ID. Try to find by email.
-                             console.error(`[ChatContext] No se encontró el perfil para el miembro con ID: ${memberId}. Intentando auto-corrección.`);
-                             const memberEmail = Object.values(convo.members || {}).find(m => m.name !== user.displayName)?.name; // A bit of a guess
-                             
-                             // This is a simplified search. A better approach would be to have the email in the memberInfo object.
-                             // For now, we will mark as unknown to prevent app crash.
-                             newMembersData[memberId] = { name: 'Usuario Desconocido', avatarUrl: '' };
+                            console.error(`[ChatContext] No se encontró el perfil para el miembro con ID: ${memberId}. Intentando auto-corrección.`);
+                            const memberEmailToFind = memberInfo?.email;
+                            
+                            if (memberEmailToFind) {
+                                const usersQuery = query(collection(firestore, 'users'), where('email', '==', memberEmailToFind));
+                                const userSnap = await getDocs(usersQuery);
+                                if (!userSnap.empty) {
+                                    const correctUserDoc = userSnap.docs[0];
+                                    const correctUid = correctUserDoc.id;
+                                    const correctUserData = correctUserDoc.data() as UserProfile;
+
+                                    delete newMembersData[memberId];
+                                    newMembersData[correctUid] = { name: correctUserData.name, avatarUrl: correctUserData.avatarUrl, email: correctUserData.email };
+                                    
+                                    const chatDocRef = doc(firestore, 'chats', convo.id);
+                                    const newMemberIds = convo.memberIds.map(id => id === memberId ? correctUid : id);
+                                    
+                                    batch.update(chatDocRef, { memberIds: newMemberIds, members: newMembersData });
+                                    batchHasWrites = true;
+                                    console.log(`[ChatContext] Auto-corrección exitosa. ID ${memberId} -> ${correctUid}`);
+                                }
+                            } else {
+                               newMembersData[memberId] = newMembersData[memberId] || { name: 'Usuario Desconocido', avatarUrl: '', email: '' };
+                            }
                         }
                     } catch (error) {
                         console.error(`[ChatContext] Falló la obtención del perfil para el miembro ${memberId}:`, error);
-                        newMembersData[memberId] = memberInfo || { name: 'Error al Cargar', avatarUrl: '' };
+                        newMembersData[memberId] = newMembersData[memberId] || { name: 'Error al Cargar', avatarUrl: '', email: '' };
                     }
-                } else {
-                    newMembersData[memberId] = memberInfo;
                 }
             }
             
-            if (needsUpdateInFirestore) {
+            if (needsUpdateInFirestore && !batchHasWrites) { // Solo actualiza si no se hizo una corrección de ID más importante
                 const chatDocRef = doc(firestore, 'chats', convo.id);
                 batch.update(chatDocRef, { members: newMembersData });
                 batchHasWrites = true;
@@ -234,11 +247,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return null;
       }
 
-      const newChatData = {
+      const newChatData: Omit<Chat, 'id'> = {
         memberIds: memberIds, 
         members: {
-          [user.uid]: { name: userProfile.name, avatarUrl: userProfile.avatarUrl },
-          [memberId]: { name: memberProfile.name, avatarUrl: memberProfile.avatarUrl }
+          [user.uid]: { name: userProfile.name, avatarUrl: userProfile.avatarUrl, email: userProfile.email },
+          [memberId]: { name: memberProfile.name, avatarUrl: memberProfile.avatarUrl, email: memberProfile.email }
         },
         lastMessage: null,
         lastMessageTimestamp: serverTimestamp(),
