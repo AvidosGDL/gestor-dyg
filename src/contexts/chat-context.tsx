@@ -2,7 +2,7 @@
 'use client';
 
 import React, { createContext, useContext, ReactNode, useMemo } from 'react';
-import type { Chat, Message, UserProfile } from '@/lib/types';
+import type { Chat, Message, UserProfile, TeamMember } from '@/lib/types';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import {
   collection,
@@ -21,9 +21,10 @@ import { FirestorePermissionError } from '@/firebase/errors';
 
 interface ChatContextType {
   conversations: Chat[];
+  teamMembers: TeamMember[];
   getMessagesForConversation: (chatId: string | null) => { messages: Message[], loading: boolean };
   sendMessage: (chatId: string, message: Partial<Message>) => void;
-  createConversation: (memberId: string) => Promise<string | null>;
+  getOrCreateConversation: (memberId: string) => Promise<string | null>;
   unreadCount: number;
   loading: boolean;
 }
@@ -44,7 +45,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     );
   }, [user, firestore]);
 
-  const { data: rawConversations, loading } = useCollection<Chat>(chatsQuery);
+  const { data: rawConversations, loading: chatsLoading } = useCollection<Chat>(chatsQuery);
+  
+  const teamMembersCollectionPath = user ? `users/${user.uid}/teamMembers` : null;
+  const teamMembersCollectionRef = useMemoFirebase(() => {
+      return teamMembersCollectionPath ? collection(firestore, teamMembersCollectionPath) : null;
+  }, [teamMembersCollectionPath, firestore]);
+
+  const { data: teamMembers, loading: membersLoading } = useCollection<TeamMember>(teamMembersCollectionRef);
 
   const conversations = useMemo(() => {
       if (!rawConversations || !firestore || !user) return [];
@@ -90,7 +98,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const unreadCount = useMemo(() => {
     return (conversations || []).filter(c => 
       c.lastMessage && 
-      c.lastMessage.senderId !== user?.uid
+      c.lastMessage.senderId !== user?.uid &&
+      !c.lastMessage.readBy?.includes(user.uid)
     ).length;
   }, [conversations, user]);
 
@@ -107,6 +116,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }, [messagesCollectionRef]);
     
     const { data: messages, loading } = useCollection<Message>(messagesQuery);
+    
+    // Mark messages as read
+    if (messages && messages.length > 0 && user && chatId) {
+        const lastMessage = messages[messages.length - 1];
+        if (lastMessage.senderId !== user.uid && !lastMessage.readBy.includes(user.uid)) {
+            const chatDocRef = doc(firestore, 'chats', chatId);
+            updateDoc(chatDocRef, {
+                'lastMessage.readBy': [...(lastMessage.readBy || []), user.uid]
+            });
+        }
+    }
     
     if (!chatId) {
       return { messages: [], loading: false };
@@ -142,12 +162,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       lastMessage: {
         text: message.text,
         senderId: user.uid,
+        readBy: [user.uid]
       },
       lastMessageTimestamp: timestamp,
     });
   };
   
-  const createConversation = async (memberId: string): Promise<string | null> => {
+  const getOrCreateConversation = async (memberId: string): Promise<string | null> => {
     if (!firestore || !user) return null;
     const chatsCollectionRef = collection(firestore, 'chats');
 
@@ -197,12 +218,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const contextValue = useMemo(() => ({
     conversations: conversations || [],
-    loading,
+    teamMembers: teamMembers || [],
+    loading: chatsLoading || membersLoading,
     getMessagesForConversation,
     sendMessage,
-    createConversation,
+    getOrCreateConversation,
     unreadCount,
-  }), [conversations, loading, unreadCount]);
+  }), [conversations, teamMembers, chatsLoading, membersLoading, unreadCount]);
 
   return (
     <ChatContext.Provider value={contextValue}>{children}</ChatContext.Provider>

@@ -1,37 +1,53 @@
 
 'use client';
 
-import React, { useState } from 'react';
-import { MessageSquare, X, Send } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { MessageSquare, X, Send, Users } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { cn } from '@/lib/utils';
 import { useChat } from '@/contexts/chat-context';
-import { useUser, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useUser } from '@/firebase';
 import type { TeamMember } from '@/lib/types';
-import { collection } from 'firebase/firestore';
 import { Avatar, AvatarImage, AvatarFallback } from '../ui/avatar';
+import { Separator } from '../ui/separator';
 
 const ConversationList = ({ onSelectConversation, activeConversationId }: any) => {
-    const { conversations, loading } = useChat();
+    const { conversations, teamMembers, loading, getOrCreateConversation } = useChat();
     const { user } = useUser();
+    
+    const handleSelectMember = async (memberId: string) => {
+        const conversationId = await getOrCreateConversation(memberId);
+        if (conversationId) {
+            onSelectConversation(conversationId);
+        }
+    }
+
+    const existingConversationMemberIds = new Set(
+        conversations.flatMap(c => c.memberIds)
+    );
+
+    const uncontactedMembers = teamMembers.filter(
+        m => m.id !== user?.uid && !existingConversationMemberIds.has(m.id)
+    );
 
     if (loading) return <div className="p-4 text-center text-sm">Cargando...</div>;
 
     return (
         <div className="flex-1 overflow-y-auto">
-            {conversations.map(convo => {
+             {conversations.length > 0 && conversations.map(convo => {
                 const otherMemberId = convo.memberIds.find(id => id !== user?.uid);
                 const otherMember = otherMemberId ? convo.members[otherMemberId] : null;
                 const lastMessage = convo.lastMessage;
+                const isUnread = lastMessage && lastMessage.senderId !== user?.uid && !lastMessage.readBy?.includes(user!.uid);
 
                 return (
                     <div 
                         key={convo.id} 
                         onClick={() => onSelectConversation(convo.id)}
                         className={cn(
-                            "flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 border-b",
+                            "flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50",
                             activeConversationId === convo.id ? "bg-muted" : ""
                         )}
                     >
@@ -40,31 +56,89 @@ const ConversationList = ({ onSelectConversation, activeConversationId }: any) =
                             <AvatarFallback>{otherMember?.name?.[0]}</AvatarFallback>
                         </Avatar>
                         <div className="flex-1 truncate">
-                            <p className="font-semibold text-sm truncate">{otherMember?.name || 'Usuario'}</p>
-                            <p className="text-xs text-muted-foreground truncate">{lastMessage?.text || 'Sin mensajes aún'}</p>
+                            <p className={cn("font-semibold text-sm truncate", isUnread && "font-bold")}>{otherMember?.name || 'Usuario'}</p>
+                            <p className={cn("text-xs text-muted-foreground truncate", isUnread && "text-foreground")}>{lastMessage?.text || 'Sin mensajes aún'}</p>
                         </div>
+                        {isUnread && <div className="h-2 w-2 rounded-full bg-primary"></div>}
                     </div>
                 )
             })}
+            
+            {uncontactedMembers.length > 0 && (
+                <>
+                    <Separator />
+                    <div className="p-2 text-xs font-semibold text-muted-foreground flex items-center gap-2">
+                        <Users size={14}/>
+                        Miembros del Equipo
+                    </div>
+                    {uncontactedMembers.map(member => (
+                         <div 
+                            key={member.id} 
+                            onClick={() => handleSelectMember(member.id)}
+                            className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50"
+                        >
+                            <Avatar className="h-10 w-10">
+                                <AvatarImage src={member.avatarUrl} alt={member.name} />
+                                <AvatarFallback>{member.name?.[0]}</AvatarFallback>
+                            </Avatar>
+                             <div className="flex-1 truncate">
+                                <p className="font-semibold text-sm truncate">{member.name}</p>
+                                <p className="text-xs text-muted-foreground truncate">{member.role}</p>
+                            </div>
+                        </div>
+                    ))}
+                </>
+            )}
         </div>
     );
 }
 
 const MessageView = ({ conversationId }: any) => {
-    const { getMessagesForConversation } = useChat();
+    const { getMessagesForConversation, sendMessage } = useChat();
+    const { user } = useUser();
     const { messages, loading } = getMessagesForConversation(conversationId);
+    const [newMessage, setNewMessage] = useState('');
+    const messagesEndRef = useRef<null | HTMLDivElement>(null);
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
+
+    const handleSendMessage = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (newMessage.trim()) {
+            sendMessage(conversationId, { text: newMessage });
+            setNewMessage('');
+        }
+    }
     
     if (loading) return <div className="p-4 text-center">Cargando mensajes...</div>;
     
     return (
         <div className="flex-1 flex flex-col">
             <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-                {messages.map(msg => <div key={msg.id}>{msg.text}</div>)}
+                {messages.map(msg => (
+                    <div key={msg.id} className={cn("flex", msg.senderId === user?.uid ? "justify-end" : "justify-start")}>
+                        <div className={cn("p-2 px-3 rounded-xl max-w-sm", msg.senderId === user?.uid ? "bg-primary text-primary-foreground" : "bg-muted")}>
+                           <p className="text-sm">{msg.text}</p>
+                        </div>
+                    </div>
+                ))}
+                <div ref={messagesEndRef} />
             </div>
-             <div className="p-2 border-t flex items-center gap-2">
-                <input placeholder="Escribe un mensaje..." className="flex-1 bg-transparent focus:outline-none text-sm px-2"/>
-                <Button size="icon"><Send size={16}/></Button>
-            </div>
+             <form onSubmit={handleSendMessage} className="p-2 border-t flex items-center gap-2">
+                <input 
+                    placeholder="Escribe un mensaje..." 
+                    className="flex-1 bg-transparent focus:outline-none text-sm px-2"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                />
+                <Button type="submit" size="icon"><Send size={16}/></Button>
+            </form>
         </div>
     );
 };
@@ -74,14 +148,6 @@ export default function ChatWidget() {
     const [isOpen, setIsOpen] = useState(false);
     const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
     const { unreadCount } = useChat();
-    const { user } = useUser();
-    const firestore = useFirestore();
-
-    const collectionPath = user ? `users/${user.uid}/teamMembers` : null;
-    const membersCollectionRef = useMemoFirebase(() => {
-        return collectionPath ? collection(firestore, collectionPath) : null;
-    }, [collectionPath, firestore]);
-    const { data: members } = useCollection<TeamMember>(membersCollectionRef);
 
     if (isOpen) {
         return (
