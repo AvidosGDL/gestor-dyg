@@ -29,6 +29,7 @@ const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 const resend_1 = require("resend");
 admin.initializeApp();
+// Clave de API unificada y correcta para Resend
 const resend = new resend_1.Resend('[REMOVED_RESEND_API_KEY]');
 exports.sendEmailTask = (0, https_1.onCall)({ region: 'us-central1' }, async (request) => {
     var _a, _b;
@@ -130,3 +131,5 @@ exports.sendInvitationEmail = (0, https_1.onCall)({ region: 'us-central1' }, asy
     }
 });
 //# sourceMappingURL=index.js.map
+
+    
