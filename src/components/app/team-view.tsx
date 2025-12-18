@@ -425,7 +425,7 @@ export default function TeamView() {
           <CardHeader>
             <CardTitle>Miembros del Equipo</CardTitle>
             <CardDescription>
-              Aquí puedes ver y administrar los miembros de tu equipo.
+              Aquí puedes ver y administrar los miembros de tu equipo. Haz clic en un miembro para iniciar una conversación.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -434,7 +434,7 @@ export default function TeamView() {
                 <TableRow>
                   <TableHead>Miembro</TableHead>
                   <TableHead>Rol</TableHead>
-                  <TableHead>Teléfono</TableHead>
+                  <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -450,8 +450,8 @@ export default function TeamView() {
                 )}
                 {!isLoading &&
                   members &&
-                  members.map((member) => (
-                    <TableRow key={member.id}>
+                  members.map((member, index) => (
+                    <TableRow key={member.id} className="cursor-pointer hover:bg-muted/50">
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar>
@@ -474,21 +474,22 @@ export default function TeamView() {
                       <TableCell>
                         <Badge variant="secondary">{member.role}</Badge>
                       </TableCell>
-                      <TableCell>
-                        <span className="text-muted-foreground">{member.phone || '-'}</span>
+                       <TableCell>
+                        {/* Simulate notification for demonstration */}
+                        {index === 0 && <Badge variant="default" className="bg-accent text-accent-foreground">Nuevo Mensaje</Badge>}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => editMember(member)}
+                          onClick={(e) => { e.stopPropagation(); editMember(member); }}
                         >
                           <Edit className="h-4 w-4 text-muted-foreground" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => deleteMember(member.id)}
+                          onClick={(e) => { e.stopPropagation(); deleteMember(member.id); }}
                         >
                           <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                         </Button>
