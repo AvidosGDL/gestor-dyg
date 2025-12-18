@@ -96,6 +96,7 @@ export function useCollection<T = any>(
         // --- INICIO: LOGS DE DIAGNÓSTICO ---
         try {
           const auth = getAuth();
+          console.error("Firestore onSnapshot error:", error.code, error.message);
           console.log("DENIED operation=list path=", path);
           console.log("DENIED query=", memoizedTargetRefOrQuery);
           console.log("UID=", auth?.currentUser?.uid);
