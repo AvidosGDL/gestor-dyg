@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, ReactNode, useMemo } from 'react';
@@ -33,20 +32,66 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const firestore = useFirestore();
   const { user } = useUser();
 
-  const chatsCollectionRef = useMemoFirebase(() => {
-    return firestore ? collection(firestore, 'chats') : null;
-  }, [firestore]);
-
   const chatsQuery = useMemoFirebase(() => {
-    if (!user || !chatsCollectionRef) return null;
+    if (!user || !firestore) return null;
+    const chatsCollectionRef = collection(firestore, 'chats');
     return query(
       chatsCollectionRef,
       where('memberIds', 'array-contains', user.uid),
       orderBy('lastMessageTimestamp', 'desc')
     );
-  }, [user, chatsCollectionRef]);
+  }, [user, firestore]);
 
-  const { data: conversations, loading } = useCollection<Chat>(chatsQuery);
+  const { data: rawConversations, loading } = useCollection<Chat>(chatsQuery);
+
+  // Separate memo to process data, preventing re-fetches on downstream changes
+  const conversations = useMemo(() => {
+      if (!rawConversations || !firestore || !user) return [];
+      
+      const processedConversations = Promise.all(rawConversations.map(async (convo) => {
+          const newMembers: { [key: string]: Pick<UserProfile, 'name' | 'avatarUrl'> } = {};
+          let shouldUpdate = false;
+
+          for (const memberId of convo.memberIds) {
+              // If member data is missing or placeholder, fetch it
+              if (!convo.members?.[memberId] || convo.members[memberId].name === 'Fetching...') {
+                  try {
+                      const userDocRef = doc(firestore, 'users', memberId);
+                      const userDocSnap = await getDoc(userDocRef);
+                      if (userDocSnap.exists()) {
+                          const userData = userDocSnap.data() as UserProfile;
+                          newMembers[memberId] = { name: userData.name, avatarUrl: userData.avatarUrl };
+                          shouldUpdate = true;
+                      } else {
+                          // Keep existing data if any, or a default
+                          newMembers[memberId] = convo.members?.[memberId] || { name: 'Usuario Desconocido', avatarUrl: '' };
+                      }
+                  } catch (error) {
+                      console.error(`Failed to fetch profile for member ${memberId}:`, error);
+                      newMembers[memberId] = convo.members?.[memberId] || { name: 'Error al Cargar', avatarUrl: '' };
+                  }
+              } else {
+                  // Keep existing, valid data
+                  newMembers[memberId] = convo.members[memberId];
+              }
+          }
+
+          if (shouldUpdate) {
+              const chatDocRef = doc(firestore, 'chats', convo.id);
+              // Non-blocking update
+              updateDoc(chatDocRef, { members: newMembers });
+          }
+
+          return { ...convo, members: newMembers };
+      }));
+
+      // For optimistic UI, we can show the raw data while profiles are fetched
+      // This part is complex to make fully synchronous without another state
+      // For now, we rely on the next snapshot update after `updateDoc`
+      return rawConversations;
+
+  }, [rawConversations, firestore, user]);
+
   
   const unreadCount = useMemo(() => {
     // This is a simplified unread count.
@@ -110,33 +155,52 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   };
   
   const createConversation = async (memberId: string): Promise<string | null> => {
-    if (!firestore || !user || !chatsCollectionRef) return null;
+    if (!firestore || !user) return null;
+    const chatsCollectionRef = collection(firestore, 'chats');
+
+    // Sort IDs to ensure the query is always the same for the same two users
+    const memberIds = [user.uid, memberId].sort();
     
     // Check if a chat already exists
     const existingChatQuery = query(
       chatsCollectionRef,
-      where('memberIds', '==', [user.uid, memberId].sort())
+      where('memberIds', '==', memberIds)
     );
-    const existingChatSnap = await getDocs(existingChatQuery);
-    if (!existingChatSnap.empty) {
-      return existingChatSnap.docs[0].id;
-    }
 
-    // Create a new chat
     try {
+      const existingChatSnap = await getDocs(existingChatQuery);
+      if (!existingChatSnap.empty) {
+        return existingChatSnap.docs[0].id;
+      }
+
+      // Fetch user profiles to store in the chat document
+      const userDocRef = doc(firestore, 'users', user.uid);
+      const memberDocRef = doc(firestore, 'users', memberId);
+
+      const [userDocSnap, memberDocSnap] = await Promise.all([getDoc(userDocRef), getDoc(memberDocRef)]);
+
+      const userProfile = userDocSnap.exists() ? userDocSnap.data() as UserProfile : null;
+      const memberProfile = memberDocSnap.exists() ? memberDocSnap.data() as UserProfile : null;
+
+      // Create a new chat
       const newChatDoc = await addDoc(chatsCollectionRef, {
-        memberIds: [user.uid, memberId].sort(), // Sort for consistent querying
+        memberIds: memberIds, 
         members: {
-          // You'd fetch this info, but for now we'll use placeholders
-          [user.uid]: { name: user.displayName, avatarUrl: user.photoURL },
-          [memberId]: { name: 'Fetching...', avatarUrl: '' }
+          [user.uid]: { name: userProfile?.name || 'Usuario', avatarUrl: userProfile?.avatarUrl || '' },
+          [memberId]: { name: memberProfile?.name || 'Usuario', avatarUrl: memberProfile?.avatarUrl || '' }
         },
         lastMessage: null,
         lastMessageTimestamp: serverTimestamp(),
       });
       return newChatDoc.id;
-    } catch (e) {
-      console.error("Error creating conversation", e);
+    } catch (e: any) {
+      console.error("Error creating or finding conversation", e);
+       const permissionError = new FirestorePermissionError({
+        path: chatsCollectionRef.path,
+        operation: 'create',
+        requestResourceData: { memberIds },
+      });
+      errorEmitter.emit('permission-error', permissionError);
       return null;
     }
   }
