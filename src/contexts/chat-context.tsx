@@ -68,7 +68,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             let shouldUpdateInFirestore = false;
 
             for (const memberId of convo.memberIds) {
-                // Check if member data is missing or incomplete
+                // CORRECCIÓN: Comprobar si falta el nombre, es nulo, está vacío o es 'Usuario'.
                 if (!convo.members?.[memberId] || !convo.members[memberId].name || convo.members[memberId].name === 'Usuario') {
                     try {
                         const userDocRef = doc(firestore, 'users', memberId);
@@ -77,25 +77,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                         if (userDocSnap.exists()) {
                             const userData = userDocSnap.data() as UserProfile;
                             newMembersData[memberId] = { name: userData.name, avatarUrl: userData.avatarUrl };
-                            shouldUpdateInFirestore = true; // Mark for DB update
+                            shouldUpdateInFirestore = true;
                         } else {
-                            // Fallback if user document doesn't exist
+                            console.error(`[ChatContext] No se encontró el perfil para el miembro con ID: ${memberId}`);
                             newMembersData[memberId] = convo.members?.[memberId] || { name: 'Usuario Desconocido', avatarUrl: '' };
                         }
                     } catch (error) {
-                        console.error(`Failed to fetch profile for member ${memberId}:`, error);
+                        console.error(`[ChatContext] Falló la obtención del perfil para el miembro ${memberId}:`, error);
                         newMembersData[memberId] = convo.members?.[memberId] || { name: 'Error al Cargar', avatarUrl: '' };
                     }
                 } else {
-                    // Data is already present and seems valid
                     newMembersData[memberId] = convo.members[memberId];
                 }
             }
             
-            // If we fetched new data, update the document in Firestore asynchronously
             if (shouldUpdateInFirestore) {
                 const chatDocRef = doc(firestore, 'chats', convo.id);
-                updateDoc(chatDocRef, { members: newMembersData }).catch(err => console.error("Failed to update chat members in Firestore:", err));
+                updateDoc(chatDocRef, { members: newMembersData }).catch(err => console.error("[ChatContext] Falló la actualización de miembros del chat en Firestore:", err));
             }
 
             return { ...convo, members: newMembersData };
@@ -136,7 +134,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     
     const { data: messages, loading } = useCollection<Message>(messagesQuery);
     
-    // Mark messages as read
     useEffect(() => {
         if (messages && messages.length > 0 && user && chatId) {
             const lastMessage = messages[messages.length - 1];
