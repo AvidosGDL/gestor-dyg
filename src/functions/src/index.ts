@@ -6,7 +6,10 @@ import { Resend } from 'resend';
 
 admin.initializeApp();
 
-const resend = new Resend('[REMOVED_RESEND_API_KEY]');
+// Clave de API de Resend. Asegúrate de que esta es la clave correcta.
+// Se recomienda manejar esto a través de variables de entorno de Firebase en un futuro.
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '[REMOVED_RESEND_API_KEY]';
+const resend = new Resend(RESEND_API_KEY);
 
 
 interface TaskDelegationEmailPayload {
@@ -89,7 +92,7 @@ export const sendEmailTask = onCall(
   }
 );
 
-// --- NEW Firestore Trigger Function ---
+
 export const onInvitationCreatedSendEmail = onDocumentCreated(
   {
     document: "invitations/{email}",
@@ -134,8 +137,6 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
 
       if (error) {
         console.error(`[onInvitationCreatedSendEmail] Error de Resend para ${email}:`, error);
-        // We typically don't throw an error here to prevent retries for permanent email failures.
-        // The error is logged for monitoring.
         return;
       }
 
@@ -146,7 +147,6 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
         email: email,
         error: err instanceof Error ? { message: err.message, stack: err.stack } : { value: String(err) },
       });
-      // Log the error, but don't re-throw to avoid function retries on unrecoverable errors.
     }
   }
 );
