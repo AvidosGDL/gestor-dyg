@@ -261,7 +261,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Título de la Tarea</FormLabel>
+                  <FormLabel>Tarea</FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder="Ej. Revisar el diseño del landing page"

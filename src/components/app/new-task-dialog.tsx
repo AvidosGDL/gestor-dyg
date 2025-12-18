@@ -124,7 +124,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Título de la Tarea</FormLabel>
+                  <FormLabel>Tarea</FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder="Ej. Revisar el diseño del landing page"
