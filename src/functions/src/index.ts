@@ -48,7 +48,7 @@ export const sendEmailTask = onCall(
       console.log('[sendEmailTask] Preparing to send email', { to, taskId, taskTitle });
 
       const { data: resendData, error } = await resend.emails.send({
-        from: 'Gestor D&G <onboarding@resend.dev>',
+        from: 'Gestor D&G <gestor@fiscalflow.mx>',
         to: [to],
         subject: `Nueva tarea delegada: ${taskTitle}`,
         html: `
@@ -123,7 +123,7 @@ export const sendInvitationEmail = onCall(
       const registrationUrl = `https://studio-8033020115-912ac.web.app/login`;
 
       const { data: resendData, error } = await resend.emails.send({
-        from: 'Gestor D&G <onboarding@resend.dev>',
+        from: 'Gestor D&G <gestor@fiscalflow.mx>',
         to: [email],
         subject: `Invitación para unirte a Gestor D&G`,
         html: `
