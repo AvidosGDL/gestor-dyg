@@ -16,10 +16,12 @@ import {
   getDocs,
   getDoc,
   writeBatch,
+  type Firestore,
 } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import type { User } from 'firebase/auth';
 
 interface ChatContextType {
   conversations: Chat[];
@@ -32,6 +34,79 @@ interface ChatContextType {
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
+
+async function fetchAndEnrichConversations(
+  rawConversations: Chat[],
+  firestore: Firestore,
+) {
+  const batch = writeBatch(firestore);
+  let batchHasWrites = false;
+
+  const enrichedConversations = await Promise.all(
+    rawConversations.map(async (convo) => {
+      const newMembersData: Chat['members'] = { ...convo.members };
+      let needsUpdateInFirestore = false;
+
+      for (const memberId of convo.memberIds) {
+        const memberInfo = newMembersData[memberId];
+
+        if (!memberInfo || !memberInfo.name || !memberInfo.avatarUrl || !memberInfo.email) {
+          try {
+            const userDocRef = doc(firestore, 'users', memberId);
+            const userDocSnap = await getDoc(userDocRef);
+
+            if (userDocSnap.exists()) {
+              const userData = userDocSnap.data() as UserProfile;
+              newMembersData[memberId] = {
+                name: userData.name,
+                avatarUrl: userData.avatarUrl,
+                email: userData.email,
+              };
+              needsUpdateInFirestore = true;
+            } else {
+              console.error(`[ChatContext] No profile found for member ID: ${memberId}.`);
+              if (!newMembersData[memberId]) {
+                newMembersData[memberId] = {
+                  name: 'Usuario Desconocido',
+                  avatarUrl: '',
+                  email: '',
+                };
+                needsUpdateInFirestore = true;
+              }
+            }
+          } catch (error) {
+            console.error(`[ChatContext] Failed to fetch profile for member ${memberId}:`, error);
+            if (!newMembersData[memberId]) {
+              newMembersData[memberId] = {
+                name: 'Error al Cargar',
+                avatarUrl: '',
+                email: '',
+              };
+              needsUpdateInFirestore = true;
+            }
+          }
+        }
+      }
+
+      if (needsUpdateInFirestore) {
+        const chatDocRef = doc(firestore, 'chats', convo.id);
+        batch.update(chatDocRef, { members: newMembersData });
+        batchHasWrites = true;
+      }
+
+      return { ...convo, members: newMembersData };
+    })
+  );
+
+  if (batchHasWrites) {
+    await batch
+      .commit()
+      .catch((err) => console.error('[ChatContext] Failed to commit chat member auto-correction batch:', err));
+  }
+
+  return enrichedConversations;
+}
+
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const firestore = useFirestore();
@@ -58,81 +133,32 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const { data: teamMembers, loading: membersLoading } = useCollection<TeamMember>(teamMembersCollectionRef);
   
   useEffect(() => {
-    if (!rawConversations || !firestore || !user) {
-        setProcessedConversations([]);
-        return;
+    if (!rawConversations || !firestore) {
+      setProcessedConversations([]);
+      return;
     }
 
     let isMounted = true;
 
-    const processConversations = async () => {
-        const batch = writeBatch(firestore);
-        let batchHasWrites = false;
-
-        const enrichedConversations = await Promise.all(rawConversations.map(async (convo) => {
-            const newMembersData: Chat['members'] = { ...convo.members };
-            let needsUpdateInFirestore = false;
-
-            for (const memberId of convo.memberIds) {
-                const memberInfo = newMembersData[memberId];
-
-                if (!memberInfo || !memberInfo.name || !memberInfo.avatarUrl || !memberInfo.email) {
-                    try {
-                        const userDocRef = doc(firestore, 'users', memberId);
-                        const userDocSnap = await getDoc(userDocRef);
-
-                        if (userDocSnap.exists()) {
-                            const userData = userDocSnap.data() as UserProfile;
-                            newMembersData[memberId] = { name: userData.name, avatarUrl: userData.avatarUrl, email: userData.email };
-                            needsUpdateInFirestore = true;
-                        } else {
-                            console.error(`[ChatContext] No se encontró el perfil para el miembro con ID: ${memberId}.`);
-                            if (!newMembersData[memberId]) {
-                                newMembersData[memberId] = { name: 'Usuario Desconocido', avatarUrl: '', email: '' };
-                                needsUpdateInFirestore = true;
-                            }
-                        }
-                    } catch (error) {
-                        console.error(`[ChatContext] Falló la obtención del perfil para el miembro ${memberId}:`, error);
-                        if (!newMembersData[memberId]) {
-                            newMembersData[memberId] = { name: 'Error al Cargar', avatarUrl: '', email: '' };
-                            needsUpdateInFirestore = true;
-                        }
-                    }
-                }
-            }
-            
-            if (needsUpdateInFirestore) {
-                const chatDocRef = doc(firestore, 'chats', convo.id);
-                batch.update(chatDocRef, { members: newMembersData });
-                batchHasWrites = true;
-            }
-
-            return { ...convo, members: newMembersData };
-        }));
-
-        if (batchHasWrites) {
-            await batch.commit().catch(err => console.error("[ChatContext] Falló el batch de auto-corrección de miembros del chat:", err));
-        }
-
+    fetchAndEnrichConversations(rawConversations, firestore).then(
+      (enriched) => {
         if (isMounted) {
-            setProcessedConversations(enrichedConversations);
+          setProcessedConversations(enriched);
         }
-    };
-
-    processConversations();
+      }
+    );
 
     return () => {
-        isMounted = false;
+      isMounted = false;
     };
-  }, [rawConversations, firestore, user]);
+  }, [rawConversations, firestore]);
 
   
   const unreadCount = useMemo(() => {
     return (processedConversations || []).filter(c => 
       c.lastMessage && 
-      c.lastMessage.senderId !== user?.uid &&
-      !c.lastMessage.readBy?.includes(user!.uid)
+      user && c.lastMessage.senderId !== user.uid &&
+      !c.lastMessage.readBy?.includes(user.uid)
     ).length;
   }, [processedConversations, user]);
 
@@ -195,7 +221,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       } catch (error) {
         console.error("Error al subir archivo:", error);
-        // Opcional: mostrar un toast de error
         return;
       }
     }
@@ -308,7 +333,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     sendMessage,
     getOrCreateConversation,
     unreadCount,
-  }), [processedConversations, teamMembers, chatsLoading, membersLoading, rawConversations, unreadCount]);
+  }), [processedConversations, teamMembers, chatsLoading, membersLoading, unreadCount, getMessagesForConversation, sendMessage, getOrCreateConversation ]);
 
   return (
     <ChatContext.Provider value={contextValue}>{children}</ChatContext.Provider>
