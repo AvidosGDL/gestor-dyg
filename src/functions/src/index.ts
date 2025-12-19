@@ -1,16 +1,49 @@
-
-import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
-import * as admin from "firebase-admin";
-import { Resend } from 'resend';
+import {HttpsError, onCall} from 'firebase-functions/v2/https';
+import {onDocumentCreated} from 'firebase-functions/v2/firestore';
+import * as admin from 'firebase-admin';
+import {Resend} from 'resend';
 
 admin.initializeApp();
 
-// Clave de API de Resend. Asegúrate de que esta es la clave correcta.
-// Se recomienda manejar esto a través de variables de entorno de Firebase en un futuro.
-const RESEND_API_KEY = process.env.RESEND_API_KEY || '[REMOVED_RESEND_API_KEY]';
+// --- Configuración Centralizada de Resend ---
+const RESEND_API_KEY =
+  process.env.RESEND_API_KEY || '[REMOVED_RESEND_API_KEY]';
 const resend = new Resend(RESEND_API_KEY);
+const FROM_EMAIL = 'Gestor D&G <gestor@fiscalflow.mx>';
 
+// --- Interfaz para la Función Genérica de Correo ---
+interface SendEmailParams {
+  to: string;
+  subject: string;
+  html: string;
+}
+
+/**
+ * Función genérica y reutilizable para enviar correos electrónicos usando Resend.
+ * Esta función no es una Cloud Function, sino una utilidad interna.
+ */
+async function sendEmail({to, subject, html}: SendEmailParams) {
+  const {data, error} = await resend.emails.send({
+    from: FROM_EMAIL,
+    to: [to], // El destinatario siempre debe ser un array
+    subject,
+    html,
+  });
+
+  if (error) {
+    // Si hay un error, lo lanzamos para que la función que la llamó lo capture.
+    console.error(`Error de Resend al enviar a ${to}:`, error);
+    throw new HttpsError(
+      'internal',
+      `Error al enviar correo con Resend: ${error.message ?? 'no message'}`
+    );
+  }
+
+  console.log(`Correo enviado a ${to} con éxito. Resend ID: ${data?.id}`);
+  return {success: true, id: data?.id};
+}
+
+// --- Cloud Functions que utilizan la utilidad de correo ---
 
 interface TaskDelegationEmailPayload {
   to: string;
@@ -21,87 +54,87 @@ interface TaskDelegationEmailPayload {
   taskUrl?: string;
 }
 
+/**
+ * Cloud Function (onCall) para notificar sobre la delegación de una tarea.
+ */
 export const sendEmailTask = onCall(
-  { region: 'us-central1' },
+  {region: 'us-central1'},
   async (request) => {
     console.log('[sendEmailTask] Petición recibida', {
       data: request.data,
       authUid: request.auth?.uid ?? null,
     });
-    
+
     if (!request.auth) {
-        console.error('[sendEmailTask] Unauthenticated call.');
-        throw new HttpsError(
-          "unauthenticated",
-          "The function must be called by an authenticated user."
-        );
+      console.error('[sendEmailTask] Llamada no autenticada.');
+      throw new HttpsError(
+        'unauthenticated',
+        'La función debe ser llamada por un usuario autenticado.'
+      );
     }
 
-    const data = request.data as TaskDelegationEmailPayload;
+    const payload = request.data as TaskDelegationEmailPayload;
 
-    if (!data.to || !data.taskId || !data.taskTitle || !data.delegateName) {
-      console.error('[sendEmailTask] Datos incompletos', { data });
-       throw new HttpsError(
-          "invalid-argument",
-          "Faltan datos para enviar el correo de delegación."
-        );
+    if (!payload.to || !payload.taskTitle || !payload.delegateName) {
+      console.error('[sendEmailTask] Datos incompletos', {payload});
+      throw new HttpsError(
+        'invalid-argument',
+        'Faltan datos para enviar el correo de delegación.'
+      );
     }
+
+    const {to, taskId, taskTitle, delegatorName, delegateName, taskUrl} =
+      payload;
+    const effectiveDelegatorName = delegatorName || 'un administrador';
+
+    // 1. Construir el asunto y el HTML específicos
+    const subject = `Nueva tarea delegada: ${taskTitle}`;
+    const html = `
+      <h1>Se te ha delegado una nueva tarea</h1>
+      <p>Hola ${delegateName},</p>
+      <p>${effectiveDelegatorName} te ha delegado la tarea:</p>
+      <p><strong>${taskTitle}</strong> (ID: ${taskId})</p>
+      ${
+        taskUrl
+          ? `<p>Puedes revisar los detalles aquí: <a href="${taskUrl}">${taskUrl}</a></p>`
+          : ''
+      }
+      <p>Por favor, revisa la tarea en el sistema.</p>
+    `;
 
     try {
-      const { to, taskId, taskTitle, delegatorName, delegateName, taskUrl } = data;
-      const effectiveDelegatorName = delegatorName || 'un administrador';
-
-      console.log('[sendEmailTask] Preparing to send email', { to, taskId, taskTitle });
-
-      const { data: resendData, error } = await resend.emails.send({
-        from: 'Gestor D&G <gestor@fiscalflow.mx>',
-        to: [to],
-        subject: `Nueva tarea delegada: ${taskTitle}`,
-        html: `
-          <h1>Se te ha delegado una nueva tarea</h1>
-          <p>Hola ${delegateName},</p>
-          <p>${effectiveDelegatorName} te ha delegado la tarea:</p>
-          <p><strong>${taskTitle}</strong> (ID: ${taskId})</p>
-          ${taskUrl ? `<p>Puedes revisar los detalles aquí: <a href="${taskUrl}">${taskUrl}</a></p>` : ''}
-          <p>Por favor, revisa la tarea en el sistema.</p>
-        `,
-      });
-
-      if (error) {
-        console.error('[sendEmailTask] Error returned by Resend', { to, taskId, error });
-        throw new HttpsError("internal", `Error sending email with Resend: ${error.message ?? 'no message'}`);
+      // 2. Llamar a la función genérica de envío
+      return await sendEmail({to, subject, html});
+    } catch (error) {
+      console.error(
+        '[sendEmailTask] Excepción al enviar correo de delegación:',
+        error
+      );
+      // Re-lanzar el error para que el cliente lo reciba
+      if (error instanceof HttpsError) {
+        throw error;
       }
-
-      console.log('[sendEmailTask] Email sent successfully', { to, taskId, resendId: resendData?.id });
-      return { success: true, id: resendData?.id };
-
-    } catch (err) {
-      console.error('[sendEmailTask] Exception while sending email', {
-        error: err instanceof Error ? { message: err.message, stack: err.stack } : { value: String(err) },
-      });
-
-      if (err instanceof HttpsError) {
-        throw err;
-      }
-      
       throw new HttpsError(
-          "internal",
-          err instanceof Error ? err.message : "Error desconocido al enviar correo."
+        'internal',
+        error instanceof Error ? error.message : 'Error desconocido.'
       );
     }
   }
 );
 
-
+/**
+ * Cloud Function (Trigger) para enviar un correo de invitación cuando se crea
+ * un nuevo documento en la colección 'invitations'.
+ */
 export const onInvitationCreatedSendEmail = onDocumentCreated(
   {
-    document: "invitations/{email}",
-    region: 'us-central1'
+    document: 'invitations/{email}',
+    region: 'us-central1',
   },
   async (event) => {
     const snapshot = event.data;
     if (!snapshot) {
-      console.log("No data associated with the event");
+      console.log('No data associated with the event');
       return;
     }
 
@@ -111,42 +144,41 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
     const registrationUrl = data.registrationUrl;
 
     if (!email || !registrationUrl) {
-      console.error('Documento de invitación incompleto, falta email o URL.', { id: snapshot.id, data });
+      console.error(
+        'Documento de invitación incompleto, falta email o URL.',
+        {id: snapshot.id, data}
+      );
       return;
     }
 
-    console.log(`[onInvitationCreatedSendEmail] Nueva invitación detectada para ${email}. Enviando correo.`);
+    console.log(
+      `[onInvitationCreatedSendEmail] Nueva invitación para ${email}.`
+    );
+
+    // 1. Construir el asunto y el HTML específicos
+    const subject = `Invitación para unirte a Gestor D&G`;
+    const html = `
+      <h1>¡Has sido invitado!</h1>
+      <p>Hola,</p>
+      <p>${inviterName} te ha invitado a unirte a su equipo en Gestor D&G, una herramienta para la gestión de tareas y proyectos.</p>
+      <p>Para comenzar, por favor regístrate usando este correo electrónico en el siguiente enlace:</p>
+      <p><a href="${registrationUrl}" style="background-color: #3f51b5; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Crear mi cuenta</a></p>
+      <p>Si el botón no funciona, copia y pega esta URL en tu navegador:</p>
+      <p>${registrationUrl}</p>
+      <p>¡Esperamos verte pronto!</p>
+      <p>El equipo de Gestor D&G</p>
+    `;
 
     try {
-       const { data: resendData, error } = await resend.emails.send({
-        from: 'Gestor D&G <gestor@fiscalflow.mx>',
-        to: [email],
-        subject: `Invitación para unirte a Gestor D&G`,
-        html: `
-          <h1>¡Has sido invitado!</h1>
-          <p>Hola,</p>
-          <p>${inviterName} te ha invitado a unirte a su equipo en Gestor D&G, una herramienta para la gestión de tareas y proyectos.</p>
-          <p>Para comenzar, por favor regístrate usando este correo electrónico en el siguiente enlace:</p>
-          <p><a href="${registrationUrl}" style="background-color: #3f51b5; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Crear mi cuenta</a></p>
-          <p>Si el botón no funciona, copia y pega esta URL en tu navegador:</p>
-          <p>${registrationUrl}</p>
-          <p>¡Esperamos verte pronto!</p>
-          <p>El equipo de Gestor D&G</p>
-        `,
-      });
-
-      if (error) {
-        console.error(`[onInvitationCreatedSendEmail] Error de Resend para ${email}:`, error);
-        return;
-      }
-
-      console.log(`[onInvitationCreatedSendEmail] Correo de invitación enviado a ${email}. Resend ID: ${resendData?.id}`);
-
-    } catch (err) {
-      console.error('[onInvitationCreatedSendEmail] Excepción al enviar correo:', {
-        email: email,
-        error: err instanceof Error ? { message: err.message, stack: err.stack } : { value: String(err) },
-      });
+      // 2. Llamar a la función genérica de envío
+      await sendEmail({to: email, subject, html});
+    } catch (error) {
+      console.error(
+        `[onInvitationCreatedSendEmail] Falló el envío de invitación a ${email}:`,
+        error
+      );
+      // No re-lanzamos el error aquí porque es un trigger y no hay un cliente esperando una respuesta.
+      // El error ya está registrado en los logs de Firebase.
     }
   }
 );
