@@ -18,7 +18,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -561,11 +561,11 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                       <div key={`existing-${index}`} className="flex items-center justify-between p-2 bg-muted/50 rounded-md text-sm">
                         <span className="truncate flex-1 mr-2">{file.name}</span>
                         <div className="flex items-center gap-1">
-                            <a href={file.url} target="_blank" rel="noopener noreferrer">
-                                <Button variant="ghost" size="icon" className="h-7 w-7"><Eye size={14} /></Button>
+                            <a href={file.url} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), "h-7 w-7")}>
+                                <Eye size={14} />
                             </a>
-                             <a href={file.url} download={file.name}>
-                                <Button variant="ghost" size="icon" className="h-7 w-7"><Download size={14} /></Button>
+                             <a href={file.url} download={file.name} className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), "h-7 w-7")}>
+                                <Download size={14} />
                             </a>
                         </div>
                       </div>
