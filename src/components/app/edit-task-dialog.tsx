@@ -203,6 +203,16 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
   const removeFile = (index: number) => {
     setAttachedFiles(prevFiles => prevFiles.filter((_, i) => i !== index));
   };
+  
+  const handleDownload = (fileUrl: string, fileName: string) => {
+    const link = document.createElement('a');
+    link.href = fileUrl;
+    link.target = '_blank'; // Opcional: abre en nueva pestaña, pero para descargar no es necesario
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
 
   const onSubmit = async (data: TaskFormValues) => {
@@ -561,12 +571,12 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                       <div key={`existing-${index}`} className="flex items-center justify-between p-2 bg-muted/50 rounded-md text-sm">
                         <span className="truncate flex-1 mr-2">{file.name}</span>
                         <div className="flex items-center gap-1">
-                            <a href={file.url} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), "h-7 w-7")}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(file.url, '_blank')}>
                                 <Eye size={14} />
-                            </a>
-                             <a href={file.url} download={file.name} className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), "h-7 w-7")}>
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownload(file.url, file.name)}>
                                 <Download size={14} />
-                            </a>
+                            </Button>
                         </div>
                       </div>
                     ))}
