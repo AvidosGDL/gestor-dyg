@@ -102,9 +102,12 @@ export function TasksProvider({ children }: { children: ReactNode }) {
                 const functions = getFunctions();
                 const sendEmailFunction = httpsCallable(functions, 'sendEmailTask');
 
+                const delegateUserDoc = await getDoc(doc(firestore, 'users', newTask.delegateToId));
+                const delegateName = delegateUserDoc.data()?.name || 'un miembro del equipo';
+
                 const payload = {
                     to: newTask.delegateToEmail,
-                    delegateName: (await getDoc(doc(firestore, 'users', newTask.delegateToId))).data()?.name || 'un miembro del equipo',
+                    delegateName: delegateName,
                     taskId: docRef.id,
                     taskTitle: newTask.title,
                     delegatorName: newTask.delegatedByName,
@@ -142,25 +145,22 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     
     const finalData: Partial<Task> = { ...updatedData, updatedAt: new Date().toISOString() };
     const isDelegating = finalData.hasOwnProperty('delegateToEmail');
+    let shouldSendEmail = false;
 
     if (isDelegating) {
         if (finalData.delegateToEmail && finalData.delegateToEmail !== 'null') {
             finalData.delegationStatus = 'pending';
-             // Set delegator name
              const userProfileRef = doc(firestore, `users/${user.uid}`);
              const userProfileSnap = await getDoc(userProfileRef);
-             if (userProfileSnap.exists()) {
-                 finalData.delegatedByName = userProfileSnap.data().name;
-             } else {
-                 finalData.delegatedByName = user.displayName; // Fallback
-             }
-             // Find delegatee UID
+             finalData.delegatedByName = userProfileSnap.exists() ? userProfileSnap.data().name : user.displayName;
+
              const usersQuery = query(collection(firestore, 'users'), where('email', '==', finalData.delegateToEmail));
              const usersSnap = await getDocs(usersQuery);
              if (!usersSnap.empty) {
                 finalData.delegateToId = usersSnap.docs[0].id;
+                shouldSendEmail = true; // Ready to send email
              } else {
-                finalData.delegateToId = null; // User not registered yet
+                finalData.delegateToId = null;
              }
         } else {
             finalData.delegatedByName = null;
@@ -170,14 +170,51 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         }
     }
 
-    updateDoc(docRef, finalData).catch(async (serverError) => {
-      const permissionError = new FirestorePermissionError({
-        path: docRef.path,
-        operation: 'update',
-        requestResourceData: finalData,
-      });
-      errorEmitter.emit('permission-error', permissionError);
-    });
+    try {
+        await updateDoc(docRef, finalData);
+
+        if (shouldSendEmail && finalData.delegateToId && finalData.delegateToEmail) {
+             try {
+                const functions = getFunctions();
+                const sendEmailFunction = httpsCallable(functions, 'sendEmailTask');
+                const taskSnap = await getDoc(docRef);
+                const taskTitle = taskSnap.data()?.title || finalData.title || 'una tarea';
+                
+                const delegateUserDoc = await getDoc(doc(firestore, 'users', finalData.delegateToId));
+                const delegateName = delegateUserDoc.data()?.name || 'un miembro del equipo';
+
+                const payload = {
+                    to: finalData.delegateToEmail,
+                    delegateName,
+                    taskId: id,
+                    taskTitle,
+                    delegatorName: finalData.delegatedByName,
+                    taskUrl: `${window.location.origin}/?task=${id}`
+                };
+                
+                await sendEmailFunction(payload);
+
+                toast({
+                    title: "Notificación enviada",
+                    description: `Se ha notificado a ${delegateName} sobre la tarea delegada.`,
+                });
+            } catch (emailError: any) {
+                console.error('[updateTask] Error calling sendEmailTask:', emailError);
+                toast({
+                    variant: "destructive",
+                    title: "Error al notificar",
+                    description: "La tarea se actualizó, pero no se pudo enviar el correo de notificación. " + emailError.message,
+                });
+            }
+        }
+    } catch (serverError: any) {
+        const permissionError = new FirestorePermissionError({
+            path: docRef.path,
+            operation: 'update',
+            requestResourceData: finalData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    }
   };
 
   const bulkUpdateTasks = async (updates: { id: string, changes: Partial<Task> }[], user: User | null) => {
@@ -191,7 +228,6 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     });
 
     batch.commit().catch(async (serverError) => {
-      // Note: This error handling is simplified. A real app might need more granular error reporting.
       const permissionError = new FirestorePermissionError({
         path: tasksCollectionRef.path,
         operation: 'update',
@@ -245,10 +281,6 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
   const setTasks = (newTasks: Task[]) => {
     if (!firestore || !tasksCollectionRef) return;
-    // This is a dangerous operation. It's better to update the state locally.
-    // The useCollection hook already handles real-time updates.
-    // If you need to reorder, you can update a local state derived from the hook's data.
-    // For now, we will update the local state to reflect reordering.
     if (setTasksState) {
         setTasksState(newTasks);
     }
