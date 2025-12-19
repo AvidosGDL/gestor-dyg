@@ -23,10 +23,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useTasks } from '@/contexts/tasks-context';
-import { DollarSign, Percent, Users, Paperclip, X, Timer, Play, Square, History, Clock, Calendar as CalendarIcon } from 'lucide-react';
+import { DollarSign, Percent, Users, Paperclip, X, Timer, Play, Square, History, Clock, Calendar as CalendarIcon, Eye, Download, Loader2 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Task, TaskStatus, FocusSession, TeamMember } from '@/lib/types';
+import type { Task, TaskStatus, FocusSession, TeamMember, Attachment } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '../ui/textarea';
 import { Badge } from '../ui/badge';
@@ -38,12 +38,14 @@ import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 
 
 const fileSchema = z.object({
   name: z.string(),
   type: z.string(),
   size: z.number(),
+  url: z.string(),
 });
 
 const taskSchema = z.object({
@@ -106,6 +108,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const watchedStatus = form.watch('status');
 
   const [isTracking, setIsTracking] = useState(false);
@@ -184,6 +187,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
             completionComment: task.completionComment || '',
         });
         setAttachedFiles([]); 
+        setIsUploading(false);
         setIsTracking(false);
         setSessionStart(null);
         setElapsedTime(0);
@@ -201,26 +205,51 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
   };
 
 
-  const onSubmit = (data: TaskFormValues) => {
-    const fileMetadata = attachedFiles.map(file => ({
-      name: file.name,
-      type: file.type,
-      size: file.size,
-    }));
+  const onSubmit = async (data: TaskFormValues) => {
+    setIsUploading(true);
+    let newAttachments: Attachment[] = [];
 
-    const finalData: Partial<Task> = {
-      ...data,
-      attachments: [...(task.attachments || []), ...fileMetadata],
-      delegateToEmail: data.delegateToEmail === 'null' ? null : data.delegateToEmail,
-      updatedAt: new Date().toISOString(), // Marcar la hora de actualización
-    };
+    try {
+      if (attachedFiles.length > 0) {
+        const storage = getStorage();
+        const uploadPromises = attachedFiles.map(async file => {
+            const fileRef = storageRef(storage, `task_attachments/${task.id}/${Date.now()}_${file.name}`);
+            const snapshot = await uploadBytes(fileRef, file);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+            return {
+                name: file.name,
+                type: file.type,
+                size: file.size,
+                url: downloadURL,
+            };
+        });
+        newAttachments = await Promise.all(uploadPromises);
+      }
 
-    updateTask(task.id, finalData, user);
-    toast({
-        title: "Tarea actualizada",
-        description: `"${data.title}" ha sido modificada.`,
-    });
-    onOpenChange(false);
+      const finalData: Partial<Task> = {
+        ...data,
+        attachments: [...(task.attachments || []), ...newAttachments],
+        delegateToEmail: data.delegateToEmail === 'null' ? null : data.delegateToEmail,
+        updatedAt: new Date().toISOString(),
+      };
+
+      updateTask(task.id, finalData, user);
+      toast({
+          title: "Tarea actualizada",
+          description: `"${data.title}" ha sido modificada.`,
+      });
+      onOpenChange(false);
+
+    } catch (error) {
+        console.error("Error al subir archivos o actualizar tarea:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "No se pudieron subir los archivos. Por favor, inténtalo de nuevo.",
+        });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -512,8 +541,8 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                   <FormLabel>Adjuntar Archivos</FormLabel>
                   <FormControl>
                      <div>
-                        <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
-                           <Paperclip className="mr-2 h-4 w-4" />
+                        <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+                           {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Paperclip className="mr-2 h-4 w-4" />}
                            Seleccionar Archivos
                         </Button>
                         <Input 
@@ -523,14 +552,22 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                           className="hidden"
                           onChange={handleFileChange}
                           accept=".pdf,.doc,.docx,.xls,.xlsx,image/*"
+                          disabled={isUploading}
                         />
                      </div>
                   </FormControl>
                   <div className="mt-4 space-y-2">
                     {task.attachments?.map((file, index) => (
                       <div key={`existing-${index}`} className="flex items-center justify-between p-2 bg-muted/50 rounded-md text-sm">
-                        <span className="truncate">{file.name}</span>
-                        <Badge variant="secondary">Ya adjunto</Badge>
+                        <span className="truncate flex-1 mr-2">{file.name}</span>
+                        <div className="flex items-center gap-1">
+                            <a href={file.url} target="_blank" rel="noopener noreferrer">
+                                <Button variant="ghost" size="icon" className="h-7 w-7"><Eye size={14} /></Button>
+                            </a>
+                             <a href={file.url} download={file.name}>
+                                <Button variant="ghost" size="icon" className="h-7 w-7"><Download size={14} /></Button>
+                            </a>
+                        </div>
                       </div>
                     ))}
                     {attachedFiles.map((file, index) => (
@@ -549,7 +586,10 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
         </Form>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button type="submit" onClick={form.handleSubmit(onSubmit)}>Guardar Cambios</Button>
+          <Button type="submit" onClick={form.handleSubmit(onSubmit)} disabled={isUploading}>
+            {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Guardar Cambios
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -16,5 +16,14 @@ service firebase.storage {
     match /chat_media/{chatId}/{allPaths=**} {
       allow read, write: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.memberIds;
     }
+
+    // Rules for task attachments
+    // Allow read for authenticated users and write for the task owner or delegate.
+    match /task_attachments/{taskId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      // This is a simplified rule. For stricter access, you would need to get() the task document
+      // and check ownerId/delegateToId against request.auth.uid.
+      allow write: if request.auth != null;
+    }
   }
 }

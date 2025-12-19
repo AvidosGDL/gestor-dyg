@@ -15,7 +15,7 @@ export interface Attachment {
   name: string;
   type: string;
   size: number;
-  // url: string; // This would be the URL from a storage service like Firebase Storage
+  url: string; 
 }
 
 export interface Task {
