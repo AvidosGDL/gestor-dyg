@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useMemo } from 'react';
-import type { Task, TeamMember } from '@/lib/types';
+import type { Task, TeamMember, Attachment } from '@/lib/types';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import {
   collection,
@@ -27,7 +27,7 @@ import { User } from 'firebase/auth';
 interface TasksContextType {
   tasks: Task[];
   addTask: (taskData: Omit<Task, 'id'>, user: User | null) => void;
-  updateTask: (id: string, updatedData: Partial<Omit<Task, 'id'>>, user: User | null) => void;
+  updateTask: (id: string, updatedData: Partial<Omit<Task, 'id'>>, user: User | null, newAttachments?: Attachment[]) => void;
   bulkUpdateTasks: (updates: { id: string, changes: Partial<Task> }[], user: User | null) => void;
   deleteTask: (id: string) => void;
   setTasks: (tasks: Task[]) => void;
@@ -139,11 +139,19 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const updateTask = async (id: string, updatedData: Partial<Omit<Task, 'id'>>, user: User | null) => {
+  const updateTask = async (id: string, updatedData: Partial<Omit<Task, 'id'>>, user: User | null, newAttachments: Attachment[] = []) => {
     if (!firestore || !tasksCollectionRef || !user) return;
     const docRef = doc(firestore, tasksCollectionRef.path, id);
     
-    const finalData: Partial<Task> = { ...updatedData, updatedAt: new Date().toISOString() };
+    const existingTask = tasks?.find(t => t.id === id);
+    const existingAttachments = existingTask?.attachments || [];
+    
+    const finalData: Partial<Task> = { 
+        ...updatedData, 
+        attachments: [...existingAttachments, ...newAttachments],
+        updatedAt: new Date().toISOString() 
+    };
+    
     const isDelegating = finalData.hasOwnProperty('delegateToEmail');
     let shouldSendEmail = false;
 
@@ -308,3 +316,5 @@ export function useTasks() {
   }
   return context;
 }
+
+    

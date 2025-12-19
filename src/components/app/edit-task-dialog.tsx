@@ -239,12 +239,12 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
 
       const finalData: Partial<Task> = {
         ...data,
-        attachments: [...(task.attachments || []), ...newAttachments],
+        // attachments are now handled by the context
         delegateToEmail: data.delegateToEmail === 'null' ? null : data.delegateToEmail,
         updatedAt: new Date().toISOString(),
       };
 
-      updateTask(task.id, finalData, user);
+      updateTask(task.id, finalData, user, newAttachments);
       toast({
           title: "Tarea actualizada",
           description: `"${data.title}" ha sido modificada.`,
@@ -606,3 +606,5 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
     </Dialog>
   );
 }
+
+    
