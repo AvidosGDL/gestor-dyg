@@ -81,56 +81,6 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
   const { data: members } = useCollection<TeamMember>(membersCollectionRef);
 
   const delegatedMember = members?.find(m => m.id === task.delegateToId);
-  
-  const handleTestEmail = async () => {
-    if (!delegatedMember || !user) {
-      toast({
-        variant: "destructive",
-        title: "No se puede enviar correo",
-        description: "Esta tarea no está delegada a un miembro del equipo válido.",
-      });
-      return;
-    }
-    
-    try {
-      const functions = getFunctions();
-      const sendEmailFunction = httpsCallable(functions, 'sendEmailTask');
-      
-      const payload = {
-        to: delegatedMember.email,
-        delegateName: delegatedMember.name,
-        taskId: task.id,
-        taskTitle: task.title,
-        delegatorName: user.displayName,
-      };
-      
-      toast({
-        title: "Enviando correo...",
-        description: `Se está enviando la notificación a ${delegatedMember.name}.`,
-      });
-
-      console.log('[TaskCard] Calling sendEmailTask with payload:', payload);
-      const result: any = await sendEmailFunction(payload);
-
-      if (!result.data.success) {
-        throw new Error(result.data.error || 'La Cloud Function reportó un error sin mensaje.');
-      }
-      
-      console.log('[TaskCard] Email sent successfully', { result: result.data });
-      toast({
-        title: "Notificación enviada",
-        description: `Se ha enviado la notificación a ${delegatedMember.name} sobre la tarea.`,
-      });
-
-    } catch (error: any) {
-       console.error('[TaskCard] Error calling sendEmailTask:', error);
-       toast({
-        variant: "destructive",
-        title: "Error al notificar",
-        description: "No se pudo enviar el correo de notificación. " + error.message,
-      });
-    }
-  };
 
   const handleStatusChange = (newStatus: TaskStatus) => {
     updateTask(task.id, { status: newStatus }, user);
@@ -203,15 +153,6 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
                         title="Enfocar en esto"
                     >
                         <Timer size={16} />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-blue-500"
-                        onClick={handleTestEmail}
-                        title="Probar envío de correo"
-                    >
-                        <Mail size={16} />
                     </Button>
                 </div>
              )}
