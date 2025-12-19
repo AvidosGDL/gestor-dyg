@@ -32,7 +32,6 @@ type InvitationFormValues = z.infer<typeof memberSchema>;
 interface NewMemberDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  user: any;
 }
 
 export default function NewMemberDialog({
@@ -72,8 +71,6 @@ export default function NewMemberDialog({
     }
 
     try {
-      // Create invitation document in Firestore.
-      // A Cloud Function trigger will handle sending the email.
       const invitationRef = doc(firestore, 'invitations', data.email);
       const invitationData = {
         email: data.email,
@@ -90,7 +87,6 @@ export default function NewMemberDialog({
           requestResourceData: invitationData,
         });
         errorEmitter.emit('permission-error', permissionError);
-        // Re-throw to be caught by the outer try-catch
         throw serverError;
       });
 
