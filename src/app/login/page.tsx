@@ -89,7 +89,15 @@ const createProfileAndHandleInvitation = async (user: User, firestore: any, sign
             phone: signupData.phone || '',
             authType: 'email',
         };
-        await setDoc(teamMemberDocRef, teamMemberData, { merge: true });
+        await setDoc(teamMemberDocRef, teamMemberData, { merge: true }).catch(serverError => {
+            const permissionError = new FirestorePermissionError({
+               path: `users/${invitationData.inviterId}/teamMembers/${user.uid}`,
+               operation: 'create',
+               requestResourceData: teamMemberData,
+           });
+           errorEmitter.emit('permission-error', permissionError);
+           throw serverError;
+        });
     }
 
     // 3. Link pending tasks for this email

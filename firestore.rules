@@ -85,7 +85,8 @@ service cloud.firestore {
     }
     
     match /users/{userId}/teamMembers/{memberId} {
-    	allow get, list, write: if isOwner(userId);
+    	allow read: if isOwner(userId);
+      allow write: if isOwner(userId) || request.auth.uid == memberId;
     }
 
     /**
