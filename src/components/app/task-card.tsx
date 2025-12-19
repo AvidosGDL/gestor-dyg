@@ -17,6 +17,7 @@ import {
   UserCheck,
   User,
   Archive,
+  Eye,
 } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus, TeamMember } from '@/lib/types';
@@ -261,42 +262,48 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
        {task.status === 'completado' && (
         <CardFooter className="p-2 border-t mt-auto">
           {isOwner ? (
-            <AlertDialog onOpenChange={() => setConfirmationText('')}>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" className="w-full">
-                  <Archive size={16} className="mr-2"/>
-                  Pasar a histórico
+             <div className="flex w-full gap-2">
+                <Button variant="outline" className="w-full" onClick={() => onEdit(task)}>
+                    <Eye size={16} className="mr-2"/>
+                    Revisar
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>¿Confirmas que quieres archivar esta tarea?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Esta acción es permanente y moverá la tarea al histórico. Para confirmar, escribe{" "}
-                    <span className="font-bold text-foreground">ARCHIVAR</span> a continuación.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <div className="space-y-2">
-                  <Label htmlFor="delete-confirmation">Confirmación</Label>
-                  <Input 
-                    id="delete-confirmation"
-                    value={confirmationText}
-                    onChange={(e) => setConfirmationText(e.target.value)}
-                    autoComplete="off"
-                  />
-                </div>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction 
-                    onClick={() => deleteTask(task.id)}
-                    disabled={confirmationText !== 'ARCHIVAR'}
-                    className="bg-destructive hover:bg-destructive/90"
-                  >
-                    Sí, archivar
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                <AlertDialog onOpenChange={() => setConfirmationText('')}>
+                <AlertDialogTrigger asChild>
+                    <Button variant="secondary" className="w-full">
+                    <Archive size={16} className="mr-2"/>
+                    Archivar
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                    <AlertDialogTitle>¿Confirmas que quieres archivar esta tarea?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Esta acción es permanente y moverá la tarea al histórico. Para confirmar, escribe{" "}
+                        <span className="font-bold text-foreground">ARCHIVAR</span> a continuación.
+                    </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="space-y-2">
+                    <Label htmlFor="delete-confirmation">Confirmación</Label>
+                    <Input 
+                        id="delete-confirmation"
+                        value={confirmationText}
+                        onChange={(e) => setConfirmationText(e.target.value)}
+                        autoComplete="off"
+                    />
+                    </div>
+                    <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction 
+                        onClick={() => deleteTask(task.id)}
+                        disabled={confirmationText !== 'ARCHIVAR'}
+                        className="bg-destructive hover:bg-destructive/90"
+                    >
+                        Sí, archivar
+                    </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+                </AlertDialog>
+            </div>
           ) : (
             <div className="w-full text-center text-xs text-muted-foreground py-2">
               Tarea completada.
