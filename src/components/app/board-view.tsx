@@ -223,6 +223,13 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
     }
   }
 
+  const columnsToShow = useMemo(() => {
+    if (activeStatusFilter === 'all') {
+      return columns;
+    }
+    return columns.filter(col => col.id === activeStatusFilter);
+  }, [activeStatusFilter]);
+
 
   return (
     <>
@@ -295,8 +302,11 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
           </div>
         }
         <ScrollArea className="flex-1 -mx-4">
-          <div className="px-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 pb-4">
-            {columns.map((col) => (
+          <div className={cn(
+            "px-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 pb-4",
+            activeStatusFilter !== 'all' && "xl:grid-cols-1"
+          )}>
+            {columnsToShow.map((col) => (
               <TaskColumn
                 key={col.id}
                 status={col.id}
