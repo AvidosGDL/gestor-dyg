@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { ListTodo, Bell, Trash2, CheckCheck, MessageSquare, ArrowRightLeft } from 'lucide-react';
+import { ListTodo, Bell, Trash2, CheckCheck, MessageSquare, ArrowRightLeft, Search } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus } from '@/lib/types';
 import TaskCard from './task-card';
@@ -15,6 +15,7 @@ import { toast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { cn } from '@/lib/utils';
 
 interface BoardViewProps {
   setActiveTaskForPomodoro: (task: Task | null) => void;
@@ -84,6 +85,9 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
   const { user } = useUser();
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeStatusFilter, setActiveStatusFilter] = useState<TaskStatus | 'all'>('all');
+
 
   const handleEditTask = (task: Task) => {
     setTaskToEdit(task);
@@ -106,19 +110,29 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
   const filteredTasks = useMemo(() => {
     if (!user) return [];
     
-    // "Mis Tareas" = Tareas que me pertenecen Y NO HE DELEGADO, o tareas que me HAN DELEGADO a mí.
+    let tasksToShow = tasks;
+
+    // 1. Filtro por persona (el filtro principal)
     if (taskFilter === 'me' || taskFilter === user.uid) {
-      return tasks.filter(t => (t.ownerId === user.uid && !t.delegateToId) || (t.delegateToId === user.uid));
-    } 
-    
-    // "Todas las tareas" = todas las tareas que gestiona el owner (ya filtradas en el context).
-    if (taskFilter === 'all') {
-      return tasks.filter(t => t.ownerId === user.uid);
+      tasksToShow = tasks.filter(t => (t.ownerId === user.uid && !t.delegateToId) || (t.delegateToId === user.uid));
+    } else if (taskFilter === 'all') {
+      tasksToShow = tasks.filter(t => t.ownerId === user.uid);
+    } else {
+      tasksToShow = tasks.filter(t => t.ownerId === user.uid && t.delegateToId === taskFilter);
     }
-    
-    // Filtro por miembro del equipo: Tareas delegadas a ese miembro por el owner actual.
-    return tasks.filter(t => t.ownerId === user.uid && t.delegateToId === taskFilter);
-  }, [tasks, user, taskFilter]);
+
+    // 2. Filtro por estado
+    if (activeStatusFilter !== 'all') {
+      tasksToShow = tasksToShow.filter(t => t.status === activeStatusFilter);
+    }
+
+    // 3. Filtro por término de búsqueda
+    if (searchTerm.trim() !== '') {
+        tasksToShow = tasksToShow.filter(t => t.title.toLowerCase().includes(searchTerm.toLowerCase()));
+    }
+
+    return tasksToShow;
+  }, [tasks, user, taskFilter, searchTerm, activeStatusFilter]);
 
   const delegatedToMe = useMemo(() => {
     if(!user) return [];
@@ -213,6 +227,37 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
   return (
     <>
       <div className="h-full flex flex-col gap-4">
+        <div className="flex-shrink-0 flex flex-wrap items-center gap-4">
+           <div className="flex items-center gap-2">
+            <Button
+                variant={activeStatusFilter === 'all' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setActiveStatusFilter('all')}
+              >
+                Todas
+              </Button>
+            {columns.map(col => (
+               <Button
+                key={col.id}
+                variant={activeStatusFilter === col.id ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setActiveStatusFilter(col.id)}
+              >
+                {col.label}
+              </Button>
+            ))}
+           </div>
+           <div className="relative flex-grow min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+             <Input
+                placeholder="Buscar por título..."
+                className="pl-9"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+           </div>
+        </div>
+
         { (delegatedToMe.length > 0 || notifications.length > 0) &&
           <div className="flex-shrink-0">
           <Card>
