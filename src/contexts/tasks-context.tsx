@@ -147,46 +147,50 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     
     const existingTask = tasks?.find(t => t.id === id);
     if (!existingTask) return;
-
-    const existingAttachments = existingTask?.attachments || [];
-    const existingEditHistory = existingTask?.editHistory || [];
     
     const finalData: Partial<Task> = { 
         ...updatedData,
-        attachments: [...existingAttachments, ...newAttachments],
+        attachments: [...(existingTask.attachments || []), ...newAttachments],
         updatedAt: new Date().toISOString(),
-        editHistory: [...existingEditHistory, { date: new Date().toISOString() }],
+        editHistory: [...(existingTask.editHistory || []), { date: new Date().toISOString() }],
     };
     
-    const isDelegating = finalData.hasOwnProperty('delegateToEmail');
     let shouldSendEmail = false;
 
-    if (isDelegating) {
-        if (finalData.delegateToEmail && finalData.delegateToEmail !== 'null' && finalData.delegateToEmail !== existingTask.delegateToEmail) {
-            finalData.delegationStatus = 'pending';
-             const userProfileRef = doc(firestore, `users/${user.uid}`);
-             const userProfileSnap = await getDoc(userProfileRef);
-             finalData.delegatedByName = userProfileSnap.exists() ? userProfileSnap.data().name : user.displayName;
+    // Check if the delegation email is part of the update
+    if (finalData.hasOwnProperty('delegateToEmail')) {
+      const newEmail = finalData.delegateToEmail;
+      const oldEmail = existingTask.delegateToEmail;
 
-             const usersQuery = query(collection(firestore, 'users'), where('email', '==', finalData.delegateToEmail));
-             const usersSnap = await getDocs(usersQuery);
-             if (!usersSnap.empty) {
-                finalData.delegateToId = usersSnap.docs[0].id;
-                shouldSendEmail = true; // Ready to send email
-             } else {
-                finalData.delegateToId = null;
-             }
-        } else if (finalData.delegateToEmail === 'null' || !finalData.delegateToEmail) {
-            finalData.delegatedByName = null;
-            finalData.delegationStatus = null;
-            finalData.delegateToEmail = null;
-            finalData.delegateToId = null;
+      // Case 1: Delegating to a new person (or for the first time)
+      if (newEmail && newEmail !== 'null' && newEmail !== oldEmail) {
+        finalData.delegationStatus = 'pending';
+        const userProfileRef = doc(firestore, `users/${user.uid}`);
+        const userProfileSnap = await getDoc(userProfileRef);
+        finalData.delegatedByName = userProfileSnap.exists() ? userProfileSnap.data().name : user.displayName;
+        
+        const usersQuery = query(collection(firestore, 'users'), where('email', '==', newEmail));
+        const usersSnap = await getDocs(usersQuery);
+        if (!usersSnap.empty) {
+          finalData.delegateToId = usersSnap.docs[0].id;
+          shouldSendEmail = true;
         } else {
-          // If the email is the same, we don't reset the status.
-          // This prevents forcing re-acceptance on every edit.
-          finalData.delegationStatus = existingTask.delegationStatus;
+          finalData.delegateToId = null;
         }
+      } 
+      // Case 2: Removing delegation
+      else if (!newEmail || newEmail === 'null') {
+        finalData.delegatedByName = null;
+        finalData.delegationStatus = null;
+        finalData.delegateToEmail = null;
+        finalData.delegateToId = null;
+      }
+      // Case 3: Email is the same, just editing the task. Preserve status.
+      else if (newEmail === oldEmail) {
+        finalData.delegationStatus = existingTask.delegationStatus;
+      }
     }
+
 
     try {
         await updateDoc(docRef, finalData);
