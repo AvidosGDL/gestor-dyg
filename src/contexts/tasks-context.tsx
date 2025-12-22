@@ -72,7 +72,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       delegatedByName: null,
       delegateToId: null,
       delegationStatus: isDelegating ? 'pending' : null,
+      createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      editHistory: [],
     };
 
     if (isDelegating) {
@@ -144,12 +146,16 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     const docRef = doc(firestore, tasksCollectionRef.path, id);
     
     const existingTask = tasks?.find(t => t.id === id);
+    if (!existingTask) return;
+
     const existingAttachments = existingTask?.attachments || [];
+    const existingEditHistory = existingTask?.editHistory || [];
     
     const finalData: Partial<Task> = { 
         ...updatedData, 
         attachments: [...existingAttachments, ...newAttachments],
-        updatedAt: new Date().toISOString() 
+        updatedAt: new Date().toISOString(),
+        editHistory: [...existingEditHistory, { date: new Date().toISOString() }],
     };
     
     const isDelegating = finalData.hasOwnProperty('delegateToEmail');
@@ -316,5 +322,3 @@ export function useTasks() {
   }
   return context;
 }
-
-    

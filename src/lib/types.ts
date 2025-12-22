@@ -18,6 +18,10 @@ export interface Attachment {
   url: string; 
 }
 
+export interface EditHistory {
+  date: string; // ISO 8601 string
+}
+
 export interface Task {
   id: string; // Changed from number to string for Firestore compatibility
   title: string;
@@ -40,6 +44,8 @@ export interface Task {
   notificationDismissed?: boolean;
   updatedAt?: string; // ISO 8601 string for the last update time
   lastOwnerUpdateTimestamp?: string; // ISO 8601 string for when the owner last interacted
+  createdAt?: string; // ISO 8601 string for creation date
+  editHistory?: EditHistory[];
 }
 
 export interface TeamMember {

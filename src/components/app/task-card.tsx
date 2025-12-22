@@ -13,25 +13,27 @@ import {
   CheckCircle2,
   ThumbsUp,
   ThumbsDown,
-  Mail,
   UserCheck,
   User,
   Archive,
   Eye,
+  History,
+  Pencil,
 } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus, TeamMember } from '@/lib/types';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { isPast, parseISO, format } from 'date-fns';
+import { isPast, parseISO, format, formatDistanceToNow } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { useCollection, useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, deleteDoc, doc, updateDoc } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 
 interface TaskCardProps {
@@ -107,6 +109,9 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
   const isDelegatedToCurrentUser = user?.uid === task.delegateToId;
   const isDelegationPending = task.delegationStatus === 'pending';
   const isOwner = user?.uid === task.ownerId;
+  const lastEditDate = task.editHistory && task.editHistory.length > 0
+    ? task.editHistory[task.editHistory.length - 1].date
+    : null;
 
 
   return (
@@ -126,8 +131,10 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
         )}
         <div className="grid grid-cols-[1fr_auto] items-start gap-x-2">
             <div></div>
-             {task.status !== 'completado' && (
-                <div className="flex gap-1 justify-self-end">
+             
+            <div className="flex gap-1 justify-self-end">
+                {task.status !== 'completado' ? (
+                  <>
                     <Button
                         variant="ghost"
                         size="icon"
@@ -141,22 +148,24 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 text-muted-foreground hover:text-primary"
-                        onClick={() => onEdit(task)}
-                        title="Editar tarea"
-                    >
-                        <Edit size={16} />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-primary"
                         onClick={() => setActiveTaskForPomodoro(task)}
                         title="Enfocar en esto"
                     >
                         <Timer size={16} />
                     </Button>
-                </div>
-             )}
+                  </>
+                ) : null}
+                 <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-primary"
+                    onClick={() => onEdit(task)}
+                    title="Editar Tarea"
+                >
+                    <Edit size={16} />
+                </Button>
+            </div>
+
             <h4 className="col-span-2 mt-1 font-bold text-foreground break-words min-w-0">
                 {task.title}
             </h4>
@@ -259,58 +268,91 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
             </div>
         )}
       </CardContent>
-       {task.status === 'completado' && (
-        <CardFooter className="p-2 border-t mt-auto">
-          {isOwner ? (
-             <div className="flex w-full gap-2">
-                <Button variant="outline" className="w-full" onClick={() => onEdit(task)}>
-                    <Eye size={16} className="mr-2"/>
-                    Revisar
-                </Button>
-                <AlertDialog onOpenChange={() => setConfirmationText('')}>
-                <AlertDialogTrigger asChild>
-                    <Button variant="secondary" className="w-full">
-                    <Archive size={16} className="mr-2"/>
-                    Archivar
+       
+       <CardFooter className="p-2 border-t mt-auto flex justify-between items-center">
+            {task.status === 'completado' && isOwner ? (
+                <div className="flex w-full gap-2">
+                    <Button variant="outline" className="w-full" onClick={() => onEdit(task)}>
+                        <Eye size={16} className="mr-2"/>
+                        Revisar
                     </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                    <AlertDialogTitle>¿Confirmas que quieres archivar esta tarea?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        Esta acción es permanente y moverá la tarea al histórico. Para confirmar, escribe{" "}
-                        <span className="font-bold text-foreground">ARCHIVAR</span> a continuación.
-                    </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <div className="space-y-2">
-                    <Label htmlFor="delete-confirmation">Confirmación</Label>
-                    <Input 
-                        id="delete-confirmation"
-                        value={confirmationText}
-                        onChange={(e) => setConfirmationText(e.target.value)}
-                        autoComplete="off"
-                    />
-                    </div>
-                    <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction 
-                        onClick={() => deleteTask(task.id)}
-                        disabled={confirmationText !== 'ARCHIVAR'}
-                        className="bg-destructive hover:bg-destructive/90"
-                    >
-                        Sí, archivar
-                    </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-                </AlertDialog>
-            </div>
-          ) : (
-            <div className="w-full text-center text-xs text-muted-foreground py-2">
-              Tarea completada.
-            </div>
-          )}
+                    <AlertDialog onOpenChange={() => setConfirmationText('')}>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="secondary" className="w-full">
+                            <Archive size={16} className="mr-2"/>
+                            Archivar
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                            <AlertDialogTitle>¿Confirmas que quieres archivar esta tarea?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Esta acción es permanente y moverá la tarea al histórico. Para confirmar, escribe{" "}
+                                <span className="font-bold text-foreground">ARCHIVAR</span> a continuación.
+                            </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <div className="space-y-2">
+                            <Label htmlFor="delete-confirmation">Confirmación</Label>
+                            <Input 
+                                id="delete-confirmation"
+                                value={confirmationText}
+                                onChange={(e) => setConfirmationText(e.target.value)}
+                                autoComplete="off"
+                            />
+                            </div>
+                            <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction 
+                                onClick={() => deleteTask(task.id)}
+                                disabled={confirmationText !== 'ARCHIVAR'}
+                                className="bg-destructive hover:bg-destructive/90"
+                            >
+                                Sí, archivar
+                            </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </div>
+            ) : (
+                 <div className="flex items-center gap-4 text-xs text-muted-foreground w-full">
+                    {task.createdAt && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                            <div className="flex items-center gap-1 cursor-default">
+                                <History size={12} />
+                                <span>Creado {formatDistanceToNow(parseISO(task.createdAt), { addSuffix: true, locale: es })}</span>
+                            </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{format(parseISO(task.createdAt), "d MMMM, yyyy 'a las' HH:mm", { locale: es })}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    )}
+                    {lastEditDate && (
+                     <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                           <div className="flex items-center gap-1 cursor-default">
+                                <Pencil size={12} />
+                                <span>Editado {formatDistanceToNow(parseISO(lastEditDate), { addSuffix: true, locale: es })}</span>
+                            </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{format(parseISO(lastEditDate), "d MMMM, yyyy 'a las' HH:mm", { locale: es })}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    )}
+                 </div>
+            )}
+            {task.status === 'completado' && !isOwner && (
+                 <div className="w-full text-center text-xs text-muted-foreground py-2">
+                    Tarea completada.
+                </div>
+            )}
         </CardFooter>
-      )}
     </Card>
   );
 }
