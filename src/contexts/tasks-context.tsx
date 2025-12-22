@@ -152,7 +152,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     const existingEditHistory = existingTask?.editHistory || [];
     
     const finalData: Partial<Task> = { 
-        ...updatedData, 
+        ...updatedData,
         attachments: [...existingAttachments, ...newAttachments],
         updatedAt: new Date().toISOString(),
         editHistory: [...existingEditHistory, { date: new Date().toISOString() }],
@@ -162,7 +162,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     let shouldSendEmail = false;
 
     if (isDelegating) {
-        if (finalData.delegateToEmail && finalData.delegateToEmail !== 'null') {
+        if (finalData.delegateToEmail && finalData.delegateToEmail !== 'null' && finalData.delegateToEmail !== existingTask.delegateToEmail) {
             finalData.delegationStatus = 'pending';
              const userProfileRef = doc(firestore, `users/${user.uid}`);
              const userProfileSnap = await getDoc(userProfileRef);
@@ -176,11 +176,15 @@ export function TasksProvider({ children }: { children: ReactNode }) {
              } else {
                 finalData.delegateToId = null;
              }
-        } else {
+        } else if (finalData.delegateToEmail === 'null' || !finalData.delegateToEmail) {
             finalData.delegatedByName = null;
             finalData.delegationStatus = null;
             finalData.delegateToEmail = null;
             finalData.delegateToId = null;
+        } else {
+          // If the email is the same, we don't reset the status.
+          // This prevents forcing re-acceptance on every edit.
+          finalData.delegationStatus = existingTask.delegationStatus;
         }
     }
 
