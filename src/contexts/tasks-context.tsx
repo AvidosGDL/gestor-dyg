@@ -145,8 +145,13 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     if (!firestore || !tasksCollectionRef || !user) return;
     const docRef = doc(firestore, tasksCollectionRef.path, id);
     
-    const existingTask = tasks?.find(t => t.id === id);
-    if (!existingTask) return;
+    // **CRITICAL FIX**: Fetch the latest version of the task directly from Firestore before updating.
+    const taskSnap = await getDoc(docRef);
+    if (!taskSnap.exists()) {
+        console.error("Task to update does not exist:", id);
+        return;
+    }
+    const existingTask = taskSnap.data() as Task;
     
     const finalData: Partial<Task> = { 
         ...updatedData,
@@ -162,7 +167,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       const newEmail = finalData.delegateToEmail;
       const oldEmail = existingTask.delegateToEmail;
 
-      // Case 1: Delegating to a new person (or for the first time)
+      // Case 1: Delegating to a new person
       if (newEmail && newEmail !== 'null' && newEmail !== oldEmail) {
         finalData.delegationStatus = 'pending';
         const userProfileRef = doc(firestore, `users/${user.uid}`);
@@ -185,7 +190,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         finalData.delegateToEmail = null;
         finalData.delegateToId = null;
       }
-      // Case 3: Email is the same, just editing the task. Preserve status.
+      // Case 3: Email is the same, editing the task. Preserve the current delegation status.
       else if (newEmail === oldEmail) {
         finalData.delegationStatus = existingTask.delegationStatus;
       }
@@ -199,8 +204,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
              try {
                 const functions = getFunctions();
                 const sendEmailFunction = httpsCallable(functions, 'sendEmailTask');
-                const taskSnap = await getDoc(docRef);
-                const taskTitle = taskSnap.data()?.title || finalData.title || 'una tarea';
+                const taskTitle = finalData.title || existingTask.title || 'una tarea';
                 
                 const delegateUserDoc = await getDoc(doc(firestore, 'users', finalData.delegateToId));
                 const delegateName = delegateUserDoc.data()?.name || 'un miembro del equipo';
