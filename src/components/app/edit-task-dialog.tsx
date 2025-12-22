@@ -239,9 +239,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
 
       const finalData: Partial<Task> = {
         ...data,
-        // attachments are now handled by the context
         delegateToEmail: data.delegateToEmail === 'null' ? null : data.delegateToEmail,
-        updatedAt: new Date().toISOString(),
       };
 
       updateTask(task.id, finalData, user, newAttachments);
@@ -262,6 +260,9 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
       setIsUploading(false);
     }
   };
+  
+  const isOwner = user?.uid === task.ownerId;
+  const isDelegated = !!task.delegateToId;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -431,6 +432,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                               "w-full pl-3 text-left font-normal",
                               !field.value && "text-muted-foreground"
                             )}
+                            disabled={!isOwner}
                           >
                             {field.value ? (
                               format(parseISO(field.value), "dd/MM/yyyy")
@@ -462,7 +464,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Delegar A (por Correo)</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value || 'null'}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value || 'null'} disabled={!isOwner}>
                         <FormControl>
                         <SelectTrigger>
                             <SelectValue placeholder="Seleccionar miembro del equipo..."/>
