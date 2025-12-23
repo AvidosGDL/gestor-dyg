@@ -177,10 +177,14 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     const finalData: Partial<Task> = { 
         ...updatedData,
         attachments: [...(existingTask.attachments || []), ...newAttachments],
-        updatedAt: new Date().toISOString(),
         editHistory: [...(existingTask.editHistory || []), ...(newEditLogEntry ? [newEditLogEntry] : [])],
     };
     
+    // Only set updatedAt if it wasn't provided in the update. This breaks loops.
+    if (!finalData.hasOwnProperty('updatedAt')) {
+        finalData.updatedAt = new Date().toISOString();
+    }
+
     let shouldSendEmail = false;
 
     // Check if the delegation email is part of the update

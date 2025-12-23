@@ -8,6 +8,7 @@ import { generateFocusTips } from '@/ai/flows/generate-focus-tips';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useTasks } from '@/contexts/tasks-context';
+import { useUser } from '@/firebase';
 
 interface PomodoroTimerProps {
   activeTask: Task | null;
@@ -18,6 +19,7 @@ const BREAK_DURATION = 5 * 60;
 
 export default function PomodoroTimer({ activeTask }: PomodoroTimerProps) {
   const { updateTask } = useTasks();
+  const { user } = useUser();
   const [timeLeft, setTimeLeft] = useState(FOCUS_DURATION);
   const [isActive, setIsActive] = useState(false);
   const [mode, setMode] = useState<'focus' | 'shortBreak'>('focus');
@@ -26,6 +28,7 @@ export default function PomodoroTimer({ activeTask }: PomodoroTimerProps) {
   const [isTipsDialogOpen, setIsTipsDialogOpen] = useState(false);
   const { toast } = useToast();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -38,18 +41,25 @@ export default function PomodoroTimer({ activeTask }: PomodoroTimerProps) {
     audioRef.current?.play().catch(e => console.log("Audio play blocked by browser"));
 
     if (mode === 'focus') {
-      if (activeTask) {
+      if (activeTask && sessionStartTime) {
+        const endTime = new Date();
         const newSession: FocusSession = {
-          date: new Date().toISOString(),
-          duration: FOCUS_DURATION / 60,
+          startTime: sessionStartTime.toISOString(),
+          endTime: endTime.toISOString(),
         };
         const updatedSessions = [...(activeTask.focusSessions || []), newSession];
-        updateTask(activeTask.id, { focusSessions: updatedSessions });
+        // Pass user and newAttachments correctly
+        updateTask(activeTask.id, { 
+          focusSessions: updatedSessions,
+          updatedAt: new Date().toISOString() // Explicitly set updatedAt
+        }, user, []);
+
+        const durationMs = endTime.getTime() - sessionStartTime.getTime();
+        toast({
+          title: "¡Sesión guardada!",
+          description: `Se ha añadido ${formatDuration(durationMs)} a la tarea.`,
+        });
       }
-      toast({
-        title: "¡Sesión completada!",
-        description: "Tómate un merecido descanso.",
-      });
       switchMode('shortBreak', false);
     } else {
       toast({
@@ -58,6 +68,7 @@ export default function PomodoroTimer({ activeTask }: PomodoroTimerProps) {
       });
       switchMode('focus', false);
     }
+    setSessionStartTime(null);
   };
 
   useEffect(() => {
@@ -70,18 +81,27 @@ export default function PomodoroTimer({ activeTask }: PomodoroTimerProps) {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isActive, timeLeft]);
+  }, [isActive, timeLeft, activeTask, sessionStartTime]); // Add dependencies
 
-  const toggleTimer = () => setIsActive(!isActive);
-
+  const toggleTimer = () => {
+    if (!isActive) {
+      setSessionStartTime(new Date());
+    }
+    setIsActive(!isActive);
+  };
+  
   const resetTimer = () => {
     setIsActive(false);
+    setSessionStartTime(null);
     setTimeLeft(mode === 'focus' ? FOCUS_DURATION : BREAK_DURATION);
   };
 
   const switchMode = (newMode: 'focus' | 'shortBreak', shouldDeactivate: boolean = true) => {
     setMode(newMode);
-    if(shouldDeactivate) setIsActive(false);
+    if(shouldDeactivate) {
+      setIsActive(false);
+      setSessionStartTime(null);
+    }
     setTimeLeft(newMode === 'focus' ? FOCUS_DURATION : BREAK_DURATION);
   };
 
@@ -89,6 +109,23 @@ export default function PomodoroTimer({ activeTask }: PomodoroTimerProps) {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+  
+  const formatDuration = (milliseconds: number) => {
+    if (isNaN(milliseconds) || milliseconds < 0) {
+      return '0s';
+    }
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    let result = '';
+    if (hours > 0) result += `${hours}h `;
+    if (minutes > 0) result += `${minutes}m `;
+    if (seconds > 0 || (hours === 0 && minutes === 0)) result += `${seconds}s`;
+
+    return result.trim();
   };
 
   const handleGetFocusTips = async () => {
