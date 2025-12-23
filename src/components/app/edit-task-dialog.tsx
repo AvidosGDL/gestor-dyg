@@ -177,9 +177,13 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
 
   useEffect(() => {
     if (task && open) {
-        // Si el usuario actual es el propietario de la tarea, marcamos la notificación como "leída"
+        // Si el usuario actual es el propietario de la tarea y hay una actualización pendiente de revisar, marcamos la notificación como "leída"
         if (user && user.uid === task.ownerId) {
-            updateTask(task.id, { lastOwnerUpdateTimestamp: new Date().toISOString() }, user);
+            const lastOwnerView = task.lastOwnerUpdateTimestamp ? new Date(task.lastOwnerUpdateTimestamp).getTime() : 0;
+            const lastUpdate = task.updatedAt ? new Date(task.updatedAt).getTime() : 0;
+            if (lastUpdate > lastOwnerView) {
+              updateTask(task.id, { lastOwnerUpdateTimestamp: new Date().toISOString() }, user, []);
+            }
         }
         form.reset({
             ...task,
@@ -194,7 +198,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
         setSessionStart(null);
         setElapsedTime(0);
     }
-  }, [task, open, form, user, updateTask]);
+  }, [task, open, form, user]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -608,7 +612,3 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
     </Dialog>
   );
 }
-
-    
-
-    
