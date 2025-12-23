@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { doc, setDoc, getDoc, deleteDoc, query, collection, where, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, getDoc, deleteDoc, query, collection, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarImage } from '@/components/ui/avatar';
@@ -60,6 +60,7 @@ const createProfileAndHandleInvitation = async (user: User, firestore: any, sign
 
     // 1. Create user profile
     const userProfile: UserProfile = {
+        uid: user.uid,
         name: signupData.name,
         email: signupData.email,
         avatarUrl: signupData.avatarUrl,
@@ -80,8 +81,8 @@ const createProfileAndHandleInvitation = async (user: User, firestore: any, sign
     if (invitationData.inviterId) {
         const teamMemberDocRef = doc(firestore, `users/${invitationData.inviterId}/teamMembers`, user.uid);
         const teamMemberData: TeamMember = {
-            id: user.uid,
-            uid: user.uid,
+            id: user.uid, // Use UID as document ID
+            uid: user.uid, // Store UID explicitly
             name: signupData.name,
             email: signupData.email,
             role: signupData.role,
@@ -91,7 +92,7 @@ const createProfileAndHandleInvitation = async (user: User, firestore: any, sign
         };
         await setDoc(teamMemberDocRef, teamMemberData, { merge: true }).catch(serverError => {
             const permissionError = new FirestorePermissionError({
-               path: `users/${invitationData.inviterId}/teamMembers/${user.uid}`,
+               path: teamMemberDocRef.path,
                operation: 'create',
                requestResourceData: teamMemberData,
            });

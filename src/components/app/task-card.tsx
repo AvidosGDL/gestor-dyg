@@ -237,7 +237,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
                     {task.delegateToId && delegatedMember && (
                          <Badge variant="secondary" className="flex items-center gap-1.5">
                             <UserCheck size={12} />
-                            Delegada a: {delegatedMember.name}
+                            Delegada a: {delegatedMember.name} ({delegatedMember.email})
                         </Badge>
                     )}
 

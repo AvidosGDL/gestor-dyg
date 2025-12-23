@@ -130,7 +130,7 @@ export default function AppHeader({
                   {members && members.length > 0 && <DropdownMenuSeparator />}
                   {members?.map(member => (
                     <DropdownMenuRadioItem key={member.id} value={member.uid}>
-                      <User className="mr-2 h-4 w-4" /> {member.name}
+                      <User className="mr-2 h-4 w-4" /> {member.name} ({member.email})
                     </DropdownMenuRadioItem>
                   ))}
                 </DropdownMenuRadioGroup>

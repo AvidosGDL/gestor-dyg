@@ -326,14 +326,10 @@ export default function TeamView() {
 
     try {
         const tasksRef = collection(firestore, "tasks");
-        // Query only for tasks owned by the current admin/user.
         const ownerTasksQuery = query(tasksRef, where('ownerId', '==', user.uid));
         
-        const [tasksSnap] = await Promise.all([
-            getDocs(ownerTasksQuery),
-        ]);
+        const tasksSnap = await getDocs(ownerTasksQuery);
 
-        // Build the email -> uid map from the local 'members' state.
         const emailToUidMap = new Map(members.map(m => [m.email, m.uid]));
         
         const batch = writeBatch(firestore);
@@ -341,7 +337,6 @@ export default function TeamView() {
 
         tasksSnap.forEach(taskDoc => {
             const task = taskDoc.data() as any;
-            // Check if task is delegated by email but has a missing or incorrect delegateToId
             if (task.delegateToEmail && (!task.delegateToId || task.delegateToId !== emailToUidMap.get(task.delegateToEmail))) {
                 const correctUid = emailToUidMap.get(task.delegateToEmail);
                 if (correctUid) {
@@ -372,6 +367,55 @@ export default function TeamView() {
     }
 };
 
+ const handleSyncUids = async () => {
+    if (!firestore || !user || !members) return;
+    setIsMigrating(true);
+    toast({ title: 'Sincronizando UIDs...', description: 'Verificando la integridad de los datos del equipo.' });
+
+    try {
+        const usersRef = collection(firestore, "users");
+        const teamMemberEmails = members.map(m => m.email);
+
+        const usersQuery = query(usersRef, where('email', 'in', teamMemberEmails));
+        const usersSnap = await getDocs(usersQuery);
+        
+        const emailToCorrectUidMap = new Map<string, string>();
+        usersSnap.forEach(doc => {
+            const userData = doc.data();
+            emailToCorrectUidMap.set(userData.email, doc.id);
+        });
+
+        const batch = writeBatch(firestore);
+        let updatedCount = 0;
+
+        members.forEach(member => {
+            const correctUid = emailToCorrectUidMap.get(member.email);
+            if (correctUid && member.uid !== correctUid) {
+                const memberDocRef = doc(firestore, `users/${user.uid}/teamMembers`, member.id);
+                batch.update(memberDocRef, { uid: correctUid });
+                updatedCount++;
+            }
+        });
+
+        if (updatedCount > 0) {
+            await batch.commit();
+            toast({ title: '¡Sincronización completada!', description: `${updatedCount} miembros del equipo han sido actualizados con el UID correcto.` });
+        } else {
+            toast({ title: 'Sincronización finalizada', description: 'Todos los UIDs del equipo ya estaban correctos.' });
+        }
+    } catch (error: any) {
+        console.error("Error durante la sincronización de UIDs: ", error);
+        toast({
+            variant: "destructive",
+            title: 'Error en la sincronización',
+            description: error.message || 'Ocurrió un error inesperado.'
+        });
+    } finally {
+        setIsMigrating(false);
+    }
+};
+
+
   const isLoading = userLoading || membersLoading;
   const isAdmin = user?.email === 'gdldanny@gmail.com';
 
@@ -384,30 +428,57 @@ export default function TeamView() {
                     <CardTitle>Panel de Administrador</CardTitle>
                     <CardDescription>Herramientas especiales para la gestión del sistema.</CardDescription>
                 </CardHeader>
-                <CardContent>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button disabled={isMigrating}>
-                                {isMigrating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                                Migrar Delegaciones de Tareas
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>¿Confirmar Migración de Datos?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    Esta acción es irreversible. Se intentará actualizar todas las tareas existentes para usar el nuevo sistema de delegación por UID de usuario. Este proceso se debe ejecutar una sola vez para corregir datos antiguos.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleMigration}>Sí, iniciar migración</AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                    <p className="text-xs text-muted-foreground mt-2">
-                        Esta herramienta corrige las tareas antiguas para que apunten al UID del usuario delegado en lugar de un ID de documento obsoleto.
-                    </p>
+                <CardContent className="flex flex-col md:flex-row gap-4">
+                    <div>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button disabled={isMigrating}>
+                                    {isMigrating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                    Sincronizar UIDs del Equipo
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>¿Confirmar Sincronización de UIDs?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Esta acción verificará que el UID de cada miembro de tu equipo sea el correcto y lo corregirá si es necesario. Esto es fundamental para que la delegación de tareas funcione.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleSyncUids}>Sí, sincronizar</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                        <p className="text-xs text-muted-foreground mt-2">
+                           Repara los UIDs incorrectos de los miembros del equipo existentes.
+                        </p>
+                    </div>
+                     <div>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button disabled={isMigrating} variant="secondary">
+                                    {isMigrating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                    Migrar Delegaciones de Tareas
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>¿Confirmar Migración de Datos?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Esta acción intentará corregir las tareas que delegaste en el pasado y que no tienen el `delegateToId` correcto. Ejecútala después de sincronizar los UIDs.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleMigration}>Sí, iniciar migración</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                        <p className="text-xs text-muted-foreground mt-2">
+                           Corrige las tareas delegadas antiguas que no tienen el UID asignado.
+                        </p>
+                    </div>
                 </CardContent>
             </Card>
         )}

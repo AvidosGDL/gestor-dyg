@@ -497,7 +497,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                             <SelectItem value="none">Nadie / Tarea personal</SelectItem>
                             {members?.map(member => (
                               <SelectItem key={member.id} value={`${member.email}|${member.uid}`}>
-                                {member.email} ({member.name})
+                                {member.name} ({member.email})
                               </SelectItem>
                             ))}
                         </SelectContent>

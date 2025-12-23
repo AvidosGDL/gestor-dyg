@@ -96,7 +96,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
       ...data,
       delegateToEmail: delegateToEmail === 'none' ? null : delegateToEmail,
       delegateToId: delegateToId === 'none' ? null : delegateToId,
-    } as Omit<Task, 'id'>, user);
+    }, user);
 
     toast({
         title: "Nueva tarea creada",
@@ -299,7 +299,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                             <SelectItem value="none">Nadie / Tarea personal</SelectItem>
                             {members?.map(member => (
                               <SelectItem key={member.id} value={`${member.email}|${member.uid}`}>
-                                {member.email} ({member.name})
+                                {member.name} ({member.email})
                               </SelectItem>
                             ))}
                         </SelectContent>

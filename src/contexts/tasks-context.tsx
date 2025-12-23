@@ -153,7 +153,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     const existingTask = taskSnap.data() as Task;
     
     const changes: ChangeDetail[] = [];
-    const fieldsToTrack = ['title', 'client', 'progress', 'priority', 'dueDate', 'status', 'value', 'probability'];
+    const fieldsToTrack = ['title', 'client', 'progress', 'priority', 'dueDate', 'status', 'value', 'probability', 'delegateToEmail'];
     
     fieldsToTrack.forEach(field => {
         const key = field as keyof Task;
@@ -178,9 +178,10 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         editHistory: [...(existingTask.editHistory || []), ...(newEditLogEntry ? [newEditLogEntry] : [])],
     };
     
-    if (!finalData.hasOwnProperty('updatedAt')) {
-        finalData.updatedAt = new Date().toISOString();
+    if (!('updatedAt' in updatedData)) {
+      finalData.updatedAt = new Date().toISOString();
     }
+
 
     let shouldSendEmail = false;
 
