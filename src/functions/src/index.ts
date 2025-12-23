@@ -3,7 +3,11 @@ import {onDocumentCreated} from 'firebase-functions/v2/firestore';
 import * as admin from 'firebase-admin';
 import {Resend} from 'resend';
 
-admin.initializeApp();
+try {
+  admin.initializeApp();
+} catch (e) {
+  console.log('Admin already initialized');
+}
 
 // --- Configuración Centralizada de Resend ---
 const RESEND_API_KEY =
@@ -205,26 +209,27 @@ export const createImpersonationToken = onCall(
       throw new HttpsError('invalid-argument', 'Se requiere el correo electrónico del usuario a suplantar.');
     }
     
+    let userToImpersonate;
     try {
-        const userToImpersonate = await admin.auth().getUserByEmail(email);
-        const targetUid = userToImpersonate.uid;
-        
-        console.log(`[createImpersonationToken] Administrador ${ADMIN_UID} suplantará a ${targetUid} (${email})`);
-
-        // 3. Crear un token personalizado con una "claim" especial
-        const customToken = await admin.auth().createCustomToken(targetUid, { impersonating: true });
-        
-        return { token: customToken };
-
+        userToImpersonate = await admin.auth().getUserByEmail(email);
     } catch (error: any) {
-        console.error(`[createImpersonationToken] Error al procesar suplantación para ${email}:`, error);
-
+        console.error(`[createImpersonationToken] Error al buscar usuario por email ${email}:`, error);
         if (error.code === 'auth/user-not-found') {
             throw new HttpsError('not-found', 'No se encontró ningún usuario con ese correo electrónico.');
         }
+        throw new HttpsError('internal', 'Ocurrió un error al buscar al usuario.');
+    }
 
-        // Para cualquier otro error, lanzar un HttpsError genérico pero bien formado.
-        throw new HttpsError('internal', 'Ocurrió un error inesperado al crear el token de suplantación.');
+    const targetUid = userToImpersonate.uid;
+    console.log(`[createImpersonationToken] Administrador ${ADMIN_UID} suplantará a ${targetUid} (${email})`);
+
+    try {
+        // 3. Crear un token personalizado con una "claim" especial
+        const customToken = await admin.auth().createCustomToken(targetUid, { impersonating: true });
+        return { token: customToken };
+    } catch (error: any) {
+        console.error(`[createImpersonationToken] Error al crear el token personalizado para ${targetUid}:`, error);
+        throw new HttpsError('internal', 'No se pudo generar el token de suplantación.');
     }
   }
 );
