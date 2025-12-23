@@ -56,7 +56,7 @@ const taskSchema = z.object({
   progress: z.coerce.number().min(0).max(100),
   priority: z.enum(['low', 'medium', 'high']),
   dueDate: z.string().optional(),
-  delegateToEmail: z.string().optional(),
+  delegateToData: z.string().optional(),
   status: z.enum(['pendiente', 'en-progreso', 'cierre', 'completado']),
   description: z.string().optional(),
   value: z.coerce.number().min(0),
@@ -203,7 +203,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
     if (task && open) {
         form.reset({
             ...task,
-            delegateToEmail: task.delegateToEmail || 'none',
+            delegateToData: task.delegateToEmail && task.delegateToId ? `${task.delegateToEmail}|${task.delegateToId}` : 'none',
             dueDate: task.dueDate ? task.dueDate.split('T')[0] : undefined,
             completionComment: task.completionComment || '',
             attachments: task.attachments || [],
@@ -257,8 +257,12 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
         newAttachments = await Promise.all(uploadPromises);
       }
 
+      const [delegateToEmail, delegateToId] = data.delegateToData?.split('|') || [null, null];
+
       const finalData: Partial<Task> = {
         ...data,
+        delegateToEmail: delegateToEmail === 'none' ? null : delegateToEmail,
+        delegateToId: delegateToId === 'none' ? null : delegateToId,
       };
 
       updateTask(task.id, finalData, user, newAttachments);
@@ -479,10 +483,10 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
             </div>
              <FormField
               control={form.control}
-              name="delegateToEmail"
+              name="delegateToData"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Delegar A (por Correo)</FormLabel>
+                  <FormLabel>Delegar A</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value || 'none'} disabled={!isOwner}>
                         <FormControl>
                         <SelectTrigger>
@@ -492,7 +496,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                         <SelectContent>
                             <SelectItem value="none">Nadie / Tarea personal</SelectItem>
                             {members?.map(member => (
-                              <SelectItem key={member.id} value={member.email}>
+                              <SelectItem key={member.id} value={`${member.email}|${member.uid}`}>
                                 {member.email} ({member.name})
                               </SelectItem>
                             ))}
@@ -629,8 +633,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                                     <span className="font-bold text-foreground">{log.user}</span>
                                     <span className="text-muted-foreground">{formatDistanceToNow(parseISO(log.date), { addSuffix: true, locale: es })}</span>
                                 </div>
-                                {log.changes && <ul className="space-y-1 list-disc pl-4">
-                                {log.changes.map((change, cIndex) => (
+                                {log.changes && log.changes.map((change, cIndex) => (
                                     <li key={cIndex} className="text-muted-foreground">
                                         <span className="font-semibold text-foreground/80">{getFieldName(change.field)}: </span>
                                         <span className="text-destructive line-through">{formatFieldValue(change.field, change.from)}</span>
@@ -638,7 +641,6 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                                         <span className="text-emerald-600">{formatFieldValue(change.field, change.to)}</span>
                                     </li>
                                 ))}
-                                </ul>}
                             </div>
                         ))}
                         </div>

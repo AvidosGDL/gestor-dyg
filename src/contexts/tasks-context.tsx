@@ -26,7 +26,7 @@ import { User } from 'firebase/auth';
 
 interface TasksContextType {
   tasks: Task[];
-  addTask: (taskData: Omit<Task, 'id'>, user: User | null) => void;
+  addTask: (taskData: Partial<Task>, user: User | null) => void;
   updateTask: (id: string, updatedData: Partial<Omit<Task, 'id'>>, user: User | null, newAttachments?: Attachment[]) => void;
   bulkUpdateTasks: (updates: { id: string, changes: Partial<Task> }[], user: User | null) => void;
   deleteTask: (id: string) => void;
@@ -61,39 +61,38 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     setData: setTasksState,
   } = useCollection<Task>(tasksQuery);
 
-  const addTask = async (taskData: Omit<Task, 'id'>, user: User | null) => {
+  const addTask = async (taskData: Partial<Task>, user: User | null) => {
     if (!tasksCollectionRef || !user || !firestore) return;
 
     const isDelegating = !!taskData.delegateToEmail && taskData.delegateToEmail !== 'none';
     
     const newTask: Omit<Task, 'id'> = {
-      ...taskData,
+      title: taskData.title || 'Nueva Tarea',
+      client: taskData.client || '',
+      progress: taskData.progress || 0,
+      priority: taskData.priority || 'medium',
+      dueDate: taskData.dueDate || '',
+      status: taskData.status || 'pendiente',
+      description: taskData.description || '',
+      value: taskData.value || 0,
+      probability: taskData.probability || 50,
       ownerId: user.uid,
       delegatedByName: null,
-      delegateToId: null,
+      delegateToId: isDelegating ? taskData.delegateToId || null : null,
       delegationStatus: isDelegating ? 'pending' : null,
-      delegateToEmail: isDelegating ? taskData.delegateToEmail : null,
+      delegateToEmail: isDelegating ? taskData.delegateToEmail || null : null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       editHistory: [],
     };
 
-    if (isDelegating && taskData.delegateToEmail) {
-      // Get delegator name from their profile
+    if (isDelegating) {
       const userProfileRef = doc(firestore, `users/${user.uid}`);
       const userProfileSnap = await getDoc(userProfileRef);
       if (userProfileSnap.exists()) {
         newTask.delegatedByName = userProfileSnap.data().name;
       } else {
         newTask.delegatedByName = user.displayName; // Fallback
-      }
-
-      // Check if delegated user exists to get their UID
-      const usersQuery = query(collection(firestore, 'users'), where('email', '==', taskData.delegateToEmail));
-      const usersSnap = await getDocs(usersQuery);
-      if (!usersSnap.empty) {
-        const delegatedUserDoc = usersSnap.docs[0];
-        newTask.delegateToId = delegatedUserDoc.id;
       }
     }
 
@@ -146,7 +145,6 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     if (!firestore || !tasksCollectionRef || !user) return;
     const docRef = doc(firestore, tasksCollectionRef.path, id);
     
-    // **CRITICAL FIX**: Fetch the latest version of the task directly from Firestore before updating.
     const taskSnap = await getDoc(docRef);
     if (!taskSnap.exists()) {
         console.error("Task to update does not exist:", id);
@@ -154,7 +152,6 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     }
     const existingTask = taskSnap.data() as Task;
     
-    // --- Detailed Edit History Logic ---
     const changes: ChangeDetail[] = [];
     const fieldsToTrack = ['title', 'client', 'progress', 'priority', 'dueDate', 'status', 'value', 'probability'];
     
@@ -181,42 +178,34 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         editHistory: [...(existingTask.editHistory || []), ...(newEditLogEntry ? [newEditLogEntry] : [])],
     };
     
-    // Only set updatedAt if it wasn't provided in the update. This breaks loops.
     if (!finalData.hasOwnProperty('updatedAt')) {
         finalData.updatedAt = new Date().toISOString();
     }
 
     let shouldSendEmail = false;
 
-    // Check if the delegation email is part of the update
     if (finalData.hasOwnProperty('delegateToEmail')) {
       const newEmail = finalData.delegateToEmail;
       const oldEmail = existingTask.delegateToEmail;
 
-      // Case 1: Delegating to a new person
       if (newEmail && newEmail !== 'none' && newEmail !== oldEmail) {
         finalData.delegationStatus = 'pending';
         const userProfileRef = doc(firestore, `users/${user.uid}`);
         const userProfileSnap = await getDoc(userProfileRef);
         finalData.delegatedByName = userProfileSnap.exists() ? userProfileSnap.data().name : user.displayName;
         
-        const usersQuery = query(collection(firestore, 'users'), where('email', '==', newEmail));
-        const usersSnap = await getDocs(usersQuery);
-        if (!usersSnap.empty) {
-          finalData.delegateToId = usersSnap.docs[0].id;
+        // delegateToId should now be passed in finalData from the form
+        if (finalData.delegateToId) {
           shouldSendEmail = true;
-        } else {
-          finalData.delegateToId = null;
         }
+
       } 
-      // Case 2: Removing delegation
-      else if (newEmail === 'none') {
+      else if (newEmail === 'none' || newEmail === null) {
         finalData.delegatedByName = null;
         finalData.delegationStatus = null;
         finalData.delegateToEmail = null;
         finalData.delegateToId = null;
       }
-      // Case 3: Email is the same, editing the task. Preserve the current delegation status.
       else if (newEmail === oldEmail) {
         finalData.delegationStatus = existingTask.delegationStatus;
       }
