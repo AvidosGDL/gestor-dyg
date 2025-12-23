@@ -18,8 +18,16 @@ export interface Attachment {
   url: string; 
 }
 
-export interface EditHistory {
+export interface ChangeDetail {
+  field: string;
+  from: any;
+  to: any;
+}
+
+export interface EditLogEntry {
   date: string; // ISO 8601 string
+  user: string;
+  changes: ChangeDetail[];
 }
 
 export interface Task {
@@ -45,7 +53,7 @@ export interface Task {
   updatedAt?: string; // ISO 8601 string for the last update time
   lastOwnerUpdateTimestamp?: string; // ISO 8601 string for when the owner last interacted
   createdAt?: string; // ISO 8601 string for creation date
-  editHistory?: EditHistory[];
+  editHistory?: EditLogEntry[];
 }
 
 export interface TeamMember {

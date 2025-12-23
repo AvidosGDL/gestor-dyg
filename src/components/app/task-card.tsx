@@ -21,7 +21,7 @@ import {
   Pencil,
 } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
-import type { Task, TaskStatus, TeamMember } from '@/lib/types';
+import type { Task, TaskStatus, TeamMember, EditLogEntry } from '@/lib/types';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -109,9 +109,9 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
   const isDelegatedToCurrentUser = user?.uid === task.delegateToId;
   const isDelegationPending = task.delegationStatus === 'pending';
   const isOwner = user?.uid === task.ownerId;
-  const lastEditDate = task.editHistory && task.editHistory.length > 0
-    ? task.editHistory[task.editHistory.length - 1].date
-    : null;
+  const lastEdit: EditLogEntry | undefined = task.editHistory && task.editHistory.length > 0
+    ? task.editHistory[task.editHistory.length - 1]
+    : undefined;
 
 
   return (
@@ -330,17 +330,17 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
                       </Tooltip>
                     </TooltipProvider>
                     )}
-                    {lastEditDate && (
+                    {lastEdit && (
                      <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                            <div className="flex items-center gap-1 cursor-default">
                                 <Pencil size={12} />
-                                <span>Editado {formatDistanceToNow(parseISO(lastEditDate), { addSuffix: true, locale: es })}</span>
+                                <span>Editado {formatDistanceToNow(parseISO(lastEdit.date), { addSuffix: true, locale: es })}</span>
                             </div>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>{format(parseISO(lastEditDate), "d MMMM, yyyy 'a las' HH:mm", { locale: es })}</p>
+                          <p>{format(parseISO(lastEdit.date), "d MMMM, yyyy 'a las' HH:mm", { locale: es })} por {lastEdit.user}</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useMemo } from 'react';
-import type { Task, TeamMember, Attachment } from '@/lib/types';
+import type { Task, TeamMember, Attachment, EditLogEntry, ChangeDetail } from '@/lib/types';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import {
   collection,
@@ -153,11 +153,32 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     }
     const existingTask = taskSnap.data() as Task;
     
+    // --- Detailed Edit History Logic ---
+    const changes: ChangeDetail[] = [];
+    const fieldsToTrack = ['title', 'client', 'progress', 'priority', 'dueDate', 'status', 'value', 'probability'];
+    
+    fieldsToTrack.forEach(field => {
+        const key = field as keyof Task;
+        if (updatedData.hasOwnProperty(key) && updatedData[key] !== existingTask[key]) {
+            changes.push({
+                field: key,
+                from: existingTask[key],
+                to: updatedData[key],
+            });
+        }
+    });
+
+    const newEditLogEntry: EditLogEntry | null = changes.length > 0 ? {
+      date: new Date().toISOString(),
+      user: user.displayName || user.email || 'Unknown User',
+      changes: changes
+    } : null;
+
     const finalData: Partial<Task> = { 
         ...updatedData,
         attachments: [...(existingTask.attachments || []), ...newAttachments],
         updatedAt: new Date().toISOString(),
-        editHistory: [...(existingTask.editHistory || []), { date: new Date().toISOString() }],
+        editHistory: [...(existingTask.editHistory || []), ...(newEditLogEntry ? [newEditLogEntry] : [])],
     };
     
     let shouldSendEmail = false;

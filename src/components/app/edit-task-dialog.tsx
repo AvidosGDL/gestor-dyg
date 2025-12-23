@@ -24,17 +24,16 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useTasks } from '@/contexts/tasks-context';
-import { DollarSign, Percent, Users, Paperclip, X, Timer, Play, Square, History, Clock, Calendar as CalendarIcon, Eye, Download, Loader2 } from 'lucide-react';
+import { DollarSign, Percent, Users, Paperclip, X, Timer, Play, Square, History, Clock, Calendar as CalendarIcon, Eye, Download, Loader2, ArrowRight } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Task, TaskStatus, FocusSession, TeamMember, Attachment } from '@/lib/types';
+import type { Task, TaskStatus, FocusSession, TeamMember, Attachment, EditLogEntry } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '../ui/textarea';
 import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { Calendar } from '../ui/calendar';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
@@ -94,6 +93,28 @@ const formatDuration = (milliseconds: number) => {
     if (seconds > 0 || (hours === 0 && minutes === 0)) result += `${seconds}s`;
 
     return result.trim();
+};
+
+const getFieldName = (field: string) => {
+    const names: Record<string, string> = {
+        title: 'Título',
+        client: 'Cliente/Proyecto',
+        progress: 'Progreso',
+        priority: 'Prioridad',
+        dueDate: 'Fecha Límite',
+        status: 'Estado',
+        value: 'Potencial',
+        probability: 'Probabilidad',
+    };
+    return names[field] || field;
+};
+
+const formatFieldValue = (field: string, value: any) => {
+    if (value === null || value === undefined || value === '') return 'vacío';
+    if (field === 'dueDate' && typeof value === 'string') return format(parseISO(value), "dd/MM/yyyy");
+    if (field === 'progress' || field === 'probability') return `${value}%`;
+    if (field === 'value') return `$${Number(value).toLocaleString()}`;
+    return value;
 };
 
 
@@ -513,7 +534,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                 <div className="space-y-4 pt-4 border-t">
                     <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
                         <Clock className="h-4 w-4" />
-                        Historial de Actividad
+                        Sesiones de Enfoque
                     </h4>
                     <ScrollArea className="max-h-[150px] pr-4">
                         <div className="space-y-3">
@@ -598,6 +619,37 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                   </div>
                 </FormItem>
               </div>
+            )}
+            
+            {task.editHistory && task.editHistory.length > 0 && (
+                <div className="space-y-4 pt-4 border-t">
+                    <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                        <History className="h-4 w-4" />
+                        Historial de Cambios
+                    </h4>
+                    <ScrollArea className="max-h-[150px] pr-4">
+                        <div className="space-y-3">
+                        {task.editHistory.slice().reverse().map((log: EditLogEntry, index: number) => (
+                            <div key={index} className="text-xs p-2 bg-muted/50 rounded-md">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="font-bold text-foreground">{log.user}</span>
+                                    <span className="text-muted-foreground">{formatDistanceToNow(parseISO(log.date), { addSuffix: true, locale: es })}</span>
+                                </div>
+                                <ul className="space-y-1 list-disc pl-4">
+                                {log.changes.map((change, cIndex) => (
+                                    <li key={cIndex} className="text-muted-foreground">
+                                        <span className="font-semibold text-foreground/80">{getFieldName(change.field)}: </span>
+                                        <span className="text-destructive line-through">{formatFieldValue(change.field, change.from)}</span>
+                                        <ArrowRight className="inline-block mx-1 h-3 w-3" />
+                                        <span className="text-emerald-600">{formatFieldValue(change.field, change.to)}</span>
+                                    </li>
+                                ))}
+                                </ul>
+                            </div>
+                        ))}
+                        </div>
+                    </ScrollArea>
+                </div>
             )}
           </form>
         </Form>
