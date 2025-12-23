@@ -203,7 +203,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
     if (task && open) {
         form.reset({
             ...task,
-            delegateToEmail: task.delegateToEmail || '',
+            delegateToEmail: task.delegateToEmail || 'none',
             dueDate: task.dueDate ? task.dueDate.split('T')[0] : undefined,
             completionComment: task.completionComment || '',
             attachments: task.attachments || [],
@@ -483,14 +483,14 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Delegar A (por Correo)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ''} disabled={!isOwner}>
+                  <Select onValueChange={field.onChange} value={field.value || 'none'} disabled={!isOwner}>
                         <FormControl>
                         <SelectTrigger>
                             <SelectValue placeholder="Seleccionar miembro del equipo..."/>
                         </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                            <SelectItem value="">Nadie / Tarea personal</SelectItem>
+                            <SelectItem value="none">Nadie / Tarea personal</SelectItem>
                             {members?.map(member => (
                               <SelectItem key={member.id} value={member.email}>
                                 {member.email} ({member.name})
@@ -629,8 +629,8 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                                     <span className="font-bold text-foreground">{log.user}</span>
                                     <span className="text-muted-foreground">{formatDistanceToNow(parseISO(log.date), { addSuffix: true, locale: es })}</span>
                                 </div>
-                                <ul className="space-y-1 list-disc pl-4">
-                                {log.changes && log.changes.map((change, cIndex) => (
+                                {log.changes && <ul className="space-y-1 list-disc pl-4">
+                                {log.changes.map((change, cIndex) => (
                                     <li key={cIndex} className="text-muted-foreground">
                                         <span className="font-semibold text-foreground/80">{getFieldName(change.field)}: </span>
                                         <span className="text-destructive line-through">{formatFieldValue(change.field, change.from)}</span>
@@ -638,7 +638,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                                         <span className="text-emerald-600">{formatFieldValue(change.field, change.to)}</span>
                                     </li>
                                 ))}
-                                </ul>
+                                </ul>}
                             </div>
                         ))}
                         </div>

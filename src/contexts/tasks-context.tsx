@@ -64,7 +64,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const addTask = async (taskData: Omit<Task, 'id'>, user: User | null) => {
     if (!tasksCollectionRef || !user || !firestore) return;
 
-    const isDelegating = !!taskData.delegateToEmail && taskData.delegateToEmail !== '';
+    const isDelegating = !!taskData.delegateToEmail && taskData.delegateToEmail !== 'none';
     
     const newTask: Omit<Task, 'id'> = {
       ...taskData,
@@ -72,6 +72,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       delegatedByName: null,
       delegateToId: null,
       delegationStatus: isDelegating ? 'pending' : null,
+      delegateToEmail: isDelegating ? taskData.delegateToEmail : null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       editHistory: [],
@@ -193,7 +194,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       const oldEmail = existingTask.delegateToEmail;
 
       // Case 1: Delegating to a new person
-      if (newEmail && newEmail !== '' && newEmail !== oldEmail) {
+      if (newEmail && newEmail !== 'none' && newEmail !== oldEmail) {
         finalData.delegationStatus = 'pending';
         const userProfileRef = doc(firestore, `users/${user.uid}`);
         const userProfileSnap = await getDoc(userProfileRef);
@@ -209,7 +210,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         }
       } 
       // Case 2: Removing delegation
-      else if (!newEmail || newEmail === '') {
+      else if (newEmail === 'none') {
         finalData.delegatedByName = null;
         finalData.delegationStatus = null;
         finalData.delegateToEmail = null;
