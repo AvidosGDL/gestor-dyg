@@ -201,13 +201,6 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
 
   useEffect(() => {
     if (task && open) {
-        if (user && user.uid === task.ownerId) {
-            const lastOwnerView = task.lastOwnerUpdateTimestamp ? new Date(task.lastOwnerUpdateTimestamp).getTime() : 0;
-            const lastUpdate = task.updatedAt ? new Date(task.updatedAt).getTime() : 0;
-            if (lastUpdate > lastOwnerView) {
-              updateTask(task.id, { lastOwnerUpdateTimestamp: new Date().toISOString() }, user, []);
-            }
-        }
         form.reset({
             ...task,
             delegateToEmail: task.delegateToEmail || 'null',

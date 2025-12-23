@@ -90,6 +90,15 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
 
 
   const handleEditTask = (task: Task) => {
+    // Logic to mark notification as read, moved from the dialog itself to prevent loops.
+    if (user && user.uid === task.ownerId) {
+      const lastOwnerView = task.lastOwnerUpdateTimestamp ? new Date(task.lastOwnerUpdateTimestamp).getTime() : 0;
+      const lastUpdate = task.updatedAt ? new Date(task.updatedAt).getTime() : 0;
+      if (lastUpdate > lastOwnerView) {
+        // We only pass the timestamp to avoid triggering other side-effects in updateTask
+        updateTask(task.id, { lastOwnerUpdateTimestamp: new Date().toISOString() }, user, []);
+      }
+    }
     setTaskToEdit(task);
     setIsEditDialogOpen(true);
   };
