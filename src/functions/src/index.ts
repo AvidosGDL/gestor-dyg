@@ -3,12 +3,6 @@ import {onDocumentCreated} from 'firebase-functions/v2/firestore';
 import * as admin from 'firebase-admin';
 import {Resend} from 'resend';
 
-try {
-  admin.initializeApp();
-} catch (e) {
-  console.log('Admin already initialized');
-}
-
 // --- Configuración Centralizada de Resend ---
 const RESEND_API_KEY =
   process.env.RESEND_API_KEY || '[REMOVED_RESEND_API_KEY]';
@@ -64,6 +58,9 @@ interface TaskDelegationEmailPayload {
 export const sendEmailTask = onCall(
   {region: 'us-central1'},
   async (request) => {
+    if (admin.apps.length === 0) {
+      admin.initializeApp();
+    }
     console.log('[sendEmailTask] Petición recibida', {
       data: request.data,
       authUid: request.auth?.uid ?? null,
@@ -136,6 +133,9 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
     region: 'us-central1',
   },
   async (event) => {
+    if (admin.apps.length === 0) {
+      admin.initializeApp();
+    }
     const snapshot = event.data;
     if (!snapshot) {
       console.log('No data associated with the event');
@@ -195,7 +195,10 @@ const ADMIN_UID = 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
 export const createImpersonationToken = onCall(
   { region: 'us-central1' },
   async (request) => {
-    // 1. Verificar que el que llama es el administrador
+    if (admin.apps.length === 0) {
+      admin.initializeApp();
+    }
+
     if (request.auth?.uid !== ADMIN_UID) {
       console.error(`[createImpersonationToken] Intento de llamada no autorizado por UID: ${request.auth?.uid}`);
       throw new HttpsError(
@@ -209,26 +212,23 @@ export const createImpersonationToken = onCall(
       throw new HttpsError('invalid-argument', 'Se requiere el correo electrónico del usuario a suplantar.');
     }
     
-    let userToImpersonate;
     try {
-        userToImpersonate = await admin.auth().getUserByEmail(email);
+        const userToImpersonate = await admin.auth().getUserByEmail(email);
+        const targetUid = userToImpersonate.uid;
+        
+        console.log(`[createImpersonationToken] Administrador ${ADMIN_UID} suplantará a ${targetUid} (${email})`);
+
+        const customToken = await admin.auth().createCustomToken(targetUid, { impersonating: true });
+        return { token: customToken };
+
     } catch (error: any) {
-        console.error(`[createImpersonationToken] Error al buscar usuario por email ${email}:`, error);
+        console.error(`[createImpersonationToken] Error procesando la suplantación para ${email}:`, error);
+
         if (error.code === 'auth/user-not-found') {
             throw new HttpsError('not-found', 'No se encontró ningún usuario con ese correo electrónico.');
         }
-        throw new HttpsError('internal', 'Ocurrió un error al buscar al usuario.');
-    }
 
-    const targetUid = userToImpersonate.uid;
-    console.log(`[createImpersonationToken] Administrador ${ADMIN_UID} suplantará a ${targetUid} (${email})`);
-
-    try {
-        const customToken = await admin.auth().createCustomToken(targetUid, { impersonating: true });
-        return { token: customToken };
-    } catch (error: any) {
-        console.error(`[createImpersonationToken] Error al crear el token personalizado para ${targetUid}:`, error);
-        throw new HttpsError('internal', 'No se pudo generar el token de suplantación.');
+        throw new HttpsError('internal', 'No se pudo completar la operación de suplantación.');
     }
   }
 );
