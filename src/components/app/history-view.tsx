@@ -80,7 +80,7 @@ export default function HistoryView({ taskFilter }: HistoryViewProps) {
       return historyTasks.filter(t => t.ownerId === user.uid);
     }
     
-    return historyTasks.filter(t => t.ownerId === user.uid && t.delegateToId === taskFilter);
+    return historyTasks.filter(t => (t.ownerId === taskFilter && !t.delegateToId) || (t.delegateToId === taskFilter));
   }, [historyTasks, user, taskFilter]);
 
   if (loading) {

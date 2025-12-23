@@ -119,21 +119,22 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
 
   const filteredTasks = useMemo(() => {
     if (!user) return [];
-    
+
     let tasksToShow = tasks;
 
     // 1. Filtro por persona (el filtro principal)
     if (taskFilter === 'me' || taskFilter === user.uid) {
-      tasksToShow = tasks.filter(t => (t.ownerId === user.uid && !t.delegateToId) || (t.delegateToId === user.uid));
+        tasksToShow = tasks.filter(t => (t.ownerId === user.uid && !t.delegateToId) || (t.delegateToId === user.uid));
     } else if (taskFilter === 'all') {
-      tasksToShow = tasks.filter(t => t.ownerId === user.uid);
+        tasksToShow = tasks.filter(t => t.ownerId === user.uid);
     } else {
-      tasksToShow = tasks.filter(t => t.ownerId === user.uid && t.delegateToId === taskFilter);
+        // Muestra las tareas que el miembro seleccionado ha creado para sí mismo O las que le han sido delegadas a él.
+        tasksToShow = tasks.filter(t => (t.ownerId === taskFilter && !t.delegateToId) || (t.delegateToId === taskFilter));
     }
 
     // 2. Filtro por estado
     if (activeStatusFilter !== 'all') {
-      tasksToShow = tasksToShow.filter(t => t.status === activeStatusFilter);
+        tasksToShow = tasksToShow.filter(t => t.status === activeStatusFilter);
     }
 
     // 3. Filtro por término de búsqueda
@@ -142,7 +143,7 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
     }
 
     return tasksToShow;
-  }, [tasks, user, taskFilter, searchTerm, activeStatusFilter]);
+}, [tasks, user, taskFilter, searchTerm, activeStatusFilter]);
 
   const delegatedToMe = useMemo(() => {
     if(!user) return [];

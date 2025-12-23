@@ -54,18 +54,15 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
   const filteredTasksForView = useMemo(() => {
     if (!user || loading) return [];
     
-    // "Mis Tareas" = Tareas que me pertenecen Y NO HE DELEGADO, o tareas que me HAN DELEGADO a mí.
     if (taskFilter === 'me' || taskFilter === user.uid) {
       return tasks.filter(t => (t.ownerId === user.uid && !t.delegateToId) || (t.delegateToId === user.uid));
     } 
     
-    // "Todas las tareas" = todas las tareas que gestiona el owner (ya filtradas en el context).
     if (taskFilter === 'all') {
       return tasks.filter(t => t.ownerId === user.uid);
     }
     
-    // Filtro por miembro del equipo: Tareas delegadas a ese miembro por el owner actual.
-    return tasks.filter(t => t.ownerId === user.uid && t.delegateToId === taskFilter);
+    return tasks.filter(t => (t.ownerId === taskFilter && !t.delegateToId) || (t.delegateToId === taskFilter));
   }, [tasks, user, taskFilter, loading]);
   
   const completedTasks = useMemo(() => {
