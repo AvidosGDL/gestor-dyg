@@ -3,10 +3,12 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import * as admin from 'firebase-admin';
 import { Resend } from 'resend';
 
-// Ensure Firebase Admin is initialized only once.
-if (admin.apps.length === 0) {
-  admin.initializeApp();
-}
+// Helper to ensure Firebase Admin is initialized only once.
+const ensureFirebaseAdminIsInitialized = () => {
+  if (admin.apps.length === 0) {
+    admin.initializeApp();
+  }
+};
 
 const RESEND_API_KEY =
   process.env.RESEND_API_KEY || '[REMOVED_RESEND_API_KEY]';
@@ -38,11 +40,14 @@ async function sendEmail({ to, subject, html }: SendEmailParams) {
     console.log(`Correo enviado a ${to} con éxito. Resend ID: ${data?.id}`);
     return { success: true, id: data?.id };
   } catch (e) {
-     if (e instanceof HttpsError) {
+    if (e instanceof HttpsError) {
       throw e;
     }
     console.error('Excepción inesperada en sendEmail:', e);
-    throw new HttpsError('internal', 'Ocurrió un error inesperado en el servidor de correo.');
+    throw new HttpsError(
+      'internal',
+      'Ocurrió un error inesperado en el servidor de correo.'
+    );
   }
 }
 
@@ -58,6 +63,7 @@ interface TaskDelegationEmailPayload {
 export const sendEmailTask = onCall(
   { region: 'us-central1' },
   async (request) => {
+    ensureFirebaseAdminIsInitialized();
     if (!request.auth) {
       throw new HttpsError(
         'unauthenticated',
@@ -101,6 +107,7 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
     region: 'us-central1',
   },
   async (event) => {
+    ensureFirebaseAdminIsInitialized();
     const snapshot = event.data;
     if (!snapshot) {
       console.log('No data associated with the event');
@@ -132,7 +139,7 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
       <p>¡Esperamos verte pronto!</p>
       <p>El equipo de Gestor D&G</p>
     `;
-    
+
     await sendEmail({ to: email, subject, html });
   }
 );
@@ -142,6 +149,8 @@ const ADMIN_UID = 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
 export const createImpersonationToken = onCall(
   { region: 'us-central1' },
   async (request) => {
+    ensureFirebaseAdminIsInitialized();
+
     if (request.auth?.uid !== ADMIN_UID) {
       throw new HttpsError(
         'permission-denied',
@@ -151,26 +160,41 @@ export const createImpersonationToken = onCall(
 
     const { email } = request.data;
     if (!email) {
-      throw new HttpsError('invalid-argument', 'Se requiere el correo electrónico del usuario a suplantar.');
+      throw new HttpsError(
+        'invalid-argument',
+        'Se requiere el correo electrónico del usuario a suplantar.'
+      );
     }
-    
+
     try {
       const userToImpersonate = await admin.auth().getUserByEmail(email);
       const targetUid = userToImpersonate.uid;
-        
-      console.log(`[createImpersonationToken] Administrador ${ADMIN_UID} suplantará a ${targetUid} (${email})`);
 
-      const customToken = await admin.auth().createCustomToken(targetUid, { impersonating: true });
+      console.log(
+        `[createImpersonationToken] Admin ${ADMIN_UID} is impersonating ${targetUid} (${email})`
+      );
+
+      const customToken = await admin
+        .auth()
+        .createCustomToken(targetUid, { impersonating: true });
       return { token: customToken };
-
     } catch (error: any) {
-      console.error(`[createImpersonationToken] Error procesando la suplantación para ${email}:`, error);
+      console.error(
+        `[createImpersonationToken] Failed to process impersonation for ${email}:`,
+        error
+      );
 
       if (error.code === 'auth/user-not-found') {
-        throw new HttpsError('not-found', 'No se encontró ningún usuario con ese correo electrónico.');
+        throw new HttpsError(
+          'not-found',
+          'No se encontró ningún usuario con ese correo electrónico.'
+        );
       }
 
-      throw new HttpsError('internal', 'No se pudo completar la operación de suplantación.');
+      throw new HttpsError(
+        'internal',
+        'No se pudo completar la operación de suplantación.'
+      );
     }
   }
 );
