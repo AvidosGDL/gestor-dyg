@@ -67,43 +67,20 @@ service cloud.firestore {
     }
 
     /**
-     * @description Rules for the top-level user document. This rule is primarily to
-     * prevent user enumeration by disallowing `list` operations on the `/users` collection.
-     * It allows a user to create their own root document but not modify it later.
-     * @path /users/{userId}
-     * @allow A new user with UID 'user_abc' (create)s their own document at `/users/user_abc`.
-     * @deny An anonymous user tries to (list) all documents in the `/users` collection.
-     * @deny A signed-in user 'user_abc' tries to (get) another user's document at `/users/user_xyz`.
-     * @principle Prevents user enumeration and secures the root of a user's data tree.
+     * @description Rules for the top-level user document.
      */
     match /users/{userId} {
       allow get: if isOwner(userId) || isSignedIn();
       allow list: if isSignedIn();
-      allow create: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.uid == userId;
       allow update: if isOwner(userId);
-      allow delete: if false;
+      allow delete: if isOwner(userId);
     }
     
     match /users/{userId}/teamMembers/{memberId} {
     	allow read: if isOwner(userId);
-      allow write: if isOwner(userId) || request.auth.uid == memberId;
-    }
-
-    /**
-     * @description Secures a user's profile document. Only the owner of the profile
-     * can read or write to it.
-     * @path /users/{userId}/profile/{profileId}
-     * @allow A signed-in user 'user_abc' (update)s their own profile at `/users/user_abc/profile/some_doc_id`.
-     * @deny A signed-in user 'user_xyz' tries to (get) another user's profile at `/users/user_abc/profile/some_doc_id`.
-     * @deny A user 'user_abc' (create)s a profile where the document's `id` field does not match 'user_abc'.
-     * @principle Restricts access to a user's own private data tree and validates relational integrity on create.
-     */
-    match /users/{userId}/profile/{profileId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
+      allow write: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
     
     match /users/{userId}/prospects/{prospectId} {
@@ -121,24 +98,6 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow read: if isSignedIn();
       allow update, delete: if false;
-    }
-
-    /**
-     * @description Secures a user's task documents. Only the owner of the tasks
-     * can perform any create, read, update, or delete operations.
-     * @path /users/{userId}/tasks/{taskId}
-     * @allow A signed-in user 'user_abc' (create)s a new task at `/users/user_abc/tasks/new_task_123`.
-     * @allow A signed-in user 'user_abc' (list)s all of their own tasks.
-     * @deny A signed-in user 'user_xyz' tries to (delete) another user's task at `/users/user_abc/tasks/some_task_id`.
-     * @deny A user 'user_abc' tries to (update) a task and change its immutable `id` field.
-     * @principle Enforces strict document ownership within a subcollection and ensures data integrity.
-     */
-    match /users/{userId}/tasks/{taskId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.id == taskId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
     }
 
     /**

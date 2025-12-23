@@ -1,7 +1,6 @@
-
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -55,6 +54,7 @@ const memberSchema = z.object({
   role: z.string().min(1, 'El rol es requerido'),
   phone: z.string().optional(),
   avatarUrl: z.string().url('Por favor, selecciona un avatar'),
+  uid: z.string(),
 });
 
 type MemberFormValues = z.infer<typeof memberSchema>;
@@ -68,7 +68,7 @@ function EditMemberDialog({
   member: TeamMember | null;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onSave: (id: string, uid: string, data: MemberFormValues) => void;
+  onSave: (id: string, data: MemberFormValues) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [customAvatarFile, setCustomAvatarFile] = useState<string | null>(null);
@@ -94,7 +94,7 @@ function EditMemberDialog({
   React.useEffect(() => {
     if (member && isOpen) {
       reset(member);
-      if (!avatarOptions.includes(member.avatarUrl)) {
+      if (member.avatarUrl && !avatarOptions.includes(member.avatarUrl)) {
         setCustomAvatarPreview(member.avatarUrl);
       } else {
         setCustomAvatarPreview(null);
@@ -130,7 +130,7 @@ function EditMemberDialog({
       if (customAvatarFile) {
         finalAvatarUrl = await uploadAvatar(member.email, customAvatarFile);
       }
-      onSave(member.id, member.uid, {...data, avatarUrl: finalAvatarUrl});
+      onSave(member.id, {...data, avatarUrl: finalAvatarUrl});
     }
   };
 
@@ -285,10 +285,10 @@ export default function TeamView() {
     setIsEditMemberDialogOpen(true);
   };
 
-  const handleSaveMember = async (id: string, uid: string, data: MemberFormValues) => {
+  const handleSaveMember = async (id: string, data: MemberFormValues) => {
     if (!collectionPath) return;
     const docRef = doc(firestore, collectionPath, id);
-    const updatedData = { ...data, uid }; // Ensure UID is preserved
+    const updatedData = { ...data };
     try {
       await updateDoc(docRef, updatedData);
       toast({
@@ -320,41 +320,44 @@ export default function TeamView() {
   };
 
   const handleMigration = async () => {
-    if (!firestore) return;
+    if (!firestore || !user || !members) return;
     setIsMigrating(true);
     toast({ title: 'Iniciando migración...', description: 'Esto puede tardar unos segundos.' });
 
     try {
         const tasksRef = collection(firestore, "tasks");
-        const usersRef = collection(firestore, "users");
+        // Query only for tasks owned by the current admin/user.
+        const ownerTasksQuery = query(tasksRef, where('ownerId', '==', user.uid));
         
-        const [tasksSnap, usersSnap] = await Promise.all([
-            getDocs(tasksRef),
-            getDocs(usersRef),
+        const [tasksSnap] = await Promise.all([
+            getDocs(ownerTasksQuery),
         ]);
 
-        const allTasks = tasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
-        const usersByEmail = new Map(usersSnap.docs.map(u => [u.data().email, u.id]));
+        // Build the email -> uid map from the local 'members' state.
+        const emailToUidMap = new Map(members.map(m => [m.email, m.uid]));
         
         const batch = writeBatch(firestore);
         let updatedCount = 0;
 
-        for (const task of allTasks) {
-            if (task.delegateToEmail && (!task.delegateToId || !usersByEmail.has(task.delegateToEmail))) {
-                const correctUid = usersByEmail.get(task.delegateToEmail);
-                if (correctUid && task.delegateToId !== correctUid) {
-                    const taskRef = doc(firestore, "tasks", task.id);
+        tasksSnap.forEach(taskDoc => {
+            const task = taskDoc.data() as any;
+            // Check if task is delegated by email but has a missing or incorrect delegateToId
+            if (task.delegateToEmail && (!task.delegateToId || task.delegateToId !== emailToUidMap.get(task.delegateToEmail))) {
+                const correctUid = emailToUidMap.get(task.delegateToEmail);
+                if (correctUid) {
+                    const taskRef = doc(firestore, "tasks", taskDoc.id);
                     batch.update(taskRef, { delegateToId: correctUid });
                     updatedCount++;
                 }
             }
-        }
+        });
+
 
         if (updatedCount > 0) {
             await batch.commit();
             toast({ title: '¡Migración completada!', description: `${updatedCount} tareas han sido actualizadas.` });
         } else {
-            toast({ title: 'Migración finalizada', description: 'No se encontraron tareas para actualizar.' });
+            toast({ title: 'Migración finalizada', description: 'No se encontraron tareas para actualizar en tu cuenta.' });
         }
 
     } catch (error: any) {
@@ -370,7 +373,7 @@ export default function TeamView() {
 };
 
   const isLoading = userLoading || membersLoading;
-  const isAdmin = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
+  const isAdmin = user?.email === 'gdldanny@gmail.com';
 
   return (
     <>

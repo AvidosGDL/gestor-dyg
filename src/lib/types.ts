@@ -73,6 +73,7 @@ export interface UserProfile {
   avatarUrl: string;
   role: string;
   phone?: string;
+  uid: string;
 }
 
 export interface ContactLogEntry {

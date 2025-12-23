@@ -61,33 +61,36 @@
       "type": "object",
       "description": "Represents a user profile in the TaskMaster Pro application.",
       "properties": {
-        "id": {
+        "uid": {
           "type": "string",
-          "description": "Unique identifier for the UserProfile entity."
+          "description": "Unique identifier for the UserProfile entity, matching the Firebase Auth UID."
         },
-        "firstName": {
+        "name": {
           "type": "string",
-          "description": "The first name of the user."
-        },
-        "lastName": {
-          "type": "string",
-          "description": "The last name of the user."
+          "description": "The name of the user."
         },
         "email": {
           "type": "string",
           "description": "The email address of the user.",
           "format": "email"
         },
-        "profilePictureUrl": {
+        "avatarUrl": {
           "type": "string",
           "description": "URL of the user's profile picture.",
           "format": "uri"
+        },
+        "role": {
+          "type": "string",
+          "description": "The role of the user."
+        },
+        "phone": {
+          "type": "string",
+          "description": "The phone number of the user."
         }
       },
       "required": [
-        "id",
-        "firstName",
-        "lastName",
+        "uid",
+        "name",
         "email"
       ]
     },
@@ -206,13 +209,13 @@
   "firestore": {
     "structure": [
       {
-        "path": "/users/{userId}/profile",
+        "path": "/users/{userId}",
         "definition": {
           "entityName": "UserProfile",
           "schema": {
             "$ref": "#/backend/entities/UserProfile"
           },
-          "description": "Stores user profile information. The `userId` parameter ensures that only the authenticated user can access their own profile data.",
+          "description": "Stores user profile information.",
           "params": [
             {
               "name": "userId",

@@ -26,7 +26,7 @@ import { User } from 'firebase/auth';
 
 interface TasksContextType {
   tasks: Task[];
-  addTask: (taskData: Partial<Task>, user: User | null) => void;
+  addTask: (taskData: Partial<Omit<Task, 'id' | 'ownerId'>>, user: User | null) => void;
   updateTask: (id: string, updatedData: Partial<Omit<Task, 'id'>>, user: User | null, newAttachments?: Attachment[]) => void;
   bulkUpdateTasks: (updates: { id: string, changes: Partial<Task> }[], user: User | null) => void;
   deleteTask: (id: string) => void;
