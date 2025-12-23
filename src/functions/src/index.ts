@@ -224,7 +224,6 @@ export const createImpersonationToken = onCall(
     console.log(`[createImpersonationToken] Administrador ${ADMIN_UID} suplantará a ${targetUid} (${email})`);
 
     try {
-        // 3. Crear un token personalizado con una "claim" especial
         const customToken = await admin.auth().createCustomToken(targetUid, { impersonating: true });
         return { token: customToken };
     } catch (error: any) {

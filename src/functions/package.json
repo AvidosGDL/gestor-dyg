@@ -1,7 +1,7 @@
 {
   "name": "functions",
   "scripts": {
-    "build": "tsc && cp package.json lib/",
+    "build": "tsc",
     "build:watch": "tsc --watch",
     "serve": "npm run build && firebase emulators:start --only functions",
     "shell": "npm run build && firebase functions:shell",
@@ -21,7 +21,7 @@
   "devDependencies": {
     "firebase-functions-test": "^3.1.0",
     "tsx": "^4.16.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.5.3"
   },
   "private": true
 }
