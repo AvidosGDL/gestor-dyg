@@ -205,20 +205,10 @@ export const createImpersonationToken = onCall(
       throw new HttpsError('invalid-argument', 'Se requiere el correo electrónico del usuario a suplantar.');
     }
     
-    let userToImpersonate;
     try {
-        // 2. Obtener el usuario por su correo electrónico
-        userToImpersonate = await admin.auth().getUserByEmail(email);
-    } catch (error: any) {
-        console.error(`[createImpersonationToken] Error al buscar usuario por email ${email}:`, error);
-        if (error.code === 'auth/user-not-found') {
-            throw new HttpsError('not-found', 'No se encontró ningún usuario con ese correo electrónico.');
-        }
-        throw new HttpsError('internal', 'Ocurrió un error al buscar el usuario.');
-    }
-
-    try {
+        const userToImpersonate = await admin.auth().getUserByEmail(email);
         const targetUid = userToImpersonate.uid;
+        
         console.log(`[createImpersonationToken] Administrador ${ADMIN_UID} suplantará a ${targetUid} (${email})`);
 
         // 3. Crear un token personalizado con una "claim" especial
@@ -227,9 +217,14 @@ export const createImpersonationToken = onCall(
         return { token: customToken };
 
     } catch (error: any) {
-      console.error(`[createImpersonationToken] Error al intentar crear token para ${email}:`, error);
-      // Para cualquier otro error, lanzar un HttpsError genérico pero bien formado.
-      throw new HttpsError('internal', 'Ocurrió un error inesperado al crear el token de suplantación.');
+        console.error(`[createImpersonationToken] Error al procesar suplantación para ${email}:`, error);
+
+        if (error.code === 'auth/user-not-found') {
+            throw new HttpsError('not-found', 'No se encontró ningún usuario con ese correo electrónico.');
+        }
+
+        // Para cualquier otro error, lanzar un HttpsError genérico pero bien formado.
+        throw new HttpsError('internal', 'Ocurrió un error inesperado al crear el token de suplantación.');
     }
   }
 );
