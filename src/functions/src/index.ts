@@ -222,7 +222,8 @@ export const createImpersonationToken = onCall(
       if (error.code === 'auth/user-not-found') {
         throw new HttpsError('not-found', 'No se encontró ningún usuario con ese correo electrónico.');
       }
-      throw new HttpsError('internal', error.message || 'Ocurrió un error interno al crear el token.');
+      // Para cualquier otro error, lanzar un HttpsError genérico pero bien formado.
+      throw new HttpsError('internal', 'Ocurrió un error inesperado al crear el token de suplantación.');
     }
   }
 );
