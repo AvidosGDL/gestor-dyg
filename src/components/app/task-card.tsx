@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -83,7 +84,8 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
   }, [collectionPath, firestore]);
   const { data: members } = useCollection<TeamMember>(membersCollectionRef);
 
-  const delegatedMember = members?.find(m => m.id === task.delegateToId);
+  const delegatedMember = members?.find(m => m.uid === task.delegateToId);
+  const ownerMember = members?.find(m => m.uid === task.ownerId);
 
   const handleStatusChange = (newStatus: TaskStatus) => {
     updateTask(task.id, { status: newStatus }, user);
@@ -112,6 +114,8 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
   const lastEdit: EditLogEntry | undefined = task.editHistory && task.editHistory.length > 0
     ? task.editHistory[task.editHistory.length - 1]
     : undefined;
+
+  const creatorName = ownerMember?.name || task.delegatedByName || 'Desconocido';
 
 
   return (
@@ -224,18 +228,19 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
         <div className="flex flex-col space-y-2 text-xs mt-2">
             <div className="flex justify-between items-center">
                 <div className="flex flex-col gap-2 items-start">
-                    {isOwner && task.delegateToId && delegatedMember && (
+                    
+                    <Badge variant="outline" className="flex items-center gap-1.5">
+                        <User size={12} />
+                        Creada por: {creatorName}
+                    </Badge>
+
+                    {task.delegateToId && delegatedMember && (
                          <Badge variant="secondary" className="flex items-center gap-1.5">
                             <UserCheck size={12} />
-                            Delegado a: {delegatedMember.name}
+                            Delegada a: {delegatedMember.name}
                         </Badge>
                     )}
-                    {isDelegatedToCurrentUser && task.delegatedByName && (
-                        <Badge className="flex items-center gap-1.5 bg-sky-500/20 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/30">
-                            <User size={12} />
-                            Delegada por: {task.delegatedByName}
-                        </Badge>
-                    )}
+
                     {totalFocusTimeMs > 0 && (
                         <div className="flex items-center gap-1 text-muted-foreground font-medium">
                             <Clock size={12} />
@@ -356,3 +361,5 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
     </Card>
   );
 }
+
+    
