@@ -26,6 +26,7 @@ import ChatWidget from '@/components/app/chat-widget';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
 import { signOut } from 'firebase/auth';
+import { cn } from '@/lib/utils';
 
 
 export type View = 'board' | 'planning' | 'team' | 'import' | 'prospects' | 'analytics' | 'history';
