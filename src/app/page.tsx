@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
 import { SidebarProvider, Sidebar, SidebarInset, SidebarRail, SidebarTrigger } from '@/components/ui/sidebar';
 import { TasksProvider } from '@/contexts/tasks-context';
 import { ProspectsProvider } from '@/contexts/prospects-context';
@@ -23,6 +23,9 @@ import AnalyticsView from '@/components/app/analytics-view';
 import HistoryView from '@/components/app/history-view';
 import { doc, getDoc } from 'firebase/firestore';
 import ChatWidget from '@/components/app/chat-widget';
+import { Button } from '@/components/ui/button';
+import { LogOut } from 'lucide-react';
+import { signOut } from 'firebase/auth';
 
 
 export type View = 'board' | 'planning' | 'team' | 'import' | 'prospects' | 'analytics' | 'history';
@@ -39,12 +42,37 @@ const productivityTips = [
 
 
 function Dashboard() {
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
+  const router = useRouter();
   const [view, setView] = useState<View>('board');
   const [activeTaskForPomodoro, setActiveTaskForPomodoro] = useState<Task | null>(
     null
   );
   const [taskFilter, setTaskFilter] = useState<string>('me');
   const [currentTip, setCurrentTip] = useState(productivityTips[0]);
+  const [isImpersonating, setIsImpersonating] = useState(false);
+  const [impersonatedUserName, setImpersonatedUserName] = useState('');
+
+  useEffect(() => {
+    const checkImpersonation = async () => {
+      if (user) {
+        const tokenResult = await user.getIdTokenResult();
+        const impersonating = tokenResult.claims.impersonating === true;
+        setIsImpersonating(impersonating);
+        if (impersonating) {
+          setImpersonatedUserName(user.displayName || 'Usuario');
+        }
+      }
+    };
+    checkImpersonation();
+  }, [user]);
+
+  const handleStopImpersonating = async () => {
+    await signOut(auth);
+    localStorage.removeItem('impersonator_uid');
+    router.push('/login');
+  };
 
   useEffect(() => {
     // Set an initial random tip
@@ -64,11 +92,19 @@ function Dashboard() {
       <ProspectsProvider>
         <HistoryProvider>
           <ChatProvider>
+             {isImpersonating && (
+              <div className="bg-yellow-400 text-yellow-900 font-bold text-center p-2 flex items-center justify-center gap-4 fixed top-0 w-full z-50">
+                <span>Estás viendo como <strong>{impersonatedUserName}</strong>.</span>
+                <Button variant="ghost" size="sm" onClick={handleStopImpersonating} className="border border-yellow-800/50 hover:bg-yellow-500 h-auto">
+                  <LogOut className="mr-2 h-4 w-4" /> Volver a mi cuenta
+                </Button>
+              </div>
+            )}
             <SidebarProvider defaultOpen={true}>
               <Sidebar
                 variant="sidebar"
                 collapsible="icon"
-                className="text-sidebar-foreground z-20"
+                className={cn("text-sidebar-foreground z-20", isImpersonating && "pt-10")}
               >
                 <div className="group flex h-full flex-col">
                   <div className="flex h-16 items-center justify-between p-4 group-data-[state=collapsed]:hidden">
@@ -100,7 +136,7 @@ function Dashboard() {
                 </div>
               </Sidebar>
 
-              <SidebarInset>
+              <SidebarInset className={cn(isImpersonating && "pt-10")}>
                 <AppHeader
                   view={view}
                   activeTaskForPomodoro={activeTaskForPomodoro}

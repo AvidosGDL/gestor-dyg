@@ -177,8 +177,52 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
         `[onInvitationCreatedSendEmail] Falló el envío de invitación a ${email}:`,
         error
       );
-      // No re-lanzamos el error aquí porque es un trigger y no hay un cliente esperando una respuesta.
-      // El error ya está registrado en los logs de Firebase.
+    }
+  }
+);
+
+
+const ADMIN_UID = 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
+
+/**
+ * Cloud Function para crear un token de suplantación.
+ * Solo puede ser llamada por el administrador.
+ */
+export const createImpersonationToken = onCall(
+  { region: 'us-central1' },
+  async (request) => {
+    // 1. Verificar que el que llama es el administrador
+    if (request.auth?.uid !== ADMIN_UID) {
+      console.error(`[createImpersonationToken] Intento de llamada no autorizado por UID: ${request.auth?.uid}`);
+      throw new HttpsError(
+        'permission-denied',
+        'Solo el administrador puede realizar esta acción.'
+      );
+    }
+
+    const { email } = request.data;
+    if (!email) {
+      throw new HttpsError('invalid-argument', 'Se requiere el correo electrónico del usuario a suplantar.');
+    }
+
+    try {
+      // 2. Obtener el usuario por su correo electrónico
+      const userToImpersonate = await admin.auth().getUserByEmail(email);
+      const targetUid = userToImpersonate.uid;
+      
+      console.log(`[createImpersonationToken] Administrador ${ADMIN_UID} suplantará a ${targetUid} (${email})`);
+
+      // 3. Crear un token personalizado con una "claim" especial
+      const customToken = await admin.auth().createCustomToken(targetUid, { impersonating: true });
+      
+      return { token: customToken };
+
+    } catch (error: any) {
+      console.error(`[createImpersonationToken] Error al intentar crear token para ${email}:`, error);
+      if (error.code === 'auth/user-not-found') {
+        throw new HttpsError('not-found', 'No se encontró ningún usuario con ese correo electrónico.');
+      }
+      throw new HttpsError('internal', error.message || 'Ocurrió un error interno al crear el token.');
     }
   }
 );

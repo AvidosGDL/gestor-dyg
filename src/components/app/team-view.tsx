@@ -19,11 +19,13 @@ import {
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Edit, Loader2, ImageUp, Wand2 } from 'lucide-react';
+import { Trash2, Edit, Loader2, ImageUp, Wand2, LogIn } from 'lucide-react';
 import { type TeamMember } from '@/lib/types';
-import { useCollection, useUser, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useUser, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
 import { collection, deleteDoc, doc, updateDoc, writeBatch, getDocs, query, where } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { signInWithCustomToken } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import {
@@ -267,9 +269,11 @@ function EditMemberDialog({
 
 export default function TeamView() {
   const { user, loading: userLoading } = useUser();
+  const auth = useAuth();
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [impersonationEmail, setImpersonationEmail] = useState('');
 
   const collectionPath = user ? `users/${user.uid}/teamMembers` : null;
   const membersCollectionRef = useMemoFirebase(() => {
@@ -290,7 +294,6 @@ export default function TeamView() {
   const handleSaveMember = async (id: string, data: MemberFormValues) => {
     if (!collectionPath) return;
     const docRef = doc(firestore, collectionPath, id);
-    // Ensure UID is not lost on update
     const updatedData = { ...data };
     try {
       await updateDoc(docRef, updatedData);
@@ -329,11 +332,9 @@ export default function TeamView() {
 
     try {
         const tasksRef = collection(firestore, "tasks");
-        // We only query for tasks owned by the admin to respect security rules.
         const ownerTasksQuery = query(tasksRef, where('ownerId', '==', user.uid));
         
         const tasksSnap = await getDocs(ownerTasksQuery);
-        // We can build the map from `members` which is already available in the component.
         const emailToUidMap = new Map(members.map(m => [m.email, m.uid]));
         
         const batch = writeBatch(firestore);
@@ -341,7 +342,6 @@ export default function TeamView() {
 
         tasksSnap.forEach(taskDoc => {
             const task = taskDoc.data() as any;
-            // Check if a task has a delegateEmail but the delegateToId is missing or incorrect
             if (task.delegateToEmail && (!task.delegateToId || task.delegateToId !== emailToUidMap.get(task.delegateToEmail))) {
                 const correctUid = emailToUidMap.get(task.delegateToEmail);
                 if (correctUid) {
@@ -379,7 +379,6 @@ export default function TeamView() {
 
     try {
         const usersRef = collection(firestore, "users");
-        // We only need emails of the current user's team members
         const teamMemberEmails = members.map(m => m.email);
         
         if (teamMemberEmails.length === 0) {
@@ -402,7 +401,6 @@ export default function TeamView() {
 
         members.forEach(member => {
             const correctUid = emailToCorrectUidMap.get(member.email);
-            // Update if the UID in teamMembers is missing or incorrect
             if (correctUid && member.uid !== correctUid) {
                 const memberDocRef = doc(firestore, `users/${user.uid}/teamMembers`, member.id);
                 batch.update(memberDocRef, { uid: correctUid });
@@ -426,7 +424,41 @@ export default function TeamView() {
     } finally {
         setIsProcessing(false);
     }
-};
+  };
+
+  const handleImpersonate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!impersonationEmail.trim() || !auth) return;
+
+    setIsProcessing(true);
+    toast({ title: 'Iniciando suplantación...', description: `Solicitando acceso como ${impersonationEmail}`});
+
+    try {
+        const functions = getFunctions();
+        const createImpersonationToken = httpsCallable(functions, 'createImpersonationToken');
+        const result: any = await createImpersonationToken({ email: impersonationEmail });
+        
+        const { token } = result.data;
+
+        await signInWithCustomToken(auth, token);
+        
+        toast({ title: '¡Éxito!', description: 'Has iniciado sesión como otro usuario. Recargando...' });
+        
+        // Save the original admin UID to get back
+        localStorage.setItem('impersonator_uid', user!.uid);
+        window.location.href = '/';
+
+    } catch (error: any) {
+        console.error('Error al suplantar:', error);
+        toast({
+            variant: 'destructive',
+            title: 'Error de Suplantación',
+            description: error.message || 'No se pudo completar la operación.',
+        });
+    } finally {
+        setIsProcessing(false);
+    }
+  }
 
 
   const isLoading = userLoading || membersLoading;
@@ -439,14 +471,38 @@ export default function TeamView() {
             <Card>
                  <CardHeader>
                     <CardTitle>Panel de Administrador</CardTitle>
-                    <CardDescription>Herramientas especiales para la gestión y reparación de datos.</CardDescription>
+                    <CardDescription>Herramientas especiales para la gestión, diagnóstico y reparación de datos.</CardDescription>
                 </CardHeader>
-                <CardContent className="flex flex-col md:flex-row gap-4">
+                <CardContent className="space-y-6">
+                  <div className="space-y-4 p-4 border rounded-lg">
+                     <h4 className="font-semibold">Suplantación de Usuario</h4>
+                     <form onSubmit={handleImpersonate} className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                        <div className="w-full sm:w-auto flex-grow">
+                          <Label htmlFor="impersonate-email" className="sr-only">Correo electrónico</Label>
+                          <Input
+                            id="impersonate-email" 
+                            type="email"
+                            placeholder="Email del usuario a suplantar"
+                            value={impersonationEmail}
+                            onChange={(e) => setImpersonationEmail(e.target.value)}
+                            disabled={isProcessing}
+                          />
+                        </div>
+                        <Button type="submit" disabled={isProcessing || !impersonationEmail}>
+                           {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
+                           Iniciar Sesión Como
+                        </Button>
+                     </form>
+                     <p className="text-xs text-muted-foreground mt-2">
+                        Inicia sesión como cualquier usuario del sistema para verificar su funcionalidad.
+                     </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                <Button disabled={isProcessing}>
-                                    {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                <Button disabled={isProcessing} className="w-full justify-start">
+                                    <Wand2 className="mr-2 h-4 w-4" />
                                     Sincronizar UIDs del Equipo
                                 </Button>
                             </AlertDialogTrigger>
@@ -459,7 +515,7 @@ export default function TeamView() {
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleSyncUids}>Sí, sincronizar</AlertDialogAction>
+                                    <AlertDialogAction onClick={handleSyncUids} disabled={isProcessing}>Sí, sincronizar</AlertDialogAction>
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>
@@ -470,8 +526,8 @@ export default function TeamView() {
                      <div>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                <Button disabled={isProcessing} variant="secondary">
-                                    {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                <Button disabled={isProcessing} variant="secondary" className="w-full justify-start">
+                                    <Wand2 className="mr-2 h-4 w-4" />
                                     Migrar Delegaciones de Tareas
                                 </Button>
                             </AlertDialogTrigger>
@@ -484,7 +540,7 @@ export default function TeamView() {
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleMigration}>Sí, iniciar migración</AlertDialogAction>
+                                    <AlertDialogAction onClick={handleMigration} disabled={isProcessing}>Sí, iniciar migración</AlertDialogAction>
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>
@@ -492,6 +548,7 @@ export default function TeamView() {
                            Corrige las tareas delegadas antiguas que no tienen el UID asignado.
                         </p>
                     </div>
+                  </div>
                 </CardContent>
             </Card>
         )}
