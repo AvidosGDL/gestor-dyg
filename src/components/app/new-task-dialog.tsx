@@ -57,7 +57,7 @@ const defaultValues: Partial<TaskFormValues> = {
   progress: 0,
   priority: 'medium',
   dueDate: '',
-  delegateToEmail: 'null',
+  delegateToEmail: '',
   status: 'pendiente',
   description: '',
   value: 0,
@@ -92,7 +92,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
 
     addTask({
       ...data,
-      delegateToEmail: data.delegateToEmail === 'null' ? null : data.delegateToEmail,
+      delegateToEmail: data.delegateToEmail === '' ? null : data.delegateToEmail,
     } as Omit<Task, 'id'>, user);
 
     toast({
@@ -286,14 +286,14 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Delegar A (por Correo)</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || ''}>
                         <FormControl>
                         <SelectTrigger>
                             <SelectValue placeholder="Seleccionar miembro del equipo..."/>
                         </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                            <SelectItem value="null">Nadie / Tarea personal</SelectItem>
+                            <SelectItem value="">Nadie / Tarea personal</SelectItem>
                             {members?.map(member => (
                               <SelectItem key={member.id} value={member.email}>
                                 {member.email} ({member.name})

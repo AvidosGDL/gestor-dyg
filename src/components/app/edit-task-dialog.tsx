@@ -38,7 +38,7 @@ import { format, parseISO, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { collection, doc, getDoc } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Calendar } from '../ui/calendar';
 
@@ -203,7 +203,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
     if (task && open) {
         form.reset({
             ...task,
-            delegateToEmail: task.delegateToEmail || 'null',
+            delegateToEmail: task.delegateToEmail || '',
             dueDate: task.dueDate ? task.dueDate.split('T')[0] : undefined,
             completionComment: task.completionComment || '',
             attachments: task.attachments || [],
@@ -214,7 +214,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
         setSessionStart(null);
         setElapsedTime(0);
     }
-  }, [task, open, form, user, updateTask]);
+  }, [task, open, form]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -483,14 +483,14 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Delegar A (por Correo)</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value || 'null'} disabled={!isOwner}>
+                  <Select onValueChange={field.onChange} value={field.value || ''} disabled={!isOwner}>
                         <FormControl>
                         <SelectTrigger>
                             <SelectValue placeholder="Seleccionar miembro del equipo..."/>
                         </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                            <SelectItem value="null">Nadie / Tarea personal</SelectItem>
+                            <SelectItem value="">Nadie / Tarea personal</SelectItem>
                             {members?.map(member => (
                               <SelectItem key={member.id} value={member.email}>
                                 {member.email} ({member.name})

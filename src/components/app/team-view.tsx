@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Trash2, Edit, Loader2, ImageUp, Wand2 } from 'lucide-react';
 import { type TeamMember } from '@/lib/types';
 import { useCollection, useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, deleteDoc, doc, updateDoc, writeBatch, getDocs, query, where, collectionGroup } from 'firebase/firestore';
+import { collection, deleteDoc, doc, updateDoc, writeBatch, getDocs, query, where } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -319,6 +319,7 @@ export default function TeamView() {
   };
 
   const handleMigration = async () => {
+    if (!firestore) return;
     setIsMigrating(true);
     toast({ title: 'Iniciando migración...', description: 'Esto puede tardar unos segundos.' });
 
@@ -338,15 +339,11 @@ export default function TeamView() {
         let updatedCount = 0;
 
         for (const task of allTasks) {
-            // Solo migrar si hay un email de delegado, pero no un ID de delegado correcto (UID)
             if (task.delegateToEmail && (!task.delegateToId || !usersByEmail.has(task.delegateToEmail))) {
                 const correctUid = usersByEmail.get(task.delegateToEmail);
                 if (correctUid && task.delegateToId !== correctUid) {
                     const taskRef = doc(firestore, "tasks", task.id);
-                    batch.update(taskRef, { 
-                        delegateToId: correctUid,
-                    });
-                    console.log(`Migrando Tarea ID: ${task.id} - Cambiando delegateToId a ${correctUid}`);
+                    batch.update(taskRef, { delegateToId: correctUid });
                     updatedCount++;
                 }
             }
