@@ -39,6 +39,7 @@ import { cn } from '@/lib/utils';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { Calendar } from '../ui/calendar';
 
 
 const fileSchema = z.object({
@@ -105,6 +106,7 @@ const getFieldName = (field: string) => {
         status: 'Estado',
         value: 'Potencial',
         probability: 'Probabilidad',
+        delegateToEmail: 'Delegado A'
     };
     return names[field] || field;
 };
@@ -209,7 +211,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
         form.reset({
             ...task,
             delegateToEmail: task.delegateToEmail || 'null',
-            dueDate: task.dueDate,
+            dueDate: task.dueDate ? task.dueDate.split('T')[0] : undefined,
             completionComment: task.completionComment || '',
             attachments: task.attachments || [],
         });
@@ -219,7 +221,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
         setSessionStart(null);
         setElapsedTime(0);
     }
-  }, [task, open, form, user]);
+  }, [task, open, form, user, updateTask]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -264,7 +266,6 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
 
       const finalData: Partial<Task> = {
         ...data,
-        delegateToEmail: data.delegateToEmail === 'null' ? null : data.delegateToEmail,
       };
 
       updateTask(task.id, finalData, user, newAttachments);
@@ -385,7 +386,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                           type="text"
                           placeholder="Valor en USD"
                           className="pl-9"
-                          value={value.toLocaleString('en-US')}
+                          value={value ? value.toLocaleString('en-US') : '0'}
                           onChange={(e) => {
                             const rawValue = e.target.value.replace(/[^0-9]/g, '');
                             const numericValue = rawValue === '' ? 0 : Number(rawValue);
@@ -472,7 +473,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                         <Calendar
                           mode="single"
                           selected={field.value ? parseISO(field.value) : undefined}
-                          onSelect={(date) => field.onChange(date?.toISOString())}
+                          onSelect={(date) => field.onChange(date?.toISOString().split('T')[0])}
                           disabled={(date) => date < new Date("1900-01-01")}
                           initialFocus
                         />
@@ -589,7 +590,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                           multiple
                           className="hidden"
                           onChange={handleFileChange}
-                          accept=".pdf,.doc,.docx,.xls,.xlsx,image/*"
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,image/*,.zip,.rar"
                           disabled={isUploading}
                         />
                      </div>
@@ -636,7 +637,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                                     <span className="text-muted-foreground">{formatDistanceToNow(parseISO(log.date), { addSuffix: true, locale: es })}</span>
                                 </div>
                                 <ul className="space-y-1 list-disc pl-4">
-                                {log.changes.map((change, cIndex) => (
+                                {log.changes && log.changes.map((change, cIndex) => (
                                     <li key={cIndex} className="text-muted-foreground">
                                         <span className="font-semibold text-foreground/80">{getFieldName(change.field)}: </span>
                                         <span className="text-destructive line-through">{formatFieldValue(change.field, change.from)}</span>
