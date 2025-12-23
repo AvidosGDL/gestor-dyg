@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
@@ -575,7 +576,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                       <div key={`existing-${index}`} className="flex items-center justify-between p-2 bg-muted/50 rounded-md text-sm">
                         <span className="truncate flex-1 mr-2">{file.name}</span>
                         <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(file.url, '_blank')}>
+                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(file.url, '_blank')}>
                               <Eye size={14} />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownload(file.url, file.name)}>
@@ -609,5 +610,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
     </Dialog>
   );
 }
+
+    
 
     
