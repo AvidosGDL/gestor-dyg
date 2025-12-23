@@ -217,6 +217,8 @@ function EditMemberDialog({
               type="email"
               placeholder="juan.perez@tuempresa.com"
               {...register('email')}
+              disabled
+              className="disabled:opacity-100 disabled:cursor-not-allowed bg-muted/50"
             />
             {errors.email && (
               <p className="text-sm text-destructive">{errors.email.message}</p>
@@ -267,7 +269,7 @@ export default function TeamView() {
   const { user, loading: userLoading } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
-  const [isMigrating, setIsMigrating] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const collectionPath = user ? `users/${user.uid}/teamMembers` : null;
   const membersCollectionRef = useMemoFirebase(() => {
@@ -288,6 +290,7 @@ export default function TeamView() {
   const handleSaveMember = async (id: string, data: MemberFormValues) => {
     if (!collectionPath) return;
     const docRef = doc(firestore, collectionPath, id);
+    // Ensure UID is not lost on update
     const updatedData = { ...data };
     try {
       await updateDoc(docRef, updatedData);
@@ -321,15 +324,16 @@ export default function TeamView() {
 
   const handleMigration = async () => {
     if (!firestore || !user || !members) return;
-    setIsMigrating(true);
-    toast({ title: 'Iniciando migración...', description: 'Esto puede tardar unos segundos.' });
+    setIsProcessing(true);
+    toast({ title: 'Iniciando migración...', description: 'Corrigiendo `delegateToId` en tus tareas.' });
 
     try {
         const tasksRef = collection(firestore, "tasks");
+        // We only query for tasks owned by the admin to respect security rules.
         const ownerTasksQuery = query(tasksRef, where('ownerId', '==', user.uid));
         
         const tasksSnap = await getDocs(ownerTasksQuery);
-
+        // We can build the map from `members` which is already available in the component.
         const emailToUidMap = new Map(members.map(m => [m.email, m.uid]));
         
         const batch = writeBatch(firestore);
@@ -337,6 +341,7 @@ export default function TeamView() {
 
         tasksSnap.forEach(taskDoc => {
             const task = taskDoc.data() as any;
+            // Check if a task has a delegateEmail but the delegateToId is missing or incorrect
             if (task.delegateToEmail && (!task.delegateToId || task.delegateToId !== emailToUidMap.get(task.delegateToEmail))) {
                 const correctUid = emailToUidMap.get(task.delegateToEmail);
                 if (correctUid) {
@@ -363,18 +368,25 @@ export default function TeamView() {
             description: error.message || 'Ocurrió un error inesperado.'
         });
     } finally {
-        setIsMigrating(false);
+        setIsProcessing(false);
     }
 };
 
  const handleSyncUids = async () => {
     if (!firestore || !user || !members) return;
-    setIsMigrating(true);
+    setIsProcessing(true);
     toast({ title: 'Sincronizando UIDs...', description: 'Verificando la integridad de los datos del equipo.' });
 
     try {
         const usersRef = collection(firestore, "users");
+        // We only need emails of the current user's team members
         const teamMemberEmails = members.map(m => m.email);
+        
+        if (teamMemberEmails.length === 0) {
+            toast({ title: 'Sincronización finalizada', description: 'No hay miembros en el equipo para sincronizar.' });
+            setIsProcessing(false);
+            return;
+        }
 
         const usersQuery = query(usersRef, where('email', 'in', teamMemberEmails));
         const usersSnap = await getDocs(usersQuery);
@@ -390,6 +402,7 @@ export default function TeamView() {
 
         members.forEach(member => {
             const correctUid = emailToCorrectUidMap.get(member.email);
+            // Update if the UID in teamMembers is missing or incorrect
             if (correctUid && member.uid !== correctUid) {
                 const memberDocRef = doc(firestore, `users/${user.uid}/teamMembers`, member.id);
                 batch.update(memberDocRef, { uid: correctUid });
@@ -411,13 +424,13 @@ export default function TeamView() {
             description: error.message || 'Ocurrió un error inesperado.'
         });
     } finally {
-        setIsMigrating(false);
+        setIsProcessing(false);
     }
 };
 
 
   const isLoading = userLoading || membersLoading;
-  const isAdmin = user?.email === 'gdldanny@gmail.com';
+  const isAdmin = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
 
   return (
     <>
@@ -426,14 +439,14 @@ export default function TeamView() {
             <Card>
                  <CardHeader>
                     <CardTitle>Panel de Administrador</CardTitle>
-                    <CardDescription>Herramientas especiales para la gestión del sistema.</CardDescription>
+                    <CardDescription>Herramientas especiales para la gestión y reparación de datos.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col md:flex-row gap-4">
                     <div>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                <Button disabled={isMigrating}>
-                                    {isMigrating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                <Button disabled={isProcessing}>
+                                    {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                                     Sincronizar UIDs del Equipo
                                 </Button>
                             </AlertDialogTrigger>
@@ -441,7 +454,7 @@ export default function TeamView() {
                                 <AlertDialogHeader>
                                     <AlertDialogTitle>¿Confirmar Sincronización de UIDs?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                        Esta acción verificará que el UID de cada miembro de tu equipo sea el correcto y lo corregirá si es necesario. Esto es fundamental para que la delegación de tareas funcione.
+                                        Esta acción verificará que el UID de cada miembro de tu equipo sea el correcto y lo corregirá si es necesario. Esto es fundamental para que la delegación de tareas funcione. Es seguro ejecutarlo varias veces.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -457,8 +470,8 @@ export default function TeamView() {
                      <div>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                <Button disabled={isMigrating} variant="secondary">
-                                    {isMigrating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                <Button disabled={isProcessing} variant="secondary">
+                                    {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                                     Migrar Delegaciones de Tareas
                                 </Button>
                             </AlertDialogTrigger>
@@ -466,7 +479,7 @@ export default function TeamView() {
                                 <AlertDialogHeader>
                                     <AlertDialogTitle>¿Confirmar Migración de Datos?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                        Esta acción intentará corregir las tareas que delegaste en el pasado y que no tienen el `delegateToId` correcto. Ejecútala después de sincronizar los UIDs.
+                                        Esta acción intentará corregir las tareas que TÚ delegaste en el pasado y que no tienen el `delegateToId` correcto. Ejecútala después de sincronizar los UIDs.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -546,13 +559,25 @@ export default function TeamView() {
                         >
                           <Edit className="h-4 w-4 text-muted-foreground" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => { e.stopPropagation(); deleteMember(member.id); }}
-                        >
-                          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Esta acción no se puede deshacer. Se eliminará permanentemente al miembro <span className="font-bold">{member.name}</span> del equipo. Las tareas delegadas no se verán afectadas pero no se podrán re-delegar a este usuario.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => deleteMember(member.id)} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </TableCell>
                     </TableRow>
                   ))}
