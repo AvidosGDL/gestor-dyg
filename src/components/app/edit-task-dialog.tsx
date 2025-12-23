@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
@@ -179,7 +180,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
       };
       
       const updatedSessions = [...(task.focusSessions || []), newSession];
-      updateTask(task.id, { focusSessions: updatedSessions, updatedAt: new Date().toISOString() }, user);
+      updateTask(task.id, { focusSessions: updatedSessions, updatedAt: new Date().toISOString() }, user, []);
       
       const durationMs = endTime.getTime() - sessionStart.getTime();
 
@@ -200,7 +201,6 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
 
   useEffect(() => {
     if (task && open) {
-        // Si el usuario actual es el propietario de la tarea y hay una actualización pendiente de revisar, marcamos la notificación como "leída"
         if (user && user.uid === task.ownerId) {
             const lastOwnerView = task.lastOwnerUpdateTimestamp ? new Date(task.lastOwnerUpdateTimestamp).getTime() : 0;
             const lastUpdate = task.updatedAt ? new Date(task.updatedAt).getTime() : 0;
