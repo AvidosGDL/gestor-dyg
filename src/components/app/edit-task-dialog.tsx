@@ -185,6 +185,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
             delegateToEmail: task.delegateToEmail || 'null',
             dueDate: task.dueDate,
             completionComment: task.completionComment || '',
+            attachments: task.attachments || [],
         });
         setAttachedFiles([]); 
         setIsUploading(false);
@@ -262,7 +263,6 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
   };
   
   const isOwner = user?.uid === task.ownerId;
-  const isDelegated = !!task.delegateToId;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -324,7 +324,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                     <FormControl>
                       <div className="relative">
                         <Users size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <Input placeholder="Nombre del Proyecto" className="pl-9" {...field} />
+                        <Input placeholder="Nombre del Proyecto" className="pl-9" {...field} disabled={!isOwner} />
                       </div>
                     </FormControl>
                   </FormItem>
@@ -371,6 +371,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                             const numericValue = Number(e.target.value.replace(/[^0-9]/g, ''));
                             e.target.value = numericValue.toLocaleString('en-US');
                           }}
+                          disabled={!isOwner}
                           {...restField}
                         />
                       </div>
@@ -402,7 +403,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Prioridad</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!isOwner}>
                         <FormControl>
                         <SelectTrigger>
                             <SelectValue placeholder="Selecciona una prioridad" />
@@ -488,7 +489,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Estado</FormLabel>
-                     <Select onValueChange={field.onChange} defaultValue={field.value}>
+                     <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!isOwner}>
                         <FormControl>
                         <SelectTrigger>
                             <SelectValue placeholder="Selecciona un estado" />
