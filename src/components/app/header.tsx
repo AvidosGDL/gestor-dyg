@@ -84,7 +84,7 @@ export default function AppHeader({
   const getFilterLabel = () => {
     if (taskFilter === 'me') return 'Mis Tareas';
     if (taskFilter === 'all') return 'Todas las Tareas';
-    const member = members?.find(m => m.id === taskFilter);
+    const member = members?.find(m => m.uid === taskFilter);
     return member?.name || 'Filtrar';
   };
 
@@ -129,7 +129,7 @@ export default function AppHeader({
                   </DropdownMenuRadioItem>
                   {members && members.length > 0 && <DropdownMenuSeparator />}
                   {members?.map(member => (
-                    <DropdownMenuRadioItem key={member.id} value={member.id}>
+                    <DropdownMenuRadioItem key={member.id} value={member.uid}>
                       <User className="mr-2 h-4 w-4" /> {member.name}
                     </DropdownMenuRadioItem>
                   ))}

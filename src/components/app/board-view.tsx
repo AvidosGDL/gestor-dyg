@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -90,7 +91,7 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
 
 
   const handleEditTask = (task: Task) => {
-    // Logic to mark notification as read, moved from the dialog itself to prevent loops.
+    // Logic to mark notification as read
     if (user && user.uid === task.ownerId) {
       const lastOwnerView = task.lastOwnerUpdateTimestamp ? new Date(task.lastOwnerUpdateTimestamp).getTime() : 0;
       const lastUpdate = task.updatedAt ? new Date(task.updatedAt).getTime() : 0;

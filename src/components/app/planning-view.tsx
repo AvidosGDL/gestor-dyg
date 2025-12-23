@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -177,7 +178,7 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
                 {sortedTasks.filter(t => t.dueDate && t.dueDate <= today).map(task => (
                   <div key={task.id} className="flex items-center justify-between p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
                     <div className="flex items-center gap-3">
-                      <Checkbox id={`task-${task.id}`} onCheckedChange={() => updateTask(task.id, { status: 'completado' })} />
+                      <Checkbox id={`task-${task.id}`} onCheckedChange={() => updateTask(task.id, { status: 'completado' }, user)} />
                       <div>
                         <label htmlFor={`task-${task.id}`} className="font-medium text-foreground cursor-pointer">{task.title}</label>
                         <p className="text-xs text-destructive font-bold">{task.client}</p>
@@ -210,7 +211,7 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditTask(task)}>
                           <Edit className="h-4 w-4 text-muted-foreground" />
                         </Button>
-                      <Button variant="link" size="sm" onClick={() => updateTask(task.id, { status: 'en-progreso' })}>Mover a En Progreso</Button>
+                      <Button variant="link" size="sm" onClick={() => updateTask(task.id, { status: 'en-progreso' }, user)}>Mover a En Progreso</Button>
                     </div>
                   </div>
                 ))}

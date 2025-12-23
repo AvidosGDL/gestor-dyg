@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useRef } from 'react';
@@ -67,7 +68,7 @@ function EditMemberDialog({
   member: TeamMember | null;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onSave: (id: string, data: MemberFormValues) => void;
+  onSave: (id: string, uid: string, data: MemberFormValues) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [customAvatarFile, setCustomAvatarFile] = useState<string | null>(null);
@@ -129,7 +130,7 @@ function EditMemberDialog({
       if (customAvatarFile) {
         finalAvatarUrl = await uploadAvatar(member.email, customAvatarFile);
       }
-      onSave(member.id, {...data, avatarUrl: finalAvatarUrl});
+      onSave(member.id, member.uid, {...data, avatarUrl: finalAvatarUrl});
     }
   };
 
@@ -284,10 +285,10 @@ export default function TeamView() {
     setIsEditMemberDialogOpen(true);
   };
 
-  const handleSaveMember = async (id: string, data: MemberFormValues) => {
+  const handleSaveMember = async (id: string, uid: string, data: MemberFormValues) => {
     if (!collectionPath) return;
     const docRef = doc(firestore, collectionPath, id);
-    const updatedData = { ...data };
+    const updatedData = { ...data, uid }; // Ensure UID is preserved
     try {
       await updateDoc(docRef, updatedData);
       toast({
