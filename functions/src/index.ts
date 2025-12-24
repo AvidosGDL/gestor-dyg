@@ -94,7 +94,17 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
     }
 
     const subject = `Invitación para unirte a Gestor D&G`;
-    const html = `<p>${inviterName} te invitó a unirte a Gestor D&G. Regístrate aquí: <a href="${registrationUrl}">${registrationUrl}</a></p>`;
+    const html = `
+      <h1>¡Has sido invitado!</h1>
+      <p>Hola,</p>
+      <p>${inviterName} te ha invitado a unirte a su equipo en Gestor D&G, una herramienta para la gestión de tareas y proyectos.</p>
+      <p>Para comenzar, por favor regístrate usando este correo electrónico en el siguiente enlace:</p>
+      <p><a href="${registrationUrl}" style="background-color: #3f51b5; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Crear mi cuenta</a></p>
+      <p>Si el botón no funciona, copia y pega esta URL en tu navegador:</p>
+      <p>${registrationUrl}</p>
+      <p>¡Esperamos verte pronto!</p>
+      <p>El equipo de Gestor D&G</p>
+    `;
     await sendEmail({ to: email, subject, html });
   }
 );
