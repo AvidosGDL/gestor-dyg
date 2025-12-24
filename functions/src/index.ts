@@ -13,7 +13,6 @@ const FROM_EMAIL = process.env.FROM_EMAIL || "Gestor D&G <gestor@fiscalflow.mx>"
 function getResend() {
   if (!RESEND_API_KEY) {
      console.warn("RESEND_API_KEY no está configurada. El envío de correos fallará.");
-     // Return a mock object that allows compilation but will fail at runtime if key is missing
      return { emails: { send: () => Promise.resolve({ data: null, error: { message: "RESEND_API_KEY is not configured.", name: "missing_api_key" } }) } } as any;
   }
   return new Resend(RESEND_API_KEY);
