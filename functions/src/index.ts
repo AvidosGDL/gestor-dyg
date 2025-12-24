@@ -1,3 +1,4 @@
+
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
@@ -7,16 +8,14 @@ const ensureAdmin = () => {
   if (admin.apps.length === 0) admin.initializeApp();
 };
 
-// --- Resend (NO hardcode) ---
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || "Gestor D&G <gestor@fiscalflow.mx>";
 
 function getResend() {
   if (!RESEND_API_KEY) {
      console.warn("RESEND_API_KEY no está configurada. El envío de correos fallará.");
-     // Return a mock or throw an error, but don't use a hardcoded key.
-     // For this implementation, we will let it fail downstream.
-     return new Resend("[REMOVED_RESEND_API_KEY]");
+     // Return a mock object that allows compilation but will fail at runtime if key is missing
+     return { emails: { send: () => Promise.resolve({ data: null, error: { message: "RESEND_API_KEY is not configured.", name: "missing_api_key" } }) } } as any;
   }
   return new Resend(RESEND_API_KEY);
 }
@@ -24,7 +23,6 @@ function getResend() {
 async function sendEmail(params: { to: string; subject: string; html: string }) {
   if (!RESEND_API_KEY) {
       console.error("No se puede enviar el correo porque RESEND_API_KEY no está configurada.");
-      // Throw a specific error for the caller to handle if needed
       throw new HttpsError("failed-precondition", "La configuración del servidor de correo está incompleta.");
   }
   const resend = getResend();
@@ -43,7 +41,6 @@ async function sendEmail(params: { to: string; subject: string; html: string }) 
   return { success: true, id: data?.id };
 }
 
-// 1) Callable: enviar correo delegación
 export const sendEmailTask = onCall({ region: "us-central1" }, async (request) => {
   ensureAdmin();
   if (!request.auth) throw new HttpsError("unauthenticated", "Requiere login.");
@@ -75,7 +72,6 @@ export const sendEmailTask = onCall({ region: "us-central1" }, async (request) =
   return sendEmail({ to, subject, html });
 });
 
-// 2) Trigger: invitación creada
 export const onInvitationCreatedSendEmail = onDocumentCreated(
   { document: "invitations/{email}", region: "us-central1" },
   async (event) => {
@@ -109,7 +105,6 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
   }
 );
 
-// 3) Callable: suplantación
 export const createImpersonationToken = onCall({ region: "us-central1" }, async (request) => {
   ensureAdmin();
 
@@ -117,8 +112,6 @@ export const createImpersonationToken = onCall({ region: "us-central1" }, async 
       throw new HttpsError("unauthenticated", "La operación requiere autenticación.");
   }
 
-  // Se recomienda usar custom claims en el token del admin para verificar permisos.
-  // Por ahora, se usa una variable de entorno para el UID del admin.
   const ADMIN_UID = process.env.ADMIN_UID;
   if (!ADMIN_UID) {
       console.error("La variable de entorno ADMIN_UID no está configurada.");
