@@ -1,14 +1,14 @@
 {
   "compilerOptions": {
     "module": "commonjs",
-    "moduleResolution": "node",
-    "target": "ES2022",
-    "outDir": "lib",
-    "esModuleInterop": true,
-    "strict": true,
-    "sourceMap": true,
     "noImplicitReturns": true,
-    "noUnusedLocals": true
+    "noUnusedLocals": true,
+    "outDir": "lib",
+    "sourceMap": true,
+    "strict": true,
+    "target": "es2017",
+    "esModuleInterop": true,
+    "moduleResolution": "node"
   },
   "compileOnSave": true,
   "include": [
