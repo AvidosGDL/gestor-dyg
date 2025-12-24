@@ -51,56 +51,6 @@ async function sendEmail({ to, subject, html }: SendEmailParams) {
   }
 }
 
-interface TaskDelegationEmailPayload {
-  to: string;
-  taskId: string;
-  taskTitle: string;
-  delegatorName: string | null;
-  delegateName: string;
-  taskUrl?: string;
-}
-
-export const sendEmailTask = onCall(
-  { region: 'us-central1' },
-  async (request) => {
-    ensureFirebaseAdminIsInitialized();
-    if (!request.auth) {
-      throw new HttpsError(
-        'unauthenticated',
-        'La función debe ser llamada por un usuario autenticado.'
-      );
-    }
-
-    const payload = request.data as TaskDelegationEmailPayload;
-    if (!payload.to || !payload.taskTitle || !payload.delegateName) {
-      throw new HttpsError(
-        'invalid-argument',
-        'Faltan datos para enviar el correo de delegación.'
-      );
-    }
-
-    const { to, taskId, taskTitle, delegatorName, delegateName, taskUrl } =
-      payload;
-    const effectiveDelegatorName = delegatorName || 'un administrador';
-
-    const subject = `Nueva tarea delegada: ${taskTitle}`;
-    const html = `
-      <h1>Se te ha delegado una nueva tarea</h1>
-      <p>Hola ${delegateName},</p>
-      <p>${effectiveDelegatorName} te ha delegado la tarea:</p>
-      <p><strong>${taskTitle}</strong> (ID: ${taskId})</p>
-      ${
-        taskUrl
-          ? `<p>Puedes revisar los detalles aquí: <a href="${taskUrl}">${taskUrl}</a></p>`
-          : ''
-      }
-      <p>Por favor, revisa la tarea en el sistema.</p>
-    `;
-
-    return sendEmail({ to, subject, html });
-  }
-);
-
 export const onInvitationCreatedSendEmail = onDocumentCreated(
   {
     document: 'invitations/{email}',
