@@ -105,37 +105,7 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
 );
 
 export const createImpersonationToken = onCall({ region: "us-central1" }, async (request) => {
-  ensureAdmin();
-
-  if (!request.auth) {
-      throw new HttpsError("unauthenticated", "La operación requiere autenticación.");
-  }
-
-  const ADMIN_UID = process.env.ADMIN_UID;
-  if (!ADMIN_UID) {
-      console.error("La variable de entorno ADMIN_UID no está configurada.");
-      throw new HttpsError("failed-precondition", "El sistema no está configurado para la suplantación.");
-  }
-
-  if (request.auth.uid !== ADMIN_UID) {
-    throw new HttpsError("permission-denied", "Esta acción está restringida solo para administradores.");
-  }
-
-  const data = (request.data ?? {}) as { email?: string };
-  const email = data.email;
-  if (!email) {
-      throw new HttpsError("invalid-argument", "Se requiere el correo electrónico del usuario a suplantar.");
-  }
-
-  try {
-    const userToImpersonate = await admin.auth().getUserByEmail(email);
-    const customToken = await admin.auth().createCustomToken(userToImpersonate.uid, { impersonating: true });
-    return { token: customToken };
-  } catch (error: any) {
-    console.error("Fallo en la suplantación:", error?.stack || error);
-    if (error?.code === "auth/user-not-found") {
-      throw new HttpsError("not-found", "No se encontró ningún usuario con ese correo electrónico.");
-    }
-    throw new HttpsError("internal", "No se pudo completar la operación de suplantación.");
-  }
+  // Versión mínima para prueba de despliegue.
+  console.log("createImpersonationToken fue llamada (versión de prueba)");
+  return { status: "Función de prueba desplegada correctamente." };
 });
