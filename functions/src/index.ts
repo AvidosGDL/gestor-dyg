@@ -1,4 +1,3 @@
-
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
@@ -8,6 +7,7 @@ const ensureAdmin = () => {
   if (admin.apps.length === 0) admin.initializeApp();
 };
 
+// --- Resend (NO hardcode) ---
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || "Gestor D&G <gestor@fiscalflow.mx>";
 
