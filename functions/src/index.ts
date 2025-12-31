@@ -1,12 +1,12 @@
+
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
 import { Resend } from "resend";
 import { defineString } from 'firebase-functions/params';
 
-// Define the Resend API key as a configurable parameter.
-// This allows Firebase to inject the secret value from Secret Manager in production,
-// and use the value from .env.local during emulation.
+// Define the Resend API key and Admin UID as a configurable parameters.
+// This allows Firebase to inject the secret value from Secret Manager.
 const resendApiKey = defineString('RESEND_API_KEY');
 const adminUid = defineString('ADMIN_UID', {default: 'fKZUAAXTENPcUeEA4tUXFEV4xbr1'});
 
@@ -14,23 +14,28 @@ const ensureAdmin = () => {
   if (admin.apps.length === 0) admin.initializeApp();
 };
 
-const FROM_EMAIL = process.env.FROM_EMAIL || "Gestor D&G <gestor@fiscalflow.mx>";
+const FROM_EMAIL = "Gestor D&G <gestor@fiscalflow.mx>";
 
 function getResend() {
   const key = resendApiKey.value();
   if (!key) {
+     // This case should ideally not happen in production if the secret is set up.
+     // In the emulator, it falls back to the .env.local file.
      console.warn("RESEND_API_KEY no está configurada. El envío de correos fallará.");
-     return { emails: { send: () => Promise.resolve({ data: null, error: { message: "RESEND_API_KEY is not configured.", name: "missing_api_key" } }) } } as any;
+     // Return a mock object to prevent crashing but log the attempt.
+     return { 
+         emails: { 
+             send: () => Promise.resolve({ 
+                 data: null, 
+                 error: { message: "RESEND_API_KEY is not configured.", name: "missing_api_key" } 
+             }) 
+         } 
+     } as any;
   }
   return new Resend(key);
 }
 
 async function sendEmail(params: { to: string; subject: string; html: string }) {
-  const key = resendApiKey.value();
-  if (!key) {
-      console.error("No se puede enviar el correo porque RESEND_API_KEY no está configurada.");
-      throw new HttpsError("failed-precondition", "La configuración del servidor de correo está incompleta.");
-  }
   const resend = getResend();
   const { data, error } = await resend.emails.send({
     from: FROM_EMAIL,
@@ -41,6 +46,10 @@ async function sendEmail(params: { to: string; subject: string; html: string }) 
 
   if (error) {
     console.error("Resend error:", error);
+    // Check if the error is due to the missing API key from our mock object
+    if (error.name === 'missing_api_key') {
+        throw new HttpsError("failed-precondition", "La configuración del servidor de correo está incompleta.");
+    }
     throw new HttpsError("internal", `Error al enviar correo: ${error.message}`);
   }
 
