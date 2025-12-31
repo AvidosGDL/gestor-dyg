@@ -1,31 +1,33 @@
-
-import { config } from 'dotenv';
-config();
-
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
 import { Resend } from "resend";
+import { defineString } from 'firebase-functions/params';
+
+// Define the Resend API key as a configurable parameter.
+// This allows Firebase to inject the secret value from Secret Manager in production,
+// and use the value from .env.local during emulation.
+const resendApiKey = defineString('RESEND_API_KEY');
+const adminUid = defineString('ADMIN_UID', {default: 'fKZUAAXTENPcUeEA4tUXFEV4xbr1'});
 
 const ensureAdmin = () => {
   if (admin.apps.length === 0) admin.initializeApp();
 };
 
-// --- Resend ---
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || "Gestor D&G <gestor@fiscalflow.mx>";
 
 function getResend() {
-  if (!RESEND_API_KEY) {
+  const key = resendApiKey.value();
+  if (!key) {
      console.warn("RESEND_API_KEY no está configurada. El envío de correos fallará.");
-     // Return a mock object to prevent crashing but allow the flow to continue
      return { emails: { send: () => Promise.resolve({ data: null, error: { message: "RESEND_API_KEY is not configured.", name: "missing_api_key" } }) } } as any;
   }
-  return new Resend(RESEND_API_KEY);
+  return new Resend(key);
 }
 
 async function sendEmail(params: { to: string; subject: string; html: string }) {
-  if (!RESEND_API_KEY) {
+  const key = resendApiKey.value();
+  if (!key) {
       console.error("No se puede enviar el correo porque RESEND_API_KEY no está configurada.");
       throw new HttpsError("failed-precondition", "La configuración del servidor de correo está incompleta.");
   }
@@ -116,8 +118,7 @@ export const createImpersonationToken = onCall({ region: "us-central1" }, async 
     throw new HttpsError("unauthenticated", "Debes estar autenticado para realizar esta acción.");
   }
 
-  // UID del administrador - ¡Debería estar en una variable de entorno!
-  const ADMIN_UID = process.env.ADMIN_UID || 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
+  const ADMIN_UID = adminUid.value();
 
   if (request.auth.uid !== ADMIN_UID) {
     throw new HttpsError("permission-denied", "Esta acción solo puede ser realizada por un administrador.");
