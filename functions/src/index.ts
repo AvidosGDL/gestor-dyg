@@ -1,42 +1,24 @@
-
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
 import { Resend } from "resend";
 import { defineString } from 'firebase-functions/params';
 
-// Define the Resend API key and Admin UID as a configurable parameters.
-// This allows Firebase to inject the secret value from Secret Manager.
+// Define the Resend API key and Admin UID as configurable parameters.
 const resendApiKey = defineString('RESEND_API_KEY');
 const adminUid = defineString('ADMIN_UID', {default: 'fKZUAAXTENPcUeEA4tUXFEV4xbr1'});
 
-const ensureAdmin = () => {
-  if (admin.apps.length === 0) admin.initializeApp();
-};
+// Initialize Firebase Admin SDK
+admin.initializeApp();
+
+// Initialize Resend with the API key from parameters
+// This creates a single, reusable instance.
+const resend = new Resend(resendApiKey.value());
 
 const FROM_EMAIL = "Gestor D&G <gestor@fiscalflow.mx>";
 
-function getResend() {
-  const key = resendApiKey.value();
-  if (!key) {
-     // This case should ideally not happen in production if the secret is set up.
-     // In the emulator, it falls back to the .env.local file.
-     console.warn("RESEND_API_KEY no está configurada. El envío de correos fallará.");
-     // Return a mock object to prevent crashing but log the attempt.
-     return { 
-         emails: { 
-             send: () => Promise.resolve({ 
-                 data: null, 
-                 error: { message: "RESEND_API_KEY is not configured.", name: "missing_api_key" } 
-             }) 
-         } 
-     } as any;
-  }
-  return new Resend(key);
-}
-
 async function sendEmail(params: { to: string; subject: string; html: string }) {
-  const resend = getResend();
+  // The Resend instance is now initialized globally and reused here.
   const { data, error } = await resend.emails.send({
     from: FROM_EMAIL,
     to: [params.to],
@@ -45,19 +27,16 @@ async function sendEmail(params: { to: string; subject: string; html: string }) 
   });
 
   if (error) {
-    console.error("Resend error:", error);
-    // Check if the error is due to the missing API key from our mock object
-    if (error.name === 'missing_api_key') {
-        throw new HttpsError("failed-precondition", "La configuración del servidor de correo está incompleta.");
-    }
-    throw new HttpsError("internal", `Error al enviar correo: ${error.message}`);
+    // Log the detailed error from Resend for better debugging
+    console.error("Resend API Error:", error);
+    // Throw an HttpsError with the specific message from Resend
+    throw new HttpsError("internal", error.message);
   }
 
   return { success: true, id: data?.id };
 }
 
-export const sendEmailTask = onCall({ region: "us-central1" }, async (request: any) => {
-  ensureAdmin();
+export const sendEmailTask = onCall({ region: "us-central1", secrets: ["RESEND_API_KEY"] }, async (request: any) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Requiere login.");
 
   const data = (request.data ?? {}) as any;
@@ -88,9 +67,8 @@ export const sendEmailTask = onCall({ region: "us-central1" }, async (request: a
 });
 
 export const onInvitationCreatedSendEmail = onDocumentCreated(
-  { document: "invitations/{email}", region: "us-central1" },
+  { document: "invitations/{email}", region: "us-central1", secrets: ["RESEND_API_KEY"] },
   async (event: any) => {
-    ensureAdmin();
     const snap = event.data;
     if (!snap) return;
 
@@ -120,9 +98,7 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
   }
 );
 
-export const createImpersonationToken = onCall({ region: "us-central1" }, async (request: any) => {
-  ensureAdmin();
-
+export const createImpersonationToken = onCall({ region: "us-central1", secrets: ["ADMIN_UID"] }, async (request: any) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Debes estar autenticado para realizar esta acción.");
   }
@@ -148,5 +124,33 @@ export const createImpersonationToken = onCall({ region: "us-central1" }, async 
       throw new HttpsError("not-found", "El usuario especificado no existe.");
     }
     throw new HttpsError("internal", "Ocurrió un error inesperado al intentar suplantar al usuario.");
+  }
+});
+
+
+export const sendTestEmail = onCall({ region: "us-central1", secrets: ["RESEND_API_KEY", "ADMIN_UID"] }, async (request: any) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Debes estar autenticado para realizar esta acción.");
+  }
+
+  const ADMIN_UID = adminUid.value();
+  if (request.auth.uid !== ADMIN_UID) {
+    throw new HttpsError("permission-denied", "Esta acción solo puede ser realizada por un administrador.");
+  }
+
+  const { to, subject, message } = request.data;
+  if (!to || !subject || !message) {
+    throw new HttpsError("invalid-argument", "Se requieren destinatario, asunto y mensaje.");
+  }
+
+  const html = `<p>${message}</p><p>Este es un correo de prueba enviado desde el panel de administrador.</p>`;
+
+  // The try-catch block now directly calls the global sendEmail function.
+  // Any error thrown by sendEmail will be caught here and re-thrown with its specific message.
+  try {
+    return await sendEmail({ to, subject, html });
+  } catch (error: any) {
+    // Re-throw the error with the specific message from the Resend API
+    throw new HttpsError('internal', error.message || 'Error desconocido al enviar correo.');
   }
 });
