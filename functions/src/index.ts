@@ -41,7 +41,7 @@ async function sendEmail(params: { to: string; subject: string; html: string }) 
   return { success: true, id: data?.id };
 }
 
-export const sendEmailTask = onCall({ region: "us-central1" }, async (request) => {
+export const sendEmailTask = onCall({ region: "us-central1" }, async (request: any) => {
   ensureAdmin();
   if (!request.auth) throw new HttpsError("unauthenticated", "Requiere login.");
 
@@ -74,7 +74,7 @@ export const sendEmailTask = onCall({ region: "us-central1" }, async (request) =
 
 export const onInvitationCreatedSendEmail = onDocumentCreated(
   { document: "invitations/{email}", region: "us-central1" },
-  async (event) => {
+  async (event: any) => {
     ensureAdmin();
     const snap = event.data;
     if (!snap) return;
@@ -105,7 +105,7 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
   }
 );
 
-export const createImpersonationToken = onCall({ region: "us-central1" }, async (request) => {
+export const createImpersonationToken = onCall({ region: "us-central1" }, async (request: any) => {
   ensureAdmin();
 
   if (!request.auth) {

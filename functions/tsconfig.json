@@ -3,6 +3,8 @@
   "compilerOptions": {
     "module": "commonjs",
     "moduleResolution": "node",
+    "types": ["node"],
+    "skipLibCheck": true,
     "target": "ES2022",
     "outDir": "lib",
     "rootDir": "src",

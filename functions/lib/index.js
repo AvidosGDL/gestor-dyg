@@ -124,8 +124,30 @@ exports.onInvitationCreatedSendEmail = (0, firestore_1.onDocumentCreated)({ docu
     await sendEmail({ to: email, subject, html });
 });
 exports.createImpersonationToken = (0, https_1.onCall)({ region: "us-central1" }, async (request) => {
-    // Versión mínima para prueba de despliegue.
-    console.log("createImpersonationToken fue llamada (versión de prueba)");
-    return { status: "Función de prueba desplegada correctamente." };
+    ensureAdmin();
+    if (!request.auth) {
+        throw new https_1.HttpsError("unauthenticated", "Debes estar autenticado para realizar esta acción.");
+    }
+    // UID del administrador - ¡Debería estar en una variable de entorno!
+    const ADMIN_UID = process.env.ADMIN_UID || 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
+    if (request.auth.uid !== ADMIN_UID) {
+        throw new https_1.HttpsError("permission-denied", "Esta acción solo puede ser realizada por un administrador.");
+    }
+    const emailToImpersonate = request.data.email;
+    if (!emailToImpersonate) {
+        throw new https_1.HttpsError("invalid-argument", "Se requiere el correo electrónico del usuario a suplantar.");
+    }
+    try {
+        const userToImpersonate = await admin.auth().getUserByEmail(emailToImpersonate);
+        const customToken = await admin.auth().createCustomToken(userToImpersonate.uid, { impersonating: true });
+        return { token: customToken };
+    }
+    catch (error) {
+        console.error("Error al crear el token de suplantación:", error);
+        if (error.code === 'auth/user-not-found') {
+            throw new https_1.HttpsError("not-found", "El usuario especificado no existe.");
+        }
+        throw new https_1.HttpsError("internal", "Ocurrió un error inesperado al intentar suplantar al usuario.");
+    }
 });
 //# sourceMappingURL=index.js.map
