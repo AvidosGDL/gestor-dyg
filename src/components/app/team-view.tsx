@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Edit, Loader2, ImageUp, Wand2, LogIn } from 'lucide-react';
+import { Trash2, Edit, Loader2, ImageUp, Wand2, LogIn, Send } from 'lucide-react';
 import { type TeamMember } from '@/lib/types';
 import { useCollection, useUser, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
 import { collection, deleteDoc, doc, updateDoc, writeBatch, getDocs, query, where } from 'firebase/firestore';
@@ -44,6 +44,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { cn } from '@/lib/utils';
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '../ui/alert-dialog';
+import { Textarea } from '../ui/textarea';
 
 
 const AVATAR_OPTIONS = 7;
@@ -60,6 +61,15 @@ const memberSchema = z.object({
 });
 
 type MemberFormValues = z.infer<typeof memberSchema>;
+
+const testEmailSchema = z.object({
+    to: z.string().email('El correo electrónico del destinatario no es válido.'),
+    subject: z.string().min(1, 'El asunto es requerido.'),
+    message: z.string().min(1, 'El mensaje es requerido.'),
+});
+
+type TestEmailFormValues = z.infer<typeof testEmailSchema>;
+
 
 function EditMemberDialog({
   member,
@@ -285,6 +295,15 @@ export default function TeamView() {
 
   const [isEditMemberDialogOpen, setIsEditMemberDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
+  
+  const {
+    register: registerTestEmail,
+    handleSubmit: handleSubmitTestEmail,
+    formState: { errors: testEmailErrors, isSubmitting: isSendingTestEmail },
+    reset: resetTestEmailForm,
+  } = useForm<TestEmailFormValues>({
+      resolver: zodResolver(testEmailSchema),
+  });
 
   const editMember = (member: TeamMember) => {
     setSelectedMember(member);
@@ -444,7 +463,6 @@ export default function TeamView() {
         
         toast({ title: '¡Éxito!', description: 'Has iniciado sesión como otro usuario. Recargando...' });
         
-        // Save the original admin UID to get back
         localStorage.setItem('impersonator_uid', user!.uid);
         window.location.href = '/';
 
@@ -459,6 +477,27 @@ export default function TeamView() {
         setIsProcessing(false);
     }
   }
+
+  const onSendTestEmail: SubmitHandler<TestEmailFormValues> = async (data) => {
+    toast({ title: 'Enviando correo de prueba...', description: `A: ${data.to}` });
+    try {
+      const functions = getFunctions();
+      const sendTestEmailFn = httpsCallable(functions, 'sendTestEmail');
+      await sendTestEmailFn(data);
+      toast({
+        title: '¡Correo Enviado!',
+        description: 'El correo de prueba se ha enviado correctamente.',
+      });
+      resetTestEmailForm();
+    } catch (error: any) {
+      console.error('Error enviando correo de prueba:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error al enviar correo',
+        description: error.message || 'Ocurrió un error inesperado.',
+      });
+    }
+  };
 
 
   const isLoading = userLoading || membersLoading;
@@ -548,6 +587,32 @@ export default function TeamView() {
                            Corrige las tareas delegadas antiguas que no tienen el UID asignado.
                         </p>
                     </div>
+                  </div>
+                   <div className="space-y-4 p-4 border rounded-lg">
+                     <h4 className="font-semibold">Enviar Correo de Prueba</h4>
+                     <form onSubmit={handleSubmitTestEmail(onSendTestEmail)} className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                             <div className="space-y-2">
+                                <Label htmlFor="test-email-to">Destinatario</Label>
+                                <Input id="test-email-to" type="email" placeholder="destinatario@ejemplo.com" {...registerTestEmail("to")} />
+                                {testEmailErrors.to && <p className="text-sm text-destructive">{testEmailErrors.to.message}</p>}
+                            </div>
+                             <div className="space-y-2">
+                                <Label htmlFor="test-email-subject">Asunto</Label>
+                                <Input id="test-email-subject" placeholder="Asunto del correo" {...registerTestEmail("subject")} />
+                                {testEmailErrors.subject && <p className="text-sm text-destructive">{testEmailErrors.subject.message}</p>}
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="test-email-message">Mensaje</Label>
+                            <Textarea id="test-email-message" placeholder="Escribe tu mensaje aquí..." {...registerTestEmail("message")} />
+                            {testEmailErrors.message && <p className="text-sm text-destructive">{testEmailErrors.message.message}</p>}
+                        </div>
+                        <Button type="submit" disabled={isSendingTestEmail}>
+                           {isSendingTestEmail ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                           Enviar Correo de Prueba
+                        </Button>
+                     </form>
                   </div>
                 </CardContent>
             </Card>
