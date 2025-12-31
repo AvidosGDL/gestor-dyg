@@ -1,4 +1,7 @@
 
+import { config } from 'dotenv';
+config();
+
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
@@ -8,13 +11,14 @@ const ensureAdmin = () => {
   if (admin.apps.length === 0) admin.initializeApp();
 };
 
-// --- Resend (NO hardcode) ---
+// --- Resend ---
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || "Gestor D&G <gestor@fiscalflow.mx>";
 
 function getResend() {
   if (!RESEND_API_KEY) {
      console.warn("RESEND_API_KEY no está configurada. El envío de correos fallará.");
+     // Return a mock object to prevent crashing but allow the flow to continue
      return { emails: { send: () => Promise.resolve({ data: null, error: { message: "RESEND_API_KEY is not configured.", name: "missing_api_key" } }) } } as any;
   }
   return new Resend(RESEND_API_KEY);
