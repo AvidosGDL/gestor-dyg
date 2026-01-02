@@ -1,3 +1,4 @@
+
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
@@ -5,58 +6,42 @@ import { Resend } from "resend";
 import { defineString } from 'firebase-functions/params';
 
 // Define the Resend API key and Admin UID as a configurable parameters.
-// This allows Firebase to inject the secret value from Secret Manager.
 const resendApiKey = defineString('RESEND_API_KEY');
 const adminUid = defineString('ADMIN_UID', {default: 'fKZUAAXTENPcUeEA4tUXFEV4xbr1'});
 
-const ensureAdmin = () => {
-  if (admin.apps.length === 0) admin.initializeApp();
-};
+// Initialize Firebase Admin SDK.
+admin.initializeApp();
 
-const FROM_EMAIL = "Gestor D&G <gestor@fiscalflow.mx>";
-
-function getResend() {
-  const key = resendApiKey.value();
-  if (!key) {
-     // This case should ideally not happen in production if the secret is set up.
-     // In the emulator, it falls back to the .env.local file.
-     console.warn("RESEND_API_KEY no está configurada. El envío de correos fallará.");
-     // Return a mock object to prevent crashing but log the attempt.
-     return { 
-         emails: { 
-             send: () => Promise.resolve({ 
-                 data: null, 
-                 error: { message: "RESEND_API_KEY is not configured.", name: "missing_api_key" } 
-             }) 
-         } 
-     } as any;
-  }
-  return new Resend(key);
-}
+// Initialize Resend client once.
+const resend = new Resend(resendApiKey.value());
 
 async function sendEmail(params: { to: string; subject: string; html: string }) {
-  const resend = getResend();
-  const { data, error } = await resend.emails.send({
-    from: FROM_EMAIL,
-    to: [params.to],
-    subject: params.subject,
-    html: params.html,
-  });
+  try {
+    const { data, error } = await resend.emails.send({
+      from: "Gestor D&G <gestor@fiscalflow.mx>",
+      to: [params.to],
+      subject: params.subject,
+      html: params.html,
+    });
 
-  if (error) {
-    console.error("Resend error:", error);
-    // Check if the error is due to the missing API key from our mock object
-    if (error.name === 'missing_api_key') {
-        throw new HttpsError("failed-precondition", "La configuración del servidor de correo está incompleta.");
+    if (error) {
+      console.error("Resend API Error:", error);
+      // Throw a specific error that the client can understand.
+      throw new HttpsError("internal", error.message || "Un error desconocido ocurrió con el servicio de correo.");
     }
-    throw new HttpsError("internal", `Error al enviar correo: ${error.message}`);
-  }
 
-  return { success: true, id: data?.id };
+    return { success: true, id: data?.id };
+  } catch (e: any) {
+    console.error("Failed to send email:", e);
+    // If it's already an HttpsError, rethrow it. Otherwise, wrap it.
+    if (e instanceof HttpsError) {
+      throw e;
+    }
+    throw new HttpsError("internal", e.message || "Error al intentar enviar el correo.");
+  }
 }
 
 export const sendEmailTask = onCall({ region: "us-central1", secrets: ["RESEND_API_KEY"] }, async (request: any) => {
-  ensureAdmin();
   if (!request.auth) throw new HttpsError("unauthenticated", "Requiere login.");
 
   const data = (request.data ?? {}) as any;
@@ -89,7 +74,6 @@ export const sendEmailTask = onCall({ region: "us-central1", secrets: ["RESEND_A
 export const onInvitationCreatedSendEmail = onDocumentCreated(
   { document: "invitations/{email}", region: "us-central1", secrets: ["RESEND_API_KEY"] },
   async (event: any) => {
-    ensureAdmin();
     const snap = event.data;
     if (!snap) return;
 
@@ -120,8 +104,6 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
 );
 
 export const createImpersonationToken = onCall({ region: "us-central1", secrets: ["ADMIN_UID"] }, async (request: any) => {
-  ensureAdmin();
-
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Debes estar autenticado para realizar esta acción.");
   }
@@ -152,8 +134,6 @@ export const createImpersonationToken = onCall({ region: "us-central1", secrets:
 
 
 export const sendTestEmail = onCall({ region: "us-central1", secrets: ["RESEND_API_KEY", "ADMIN_UID"] }, async (request: any) => {
-    ensureAdmin();
-  
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Debes estar autenticado para realizar esta acción.");
     }
