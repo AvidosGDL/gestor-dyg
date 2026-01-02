@@ -4,26 +4,16 @@ import * as admin from "firebase-admin";
 import { Resend } from "resend";
 import { defineString } from 'firebase-functions/params';
 
-// Define the Resend API key and Admin UID as a configurable parameters.
-// This allows Firebase to inject the secret value from Secret Manager.
 const resendApiKey = defineString('RESEND_API_KEY');
 const adminUid = defineString('ADMIN_UID', {default: 'fKZUAAXTENPcUeEA4tUXFEV4xbr1'});
 
-const ensureAdmin = () => {
-  if (admin.apps.length === 0) admin.initializeApp();
-};
+admin.initializeApp();
 
 const FROM_EMAIL = "Gestor D&G <gestor@fiscalflow.mx>";
 
+const resend = new Resend(resendApiKey.value());
+
 async function sendEmail(params: { to: string; subject: string; html: string }) {
-  const apiKey = resendApiKey.value();
-  if (!apiKey) {
-    console.error("Resend API key is not available.");
-    throw new HttpsError("failed-precondition", "La configuración del servidor de correo está incompleta o la clave no está disponible.");
-  }
-  
-  const resend = new Resend(apiKey);
-  
   try {
     const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
@@ -33,21 +23,18 @@ async function sendEmail(params: { to: string; subject: string; html: string }) 
     });
 
     if (error) {
-      // Throw a specific error from Resend if available
       console.error("Resend API Error:", error);
       throw new HttpsError("internal", error.message || "Un error desconocido ocurrió con el servicio de correo.");
     }
 
     return { success: true, id: data?.id };
-  } catch(e: any) {
+  } catch (e: any) {
     console.error("Failed to send email:", e);
-    // Re-throw the error so it can be caught by the client
     throw new HttpsError("internal", e.message || "Error al intentar enviar el correo.");
   }
 }
 
 export const sendEmailTask = onCall({ region: "us-central1", secrets: ["RESEND_API_KEY"] }, async (request: any) => {
-  ensureAdmin();
   if (!request.auth) throw new HttpsError("unauthenticated", "Requiere login.");
 
   const data = (request.data ?? {}) as any;
@@ -80,7 +67,6 @@ export const sendEmailTask = onCall({ region: "us-central1", secrets: ["RESEND_A
 export const onInvitationCreatedSendEmail = onDocumentCreated(
   { document: "invitations/{email}", region: "us-central1", secrets: ["RESEND_API_KEY"] },
   async (event: any) => {
-    ensureAdmin();
     const snap = event.data;
     if (!snap) return;
 
@@ -111,8 +97,6 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
 );
 
 export const createImpersonationToken = onCall({ region: "us-central1", secrets: ["ADMIN_UID"] }, async (request: any) => {
-  ensureAdmin();
-
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Debes estar autenticado para realizar esta acción.");
   }
@@ -143,8 +127,6 @@ export const createImpersonationToken = onCall({ region: "us-central1", secrets:
 
 
 export const sendTestEmail = onCall({ region: "us-central1", secrets: ["RESEND_API_KEY", "ADMIN_UID"] }, async (request: any) => {
-    ensureAdmin();
-  
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Debes estar autenticado para realizar esta acción.");
     }
