@@ -55,7 +55,7 @@ async function sendEmail(params: { to: string; subject: string; html: string }) 
   return { success: true, id: data?.id };
 }
 
-export const sendEmailTask = onCall({ region: "us-central1" }, async (request: any) => {
+export const sendEmailTask = onCall({ region: "us-central1", secrets: ["RESEND_API_KEY"] }, async (request: any) => {
   ensureAdmin();
   if (!request.auth) throw new HttpsError("unauthenticated", "Requiere login.");
 
@@ -87,7 +87,7 @@ export const sendEmailTask = onCall({ region: "us-central1" }, async (request: a
 });
 
 export const onInvitationCreatedSendEmail = onDocumentCreated(
-  { document: "invitations/{email}", region: "us-central1" },
+  { document: "invitations/{email}", region: "us-central1", secrets: ["RESEND_API_KEY"] },
   async (event: any) => {
     ensureAdmin();
     const snap = event.data;
@@ -119,7 +119,7 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
   }
 );
 
-export const createImpersonationToken = onCall({ region: "us-central1" }, async (request: any) => {
+export const createImpersonationToken = onCall({ region: "us-central1", secrets: ["ADMIN_UID"] }, async (request: any) => {
   ensureAdmin();
 
   if (!request.auth) {
@@ -151,7 +151,7 @@ export const createImpersonationToken = onCall({ region: "us-central1" }, async 
 });
 
 
-export const sendTestEmail = onCall({ region: "us-central1" }, async (request: any) => {
+export const sendTestEmail = onCall({ region: "us-central1", secrets: ["RESEND_API_KEY", "ADMIN_UID"] }, async (request: any) => {
     ensureAdmin();
   
     if (!request.auth) {
