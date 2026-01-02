@@ -39,9 +39,10 @@ const firestore_1 = require("firebase-functions/v2/firestore");
 const admin = __importStar(require("firebase-admin"));
 const resend_1 = require("resend");
 const params_1 = require("firebase-functions/params");
-// Define the Resend API key and Admin UID as a configurable parameters.
+// Define the Resend API key as a configurable parameter.
 const resendApiKey = (0, params_1.defineString)('RESEND_API_KEY');
-const adminUid = (0, params_1.defineString)('ADMIN_UID', { default: 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' });
+// The Admin UID is a constant, not a secret.
+const ADMIN_UID = 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
 // Initialize Firebase Admin SDK.
 admin.initializeApp();
 // This is the FROM email address for all emails sent from the app.
@@ -114,8 +115,8 @@ exports.onInvitationCreatedSendEmail = (0, firestore_1.onDocumentCreated)({ docu
     return sendEmail({ to: email, subject, html });
 });
 // Cloud Function to create an impersonation token for an admin.
-exports.createImpersonationToken = (0, https_1.onCall)({ region: "us-central1", secrets: ["ADMIN_UID"] }, async (request) => {
-    if (!request.auth || request.auth.uid !== adminUid.value()) {
+exports.createImpersonationToken = (0, https_1.onCall)({ region: "us-central1" }, async (request) => {
+    if (!request.auth || request.auth.uid !== ADMIN_UID) {
         throw new https_1.HttpsError("permission-denied", "Esta acción solo puede ser realizada por un administrador.");
     }
     const emailToImpersonate = request.data.email;
@@ -136,8 +137,8 @@ exports.createImpersonationToken = (0, https_1.onCall)({ region: "us-central1", 
     }
 });
 // Cloud Function for admins to send a test email.
-exports.sendTestEmail = (0, https_1.onCall)({ region: "us-central1", secrets: ["RESEND_API_KEY", "ADMIN_UID"] }, async (request) => {
-    if (!request.auth || request.auth.uid !== adminUid.value()) {
+exports.sendTestEmail = (0, https_1.onCall)({ region: "us-central1", secrets: ["RESEND_API_KEY"] }, async (request) => {
+    if (!request.auth || request.auth.uid !== ADMIN_UID) {
         throw new https_1.HttpsError("permission-denied", "Esta acción solo puede ser realizada por un administrador.");
     }
     const { to, subject, message } = request.data;
