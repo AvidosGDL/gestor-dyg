@@ -40,7 +40,7 @@ const admin = __importStar(require("firebase-admin"));
 const resend_1 = require("resend");
 const params_1 = require("firebase-functions/params");
 // Define the Resend API key as a configurable parameter.
-const resendApiKey = (0, params_1.defineString)('RESEND_API_KEY');
+const resendApiKey = (0, params_1.defineString)("RESEND_API_KEY");
 // The Admin UID is a constant, not a secret.
 const ADMIN_UID = 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
 // Initialize Firebase Admin SDK.
@@ -50,7 +50,6 @@ const FROM_EMAIL = "Gestor D&G <gestor@fiscalflow.mx>";
 // Reusable function to send emails.
 async function sendEmail(params) {
     // IMPORTANT: Initialize Resend client here, inside the function body.
-    // This ensures it runs at execution time, not deployment time.
     const resend = new resend_1.Resend(resendApiKey.value());
     try {
         const { data, error } = await resend.emails.send({
