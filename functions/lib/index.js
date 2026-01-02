@@ -39,12 +39,18 @@ const firestore_1 = require("firebase-functions/v2/firestore");
 const admin = __importStar(require("firebase-admin"));
 const resend_1 = require("resend");
 const params_1 = require("firebase-functions/params");
+// Define the Resend API key and Admin UID as a configurable parameters.
 const resendApiKey = (0, params_1.defineString)('RESEND_API_KEY');
 const adminUid = (0, params_1.defineString)('ADMIN_UID', { default: 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' });
+// Initialize Firebase Admin SDK.
 admin.initializeApp();
+// This is the FROM email address for all emails sent from the app.
 const FROM_EMAIL = "Gestor D&G <gestor@fiscalflow.mx>";
-const resend = new resend_1.Resend(resendApiKey.value());
+// Reusable function to send emails.
 async function sendEmail(params) {
+    // IMPORTANT: Initialize Resend client here, inside the function body.
+    // This ensures it runs at execution time, not deployment time.
+    const resend = new resend_1.Resend(resendApiKey.value());
     try {
         const { data, error } = await resend.emails.send({
             from: FROM_EMAIL,
@@ -54,26 +60,25 @@ async function sendEmail(params) {
         });
         if (error) {
             console.error("Resend API Error:", error);
-            throw new https_1.HttpsError("internal", error.message || "Un error desconocido ocurrió con el servicio de correo.");
+            throw new https_1.HttpsError("internal", `Error from Resend: ${error.message}`);
         }
         return { success: true, id: data?.id };
     }
     catch (e) {
         console.error("Failed to send email:", e);
+        if (e instanceof https_1.HttpsError) {
+            throw e;
+        }
         throw new https_1.HttpsError("internal", e.message || "Error al intentar enviar el correo.");
     }
 }
+// Cloud Function to send an email when a task is delegated.
 exports.sendEmailTask = (0, https_1.onCall)({ region: "us-central1", secrets: ["RESEND_API_KEY"] }, async (request) => {
     if (!request.auth)
         throw new https_1.HttpsError("unauthenticated", "Requiere login.");
-    const data = (request.data ?? {});
-    const to = data.to;
-    const taskTitle = data.taskTitle;
-    const delegateName = data.delegateName;
-    const taskUrl = data.taskUrl;
-    const delegatorName = data.delegatorName;
+    const { to, taskTitle, delegateName, taskUrl, delegatorName } = request.data;
     if (!to || !taskTitle || !delegateName) {
-        throw new https_1.HttpsError("invalid-argument", "Faltan datos.");
+        throw new https_1.HttpsError("invalid-argument", "Faltan datos (to, taskTitle, delegateName).");
     }
     const subject = `Nueva tarea delegada: ${taskTitle}`;
     const html = `
@@ -81,45 +86,36 @@ exports.sendEmailTask = (0, https_1.onCall)({ region: "us-central1", secrets: ["
       <p>Hola ${delegateName},</p>
       <p>${delegatorName || 'Un administrador'} te ha delegado la tarea:</p>
       <p><strong>${taskTitle}</strong></p>
-      ${taskUrl
-        ? `<p>Puedes revisar los detalles aquí: <a href="${taskUrl}">${taskUrl}</a></p>`
-        : ''}
+      ${taskUrl ? `<p>Puedes revisar los detalles aquí: <a href="${taskUrl}">${taskUrl}</a></p>` : ''}
       <p>Por favor, revisa la tarea en el sistema.</p>
     `;
     return sendEmail({ to, subject, html });
 });
+// Cloud Function triggered when an invitation is created.
 exports.onInvitationCreatedSendEmail = (0, firestore_1.onDocumentCreated)({ document: "invitations/{email}", region: "us-central1", secrets: ["RESEND_API_KEY"] }, async (event) => {
     const snap = event.data;
     if (!snap)
         return;
-    const data = snap.data();
-    const email = data.email;
-    const registrationUrl = data.registrationUrl;
-    const inviterName = data.inviterName || "Un colega";
+    const { email, registrationUrl, inviterName = "Un colega" } = snap.data();
     if (!email || !registrationUrl) {
-        console.error("Invitación incompleta", { id: snap.id, data });
+        console.error("Invitación incompleta, no se puede enviar correo.", { id: snap.id });
         return;
     }
     const subject = `Invitación para unirte a Gestor D&G`;
     const html = `
       <h1>¡Has sido invitado!</h1>
       <p>Hola,</p>
-      <p>${inviterName} te ha invitado a unirte a su equipo en Gestor D&G, una herramienta para la gestión de tareas y proyectos.</p>
-      <p>Para comenzar, por favor regístrate usando este correo electrónico en el siguiente enlace:</p>
+      <p>${inviterName} te ha invitado a unirte a su equipo en Gestor D&G.</p>
+      <p>Para comenzar, regístrate usando este correo en el siguiente enlace:</p>
       <p><a href="${registrationUrl}" style="background-color: #3f51b5; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Crear mi cuenta</a></p>
-      <p>Si el botón no funciona, copia y pega esta URL en tu navegador:</p>
-      <p>${registrationUrl}</p>
+      <p>Si el botón no funciona, copia y pega esta URL: ${registrationUrl}</p>
       <p>¡Esperamos verte pronto!</p>
-      <p>El equipo de Gestor D&G</p>
     `;
-    await sendEmail({ to: email, subject, html });
+    return sendEmail({ to: email, subject, html });
 });
+// Cloud Function to create an impersonation token for an admin.
 exports.createImpersonationToken = (0, https_1.onCall)({ region: "us-central1", secrets: ["ADMIN_UID"] }, async (request) => {
-    if (!request.auth) {
-        throw new https_1.HttpsError("unauthenticated", "Debes estar autenticado para realizar esta acción.");
-    }
-    const ADMIN_UID = adminUid.value();
-    if (request.auth.uid !== ADMIN_UID) {
+    if (!request.auth || request.auth.uid !== adminUid.value()) {
         throw new https_1.HttpsError("permission-denied", "Esta acción solo puede ser realizada por un administrador.");
     }
     const emailToImpersonate = request.data.email;
@@ -136,23 +132,19 @@ exports.createImpersonationToken = (0, https_1.onCall)({ region: "us-central1", 
         if (error.code === 'auth/user-not-found') {
             throw new https_1.HttpsError("not-found", "El usuario especificado no existe.");
         }
-        throw new https_1.HttpsError("internal", "Ocurrió un error inesperado al intentar suplantar al usuario.");
+        throw new https_1.HttpsError("internal", "Ocurrió un error al intentar suplantar al usuario.");
     }
 });
+// Cloud Function for admins to send a test email.
 exports.sendTestEmail = (0, https_1.onCall)({ region: "us-central1", secrets: ["RESEND_API_KEY", "ADMIN_UID"] }, async (request) => {
-    if (!request.auth) {
-        throw new https_1.HttpsError("unauthenticated", "Debes estar autenticado para realizar esta acción.");
-    }
-    const ADMIN_UID = adminUid.value();
-    if (request.auth.uid !== ADMIN_UID) {
+    if (!request.auth || request.auth.uid !== adminUid.value()) {
         throw new https_1.HttpsError("permission-denied", "Esta acción solo puede ser realizada por un administrador.");
     }
     const { to, subject, message } = request.data;
     if (!to || !subject || !message) {
         throw new https_1.HttpsError("invalid-argument", "Se requieren destinatario, asunto y mensaje.");
     }
-    const html = `<p>${message}</p>
-                  <p>Este es un correo de prueba enviado desde el panel de administrador.</p>`;
+    const html = `<p>${message}</p><p>Este es un correo de prueba.</p>`;
     return sendEmail({ to, subject, html });
 });
 //# sourceMappingURL=index.js.map

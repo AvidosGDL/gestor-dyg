@@ -4,9 +4,11 @@ import * as admin from "firebase-admin";
 import { Resend } from "resend";
 import { defineString } from 'firebase-functions/params';
 
-// Define the Resend API key and Admin UID as a configurable parameters.
+// Define the Resend API key as a configurable parameter.
 const resendApiKey = defineString('RESEND_API_KEY');
-const adminUid = defineString('ADMIN_UID', {default: 'fKZUAAXTENPcUeEA4tUXFEV4xbr1'});
+
+// The Admin UID is a constant, not a secret.
+const ADMIN_UID = 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
 
 // Initialize Firebase Admin SDK.
 admin.initializeApp();
@@ -96,8 +98,8 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
 );
 
 // Cloud Function to create an impersonation token for an admin.
-export const createImpersonationToken = onCall({ region: "us-central1", secrets: ["ADMIN_UID"] }, async (request) => {
-  if (!request.auth || request.auth.uid !== adminUid.value()) {
+export const createImpersonationToken = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth || request.auth.uid !== ADMIN_UID) {
     throw new HttpsError("permission-denied", "Esta acción solo puede ser realizada por un administrador.");
   }
 
@@ -120,8 +122,8 @@ export const createImpersonationToken = onCall({ region: "us-central1", secrets:
 });
 
 // Cloud Function for admins to send a test email.
-export const sendTestEmail = onCall({ region: "us-central1", secrets: ["RESEND_API_KEY", "ADMIN_UID"] }, async (request) => {
-    if (!request.auth || request.auth.uid !== adminUid.value()) {
+export const sendTestEmail = onCall({ region: "us-central1", secrets: ["RESEND_API_KEY"] }, async (request) => {
+    if (!request.auth || request.auth.uid !== ADMIN_UID) {
       throw new HttpsError("permission-denied", "Esta acción solo puede ser realizada por un administrador.");
     }
   
