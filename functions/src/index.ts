@@ -15,44 +15,35 @@ const ensureAdmin = () => {
 
 const FROM_EMAIL = "Gestor D&G <gestor@fiscalflow.mx>";
 
-function getResend() {
-  const key = resendApiKey.value();
-  if (!key) {
-     // This case should ideally not happen in production if the secret is set up.
-     // In the emulator, it falls back to the .env.local file.
-     console.warn("RESEND_API_KEY no está configurada. El envío de correos fallará.");
-     // Return a mock object to prevent crashing but log the attempt.
-     return { 
-         emails: { 
-             send: () => Promise.resolve({ 
-                 data: null, 
-                 error: { message: "RESEND_API_KEY is not configured.", name: "missing_api_key" } 
-             }) 
-         } 
-     } as any;
-  }
-  return new Resend(key);
-}
-
 async function sendEmail(params: { to: string; subject: string; html: string }) {
-  const resend = getResend();
-  const { data, error } = await resend.emails.send({
-    from: FROM_EMAIL,
-    to: [params.to],
-    subject: params.subject,
-    html: params.html,
-  });
-
-  if (error) {
-    console.error("Resend error:", error);
-    // Check if the error is due to the missing API key from our mock object
-    if (error.name === 'missing_api_key') {
-        throw new HttpsError("failed-precondition", "La configuración del servidor de correo está incompleta.");
-    }
-    throw new HttpsError("internal", `Error al enviar correo: ${error.message}`);
+  const apiKey = resendApiKey.value();
+  if (!apiKey) {
+    console.error("Resend API key is not available.");
+    throw new HttpsError("failed-precondition", "La configuración del servidor de correo está incompleta o la clave no está disponible.");
   }
+  
+  const resend = new Resend(apiKey);
+  
+  try {
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: [params.to],
+      subject: params.subject,
+      html: params.html,
+    });
 
-  return { success: true, id: data?.id };
+    if (error) {
+      // Throw a specific error from Resend if available
+      console.error("Resend API Error:", error);
+      throw new HttpsError("internal", error.message || "Un error desconocido ocurrió con el servicio de correo.");
+    }
+
+    return { success: true, id: data?.id };
+  } catch(e: any) {
+    console.error("Failed to send email:", e);
+    // Re-throw the error so it can be caught by the client
+    throw new HttpsError("internal", e.message || "Error al intentar enviar el correo.");
+  }
 }
 
 export const sendEmailTask = onCall({ region: "us-central1", secrets: ["RESEND_API_KEY"] }, async (request: any) => {
