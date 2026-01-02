@@ -33,45 +33,37 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createImpersonationToken = exports.onInvitationCreatedSendEmail = exports.sendEmailTask = void 0;
+exports.sendTestEmail = exports.createImpersonationToken = exports.onInvitationCreatedSendEmail = exports.sendEmailTask = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-functions/v2/firestore");
 const admin = __importStar(require("firebase-admin"));
 const resend_1 = require("resend");
-const ensureAdmin = () => {
-    if (admin.apps.length === 0)
-        admin.initializeApp();
-};
-// --- Resend (NO hardcode) ---
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const FROM_EMAIL = process.env.FROM_EMAIL || "Gestor D&G <gestor@fiscalflow.mx>";
-function getResend() {
-    if (!RESEND_API_KEY) {
-        console.warn("RESEND_API_KEY no está configurada. El envío de correos fallará.");
-        return { emails: { send: () => Promise.resolve({ data: null, error: { message: "RESEND_API_KEY is not configured.", name: "missing_api_key" } }) } };
-    }
-    return new resend_1.Resend(RESEND_API_KEY);
-}
+const params_1 = require("firebase-functions/params");
+const resendApiKey = (0, params_1.defineString)('RESEND_API_KEY');
+const adminUid = (0, params_1.defineString)('ADMIN_UID', { default: 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' });
+admin.initializeApp();
+const FROM_EMAIL = "Gestor D&G <gestor@fiscalflow.mx>";
+const resend = new resend_1.Resend(resendApiKey.value());
 async function sendEmail(params) {
-    if (!RESEND_API_KEY) {
-        console.error("No se puede enviar el correo porque RESEND_API_KEY no está configurada.");
-        throw new https_1.HttpsError("failed-precondition", "La configuración del servidor de correo está incompleta.");
+    try {
+        const { data, error } = await resend.emails.send({
+            from: FROM_EMAIL,
+            to: [params.to],
+            subject: params.subject,
+            html: params.html,
+        });
+        if (error) {
+            console.error("Resend API Error:", error);
+            throw new https_1.HttpsError("internal", error.message || "Un error desconocido ocurrió con el servicio de correo.");
+        }
+        return { success: true, id: data?.id };
     }
-    const resend = getResend();
-    const { data, error } = await resend.emails.send({
-        from: FROM_EMAIL,
-        to: [params.to],
-        subject: params.subject,
-        html: params.html,
-    });
-    if (error) {
-        console.error("Resend error:", error);
-        throw new https_1.HttpsError("internal", `Error al enviar correo: ${error.message}`);
+    catch (e) {
+        console.error("Failed to send email:", e);
+        throw new https_1.HttpsError("internal", e.message || "Error al intentar enviar el correo.");
     }
-    return { success: true, id: data?.id };
 }
-exports.sendEmailTask = (0, https_1.onCall)({ region: "us-central1" }, async (request) => {
-    ensureAdmin();
+exports.sendEmailTask = (0, https_1.onCall)({ region: "us-central1", secrets: ["RESEND_API_KEY"] }, async (request) => {
     if (!request.auth)
         throw new https_1.HttpsError("unauthenticated", "Requiere login.");
     const data = (request.data ?? {});
@@ -96,8 +88,7 @@ exports.sendEmailTask = (0, https_1.onCall)({ region: "us-central1" }, async (re
     `;
     return sendEmail({ to, subject, html });
 });
-exports.onInvitationCreatedSendEmail = (0, firestore_1.onDocumentCreated)({ document: "invitations/{email}", region: "us-central1" }, async (event) => {
-    ensureAdmin();
+exports.onInvitationCreatedSendEmail = (0, firestore_1.onDocumentCreated)({ document: "invitations/{email}", region: "us-central1", secrets: ["RESEND_API_KEY"] }, async (event) => {
     const snap = event.data;
     if (!snap)
         return;
@@ -123,13 +114,11 @@ exports.onInvitationCreatedSendEmail = (0, firestore_1.onDocumentCreated)({ docu
     `;
     await sendEmail({ to: email, subject, html });
 });
-exports.createImpersonationToken = (0, https_1.onCall)({ region: "us-central1" }, async (request) => {
-    ensureAdmin();
+exports.createImpersonationToken = (0, https_1.onCall)({ region: "us-central1", secrets: ["ADMIN_UID"] }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError("unauthenticated", "Debes estar autenticado para realizar esta acción.");
     }
-    // UID del administrador - ¡Debería estar en una variable de entorno!
-    const ADMIN_UID = process.env.ADMIN_UID || 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
+    const ADMIN_UID = adminUid.value();
     if (request.auth.uid !== ADMIN_UID) {
         throw new https_1.HttpsError("permission-denied", "Esta acción solo puede ser realizada por un administrador.");
     }
@@ -149,5 +138,21 @@ exports.createImpersonationToken = (0, https_1.onCall)({ region: "us-central1" }
         }
         throw new https_1.HttpsError("internal", "Ocurrió un error inesperado al intentar suplantar al usuario.");
     }
+});
+exports.sendTestEmail = (0, https_1.onCall)({ region: "us-central1", secrets: ["RESEND_API_KEY", "ADMIN_UID"] }, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError("unauthenticated", "Debes estar autenticado para realizar esta acción.");
+    }
+    const ADMIN_UID = adminUid.value();
+    if (request.auth.uid !== ADMIN_UID) {
+        throw new https_1.HttpsError("permission-denied", "Esta acción solo puede ser realizada por un administrador.");
+    }
+    const { to, subject, message } = request.data;
+    if (!to || !subject || !message) {
+        throw new https_1.HttpsError("invalid-argument", "Se requieren destinatario, asunto y mensaje.");
+    }
+    const html = `<p>${message}</p>
+                  <p>Este es un correo de prueba enviado desde el panel de administrador.</p>`;
+    return sendEmail({ to, subject, html });
 });
 //# sourceMappingURL=index.js.map
