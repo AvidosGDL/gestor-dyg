@@ -1,7 +1,25 @@
-import {genkit} from 'genkit';
+import {genkit, type Genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/google-genai';
+import {firebase} from '@genkit-ai/firebase';
+import {firebaseFunctions} from '@genkit-ai/firebase/functions';
 
-export const ai = genkit({
-  plugins: [googleAI()],
-  model: 'googleai/gemini-2.5-flash',
-});
+let aiInstance: Genkit;
+
+function getAiInstance() {
+  if (!aiInstance) {
+    aiInstance = genkit({
+      plugins: [
+        googleAI(),
+        firebase(),
+        firebaseFunctions(),
+      ],
+      flowStateStore: 'firebase',
+      traceStore: 'firebase',
+      enableTracingAndMetrics: true,
+      logLevel: 'debug',
+    });
+  }
+  return aiInstance;
+}
+
+export const ai = getAiInstance();

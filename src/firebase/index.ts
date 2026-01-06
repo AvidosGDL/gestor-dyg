@@ -8,7 +8,6 @@ import { getFirestore } from 'firebase/firestore'
 // IMPORTANT: DO NOT MODIFY THIS FUNCTION
 export function initializeFirebase() {
   const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-  console.log("Firebase projectId:", app.options.projectId);
   return getSdks(app);
 }
 
