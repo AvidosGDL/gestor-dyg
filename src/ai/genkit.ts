@@ -1,10 +1,11 @@
+import 'server-only';
 import {genkit, type Genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/google-genai';
 import {firebase} from '@genkit-ai/firebase';
 
-let aiInstance: Genkit;
+let aiInstance: Genkit | null = null;
 
-function getAiInstance() {
+function initializeAi() {
   if (!aiInstance) {
     aiInstance = genkit({
       plugins: [
@@ -20,4 +21,4 @@ function getAiInstance() {
   return aiInstance;
 }
 
-export const ai = getAiInstance();
+export const ai = initializeAi();
