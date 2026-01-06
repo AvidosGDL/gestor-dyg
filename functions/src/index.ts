@@ -3,10 +3,10 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
 import { Resend } from "resend";
-import { defineString } from "firebase-functions/params";
+import { defineSecret } from "firebase-functions/params";
 
-// Define the Resend API key as a configurable parameter.
-const resendApiKey = defineString("RESEND_API_KEY");
+// Define the secret using defineSecret. This is the correct modern approach.
+const RESEND_API_KEY_SM = defineSecret("RESEND_API_KEY_SM");
 
 // The Admin UID is a constant, not a secret.
 const ADMIN_UID = 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
@@ -19,8 +19,19 @@ const FROM_EMAIL = "Gestor D&G <gestor@fiscalflow.mx>";
 
 // Reusable function to send emails.
 async function sendEmail(params: { to: string; subject: string; html: string }) {
-  // IMPORTANT: Initialize Resend client here, inside the function body.
-  const resend = new Resend(resendApiKey.value());
+  // Get the secret's value at runtime.
+  const key = RESEND_API_KEY_SM.value();
+
+  // Preflight check to ensure the key is loaded, preventing ambiguous "internal" errors.
+  if (!key || key.trim().length < 10) {
+    console.error("Missing or invalid RESEND_API_KEY_SM secret at runtime. Length:", key?.length ?? 0);
+    throw new HttpsError(
+      "failed-precondition",
+      "El secreto de la API para enviar correos (RESEND_API_KEY_SM) no está configurado correctamente en el servidor."
+    );
+  }
+
+  const resend = new Resend(key);
 
   try {
     const { data, error } = await resend.emails.send({
@@ -46,7 +57,8 @@ async function sendEmail(params: { to: string; subject: string; html: string }) 
 }
 
 // Cloud Function to send an email when a task is delegated.
-export const sendEmailTask = onCall({ region: "us-central1" }, async (request) => {
+// It is explicitly linked to the secret.
+export const sendEmailTask = onCall({ region: "us-central1", secrets: [RESEND_API_KEY_SM] }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Requiere login.");
 
   const { to, taskTitle, delegateName, taskUrl, delegatorName } = request.data as any;
@@ -69,8 +81,9 @@ export const sendEmailTask = onCall({ region: "us-central1" }, async (request) =
 });
 
 // Cloud Function triggered when an invitation is created.
+// It is explicitly linked to the secret.
 export const onInvitationCreatedSendEmail = onDocumentCreated(
-  { document: "invitations/{email}", region: "us-central1" },
+  { document: "invitations/{email}", region: "us-central1", secrets: [RESEND_API_KEY_SM] },
   async (event) => {
     const snap = event.data;
     if (!snap) return;
@@ -122,7 +135,8 @@ export const createImpersonationToken = onCall({ region: "us-central1" }, async 
 });
 
 // Cloud Function for admins to send a test email.
-export const sendTestEmail = onCall({ region: "us-central1" }, async (request) => {
+// It is explicitly linked to the secret.
+export const sendTestEmail = onCall({ region: "us-central1", secrets: [RESEND_API_KEY_SM] }, async (request) => {
     if (!request.auth || request.auth.uid !== ADMIN_UID) {
       throw new HttpsError("permission-denied", "Esta acción solo puede ser realizada por un administrador.");
     }
