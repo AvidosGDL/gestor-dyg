@@ -103,7 +103,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
   }
   
   const handleSendDelegationEmail = async () => {
-    if (!firestore || !task.delegateToId || !task.delegateToEmail) {
+    if (!firestore || !user || !task.delegateToId || !task.delegateToEmail) {
       toast({ variant: 'destructive', title: 'Error', description: 'Faltan datos para enviar el correo.' });
       return;
     }
@@ -186,18 +186,6 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
             <div></div>
              
             <div className="flex gap-1 justify-self-end">
-                {task.delegateToId && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-blue-500"
-                    onClick={handleSendDelegationEmail}
-                    disabled={isSendingEmail}
-                    title="Enviar notificación por correo"
-                  >
-                    <Send size={16} />
-                  </Button>
-                )}
                 {task.status !== 'completado' ? (
                   <>
                     <Button

@@ -36,6 +36,40 @@ interface TasksContextType {
 
 const TasksContext = createContext<TasksContextType | undefined>(undefined);
 
+// Helper function to send delegation email to avoid code duplication
+async function sendDelegationEmail(firestore: any, user: User, task: Partial<Task>, taskId: string) {
+    if (!task.delegateToEmail || !task.delegateToId) {
+        console.error("Missing delegation info to send email.");
+        return;
+    }
+
+    const functions = getFunctions();
+    const sendEmailFunction = httpsCallable(functions, 'sendEmailTask');
+
+    const delegateUserDoc = await getDoc(doc(firestore, 'users', task.delegateToId));
+    const delegateName = delegateUserDoc.data()?.name || 'un miembro del equipo';
+
+    const delegatorName = task.delegatedByName || user?.displayName || 'un administrador';
+
+    const payload = {
+        to: task.delegateToEmail,
+        delegateName: delegateName,
+        taskId: taskId,
+        taskTitle: task.title,
+        delegatorName: delegatorName,
+        taskUrl: `${window.location.origin}/?task=${taskId}`
+    };
+
+    try {
+        await sendEmailFunction(payload);
+        return { success: true, delegateName: delegateName };
+    } catch (emailError: any) {
+        console.error('Error calling sendEmailTask:', emailError);
+        return { success: false, error: emailError };
+    }
+}
+
+
 export function TasksProvider({ children }: { children: ReactNode }) {
   const firestore = useFirestore();
   const { user } = useUser();
@@ -99,45 +133,33 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     try {
       const docRef = await addDoc(tasksCollectionRef, newTask);
 
-      if (isDelegating && newTask.delegateToEmail && newTask.delegateToId) {
-            try {
-                const functions = getFunctions();
-                const sendEmailFunction = httpsCallable(functions, 'sendEmailTask');
-
-                const delegateUserDoc = await getDoc(doc(firestore, 'users', newTask.delegateToId));
-                const delegateName = delegateUserDoc.data()?.name || 'un miembro del equipo';
-
-                const payload = {
-                    to: newTask.delegateToEmail,
-                    delegateName: delegateName,
-                    taskId: docRef.id,
-                    taskTitle: newTask.title,
-                    delegatorName: newTask.delegatedByName,
-                    taskUrl: `${window.location.origin}/?task=${docRef.id}`
-                };
-                
-                await sendEmailFunction(payload);
-
-                toast({
-                    title: "Notificación enviada",
-                    description: `Se ha notificado a ${payload.delegateName} sobre la nueva tarea.`,
-                });
-            } catch (emailError: any) {
-                console.error('[addTask] Error calling sendEmailTask:', emailError);
-                toast({
-                    variant: "destructive",
-                    title: "Error al notificar",
-                    description: "La tarea se creó, pero no se pudo enviar el correo. " + emailError.message,
-                });
-            }
+      if (isDelegating) {
+        const emailResult = await sendDelegationEmail(firestore, user, newTask, docRef.id);
+        if (emailResult.success) {
+            toast({
+                title: "Notificación enviada",
+                description: `Se ha notificado a ${emailResult.delegateName} sobre la nueva tarea.`,
+            });
+        } else {
+            throw emailResult.error; // Throw to be caught by the outer catch block
+        }
       }
-    } catch (firestoreError: any) {
-      const permissionError = new FirestorePermissionError({
-        path: tasksCollectionRef.path,
-        operation: 'create',
-        requestResourceData: newTask,
-      });
-      errorEmitter.emit('permission-error', permissionError);
+    } catch (error: any) {
+      if (error.code && error.message) { // Likely a Firebase error from sendDelegationEmail
+        console.error('[addTask] Error calling sendEmailTask:', error);
+        toast({
+            variant: "destructive",
+            title: "Error al notificar",
+            description: "La tarea se creó, pero no se pudo enviar el correo. " + error.message,
+        });
+      } else { // Firestore permission error or other issue
+        const permissionError = new FirestorePermissionError({
+          path: tasksCollectionRef.path,
+          operation: 'create',
+          requestResourceData: newTask,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      }
     }
   };
 
@@ -216,46 +238,35 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     try {
         await updateDoc(docRef, finalData);
 
-        if (shouldSendEmail && finalData.delegateToId && finalData.delegateToEmail) {
-             try {
-                const functions = getFunctions();
-                const sendEmailFunction = httpsCallable(functions, 'sendEmailTask');
-                const taskTitle = finalData.title || existingTask.title || 'una tarea';
-                
-                const delegateUserDoc = await getDoc(doc(firestore, 'users', finalData.delegateToId));
-                const delegateName = delegateUserDoc.data()?.name || 'un miembro del equipo';
+        if (shouldSendEmail) {
+            const taskWithUpdates = { ...existingTask, ...finalData };
+            const emailResult = await sendDelegationEmail(firestore, user, taskWithUpdates, id);
 
-                const payload = {
-                    to: finalData.delegateToEmail,
-                    delegateName,
-                    taskId: id,
-                    taskTitle,
-                    delegatorName: finalData.delegatedByName,
-                    taskUrl: `${window.location.origin}/?task=${id}`
-                };
-                
-                await sendEmailFunction(payload);
-
+            if (emailResult.success) {
                 toast({
                     title: "Notificación enviada",
-                    description: `Se ha notificado a ${delegateName} sobre la tarea delegada.`,
+                    description: `Se ha notificado a ${emailResult.delegateName} sobre la tarea delegada.`,
                 });
-            } catch (emailError: any) {
-                console.error('[updateTask] Error calling sendEmailTask:', emailError);
-                toast({
-                    variant: "destructive",
-                    title: "Error al notificar",
-                    description: "La tarea se actualizó, pero no se pudo enviar el correo de notificación. " + emailError.message,
-                });
+            } else {
+                 throw emailResult.error;
             }
         }
-    } catch (serverError: any) {
-        const permissionError = new FirestorePermissionError({
-            path: docRef.path,
-            operation: 'update',
-            requestResourceData: finalData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
+    } catch (error: any) {
+        if (error.code && error.message) { // Firebase Callable error
+            console.error('[updateTask] Error calling sendEmailTask:', error);
+            toast({
+                variant: "destructive",
+                title: "Error al notificar",
+                description: "La tarea se actualizó, pero no se pudo enviar el correo de notificación. " + error.message,
+            });
+        } else { // Firestore permission error
+            const permissionError = new FirestorePermissionError({
+                path: docRef.path,
+                operation: 'update',
+                requestResourceData: finalData,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        }
     }
   };
 
