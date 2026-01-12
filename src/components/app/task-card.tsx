@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState } from 'react';
@@ -20,6 +21,7 @@ import {
   Eye,
   History,
   Pencil,
+  Send,
 } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus, TeamMember, EditLogEntry } from '@/lib/types';
@@ -29,13 +31,13 @@ import { Button } from '@/components/ui/button';
 import { isPast, parseISO, format, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useCollection, useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 interface TaskCardProps {
   task: Task;
@@ -76,6 +78,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
   const firestore = useFirestore();
   const { toast } = useToast();
   const [confirmationText, setConfirmationText] = useState('');
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
 
 
   const collectionPath = user ? `users/${user.uid}/teamMembers` : null;
@@ -98,6 +101,52 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
   const handleCompleteTask = () => {
     updateTask(task.id, { status: 'completado', progress: 100 }, user);
   }
+  
+  const handleSendDelegationEmail = async () => {
+    if (!firestore || !task.delegateToId || !task.delegateToEmail) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Faltan datos para enviar el correo.' });
+      return;
+    }
+    
+    setIsSendingEmail(true);
+    toast({ title: 'Enviando notificación...' });
+
+    try {
+      const functions = getFunctions();
+      const sendEmailFunction = httpsCallable(functions, 'sendEmailTask');
+
+      const delegateUserDoc = await getDoc(doc(firestore, 'users', task.delegateToId));
+      const delegateName = delegateUserDoc.data()?.name || 'un miembro del equipo';
+
+      const delegatorName = task.delegatedByName || user?.displayName || 'un administrador';
+
+      const payload = {
+        to: task.delegateToEmail,
+        delegateName: delegateName,
+        taskId: task.id,
+        taskTitle: task.title,
+        delegatorName: delegatorName,
+        taskUrl: `${window.location.origin}/?task=${task.id}`
+      };
+      
+      await sendEmailFunction(payload);
+
+      toast({
+        title: "Notificación enviada",
+        description: `Se ha notificado a ${delegateName} sobre la tarea.`,
+      });
+    } catch (emailError: any) {
+      console.error('Error calling sendEmailTask:', emailError);
+      toast({
+        variant: "destructive",
+        title: "Error al notificar",
+        description: emailError.message || "No se pudo enviar el correo de notificación.",
+      });
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
 
   const totalFocusTimeMs = React.useMemo(() => {
     if (!task.focusSessions) return 0;
@@ -137,6 +186,18 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
             <div></div>
              
             <div className="flex gap-1 justify-self-end">
+                {task.delegateToId && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-blue-500"
+                    onClick={handleSendDelegationEmail}
+                    disabled={isSendingEmail}
+                    title="Enviar notificación por correo"
+                  >
+                    <Send size={16} />
+                  </Button>
+                )}
                 {task.status !== 'completado' ? (
                   <>
                     <Button
