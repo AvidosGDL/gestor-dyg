@@ -33,15 +33,14 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendTestEmail = exports.createImpersonationToken = exports.onInvitationCreatedSendEmail = exports.sendEmailTask = void 0;
+exports.syncAllTeamMemberUIDs = exports.sendTestEmail = exports.createImpersonationToken = exports.onNewUserCreate = exports.onInvitationCreatedSendEmail = exports.sendEmailTask = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-functions/v2/firestore");
+const identity_1 = require("firebase-functions/v2/identity");
 const admin = __importStar(require("firebase-admin"));
 const resend_1 = require("resend");
-// ================================
-// CONFIGURACIÓN DIRECTA (SIN SECRET)
-// ================================
-const RESEND_API_KEY = "[REMOVED_RESEND_API_KEY]";
+const params_1 = require("firebase-functions/params");
+const RESEND_API_KEY_SM = (0, params_1.defineSecret)("RESEND_API_KEY_SM");
 // The Admin UID is a constant
 const ADMIN_UID = "fKZUAAXTENPcUeEA4tUXFEV4xbr1";
 // Initialize Firebase Admin SDK
@@ -52,11 +51,13 @@ const FROM_EMAIL = "Gestor D&G <gestor@fiscalflow.mx>";
 // FUNCIÓN REUTILIZABLE DE ENVÍO
 // ================================
 async function sendEmail(params) {
-    if (!RESEND_API_KEY || RESEND_API_KEY.trim().length < 10) {
-        console.error("RESEND_API_KEY inválida o ausente");
-        throw new https_1.HttpsError("failed-precondition", "La API Key de Resend no está configurada correctamente.");
+    const key = RESEND_API_KEY_SM.value();
+    // Preflight check to ensure the key is loaded
+    if (!key || key.trim().length < 10) {
+        console.error("Missing or invalid RESEND_API_KEY_SM secret at runtime. Length:", key?.length ?? 0);
+        throw new https_1.HttpsError("failed-precondition", "El secreto de la API para enviar correos (RESEND_API_KEY_SM) no está configurado correctamente en el servidor.");
     }
-    const resend = new resend_1.Resend(RESEND_API_KEY);
+    const resend = new resend_1.Resend(key);
     try {
         const { data, error } = await resend.emails.send({
             from: FROM_EMAIL,
@@ -65,8 +66,8 @@ async function sendEmail(params) {
             html: params.html,
         });
         if (error) {
-            console.error("Resend error:", error);
-            throw new https_1.HttpsError("internal", error.message);
+            console.error("Resend API Error:", error);
+            throw new https_1.HttpsError("internal", `Error from Resend: ${error.message}`);
         }
         return { success: true, id: data?.id };
     }
@@ -78,28 +79,28 @@ async function sendEmail(params) {
 // ================================
 // FUNCIÓN: TAREA DELEGADA
 // ================================
-exports.sendEmailTask = (0, https_1.onCall)({ region: "us-central1" }, async (request) => {
+exports.sendEmailTask = (0, https_1.onCall)({ region: "us-central1", secrets: [RESEND_API_KEY_SM] }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError("unauthenticated", "Requiere login.");
     }
     const { to, taskTitle, delegateName, taskUrl, delegatorName } = request.data;
     if (!to || !taskTitle || !delegateName) {
-        throw new https_1.HttpsError("invalid-argument", "Datos incompletos.");
+        throw new https_1.HttpsError("invalid-argument", "Datos incompletos (to, taskTitle, delegateName).");
     }
     const subject = `Nueva tarea delegada: ${taskTitle}`;
     const html = `
-    <h1>Nueva tarea</h1>
+    <h1>Se te ha delegado una nueva tarea</h1>
     <p>Hola ${delegateName},</p>
-    <p>${delegatorName || "Un administrador"} te asignó la tarea:</p>
-    <strong>${taskTitle}</strong>
-    ${taskUrl ? `<p><a href="${taskUrl}">Ver tarea</a></p>` : ""}
+    <p>${delegatorName || "Un administrador"} te ha delegado la tarea:</p>
+    <p><strong>${taskTitle}</strong></p>
+    ${taskUrl ? `<p>Detalles: <a href="${taskUrl}">${taskUrl}</a></p>` : ""}
   `;
     return sendEmail({ to, subject, html });
 });
 // ================================
 // FUNCIÓN: INVITACIÓN
 // ================================
-exports.onInvitationCreatedSendEmail = (0, firestore_1.onDocumentCreated)({ document: "invitations/{email}", region: "us-central1" }, async (event) => {
+exports.onInvitationCreatedSendEmail = (0, firestore_1.onDocumentCreated)({ document: "invitations/{email}", region: "us-central1", secrets: [RESEND_API_KEY_SM] }, async (event) => {
     const snap = event.data;
     if (!snap)
         return;
@@ -112,7 +113,71 @@ exports.onInvitationCreatedSendEmail = (0, firestore_1.onDocumentCreated)({ docu
       <p>${inviterName} te invitó a Gestor D&G</p>
       <a href="${registrationUrl}">Crear cuenta</a>
     `;
-    return sendEmail({ to: email, subject, html });
+    return sendEmail({ to: email, subject: html });
+});
+// ================================
+// FUNCIÓN: POST-REGISTRO DE USUARIO NUEVO
+// ================================
+exports.onNewUserCreate = (0, identity_1.onUserCreate)({ region: "us-central1" }, async (event) => {
+    const user = event.data;
+    const { email, uid, displayName, photoURL } = user;
+    if (!email) {
+        console.log(`User ${uid} has no email, cannot process invitation.`);
+        return;
+    }
+    const db = admin.firestore();
+    const invitationRef = db.collection('invitations').doc(email);
+    const userRef = db.collection('users').doc(uid);
+    try {
+        const invitationSnap = await invitationRef.get();
+        if (!invitationSnap.exists) {
+            console.log(`No invitation found for ${email}.`);
+            return;
+        }
+        const invitationData = invitationSnap.data();
+        const { inviterId } = invitationData;
+        // Ensure user profile exists (created on client but good to be robust)
+        const userProfileSnap = await userRef.get();
+        const userProfileData = userProfileSnap.data();
+        if (!userProfileData) {
+            console.error(`User profile for ${uid} does not exist. Cannot add to team.`);
+            return;
+        }
+        const batch = db.batch();
+        // 1. Add new user to the inviter's team
+        if (inviterId) {
+            const teamMemberRef = db.collection('users').doc(inviterId).collection('teamMembers').doc(uid);
+            const teamMemberData = {
+                id: uid,
+                uid: uid,
+                name: displayName || userProfileData.name,
+                email: email,
+                role: userProfileData.role || 'Miembro',
+                avatarUrl: photoURL || userProfileData.avatarUrl,
+                phone: user.phoneNumber || userProfileData.phone || '',
+                authType: 'email',
+            };
+            batch.set(teamMemberRef, teamMemberData, { merge: true });
+        }
+        // 2. Link pending tasks for this email
+        const tasksToUpdateQuery = db.collection('tasks')
+            .where('delegateToEmail', '==', email)
+            .where('delegateToId', '==', null);
+        const tasksSnapshot = await tasksToUpdateQuery.get();
+        if (!tasksSnapshot.empty) {
+            tasksSnapshot.forEach(taskDoc => {
+                batch.update(taskDoc.ref, { delegateToId: uid });
+            });
+        }
+        // 3. Delete the invitation
+        batch.delete(invitationRef);
+        // Commit all operations
+        await batch.commit();
+        console.log(`Successfully processed invitation for ${email} and added to team of ${inviterId}.`);
+    }
+    catch (error) {
+        console.error(`Error processing invitation for ${email}:`, error);
+    }
 });
 // ================================
 // FUNCIÓN: SUPLANTACIÓN
@@ -134,15 +199,60 @@ exports.createImpersonationToken = (0, https_1.onCall)({ region: "us-central1" }
 // ================================
 // FUNCIÓN: EMAIL DE PRUEBA
 // ================================
-exports.sendTestEmail = (0, https_1.onCall)({ region: "us-central1" }, async (request) => {
+exports.sendTestEmail = (0, https_1.onCall)({ region: "us-central1", secrets: [RESEND_API_KEY_SM] }, async (request) => {
     if (!request.auth || request.auth.uid !== ADMIN_UID) {
         throw new https_1.HttpsError("permission-denied", "Solo admin.");
     }
     const { to, subject, message } = request.data;
     if (!to || !subject || !message) {
-        throw new https_1.HttpsError("invalid-argument", "Datos incompletos.");
+        throw new https_1.HttpsError("invalid-argument", "Se requieren destinatario, asunto y mensaje.");
     }
-    const html = `<p>${message}</p><p>Email de prueba</p>`;
+    const html = `<p>${message}</p><p>Este es un correo de prueba.</p>`;
     return sendEmail({ to, subject, html });
+});
+// ================================
+// FUNCIÓN: SINCRONIZACIÓN GLOBAL DE UIDs
+// ================================
+exports.syncAllTeamMemberUIDs = (0, https_1.onCall)({ region: "us-central1" }, async (request) => {
+    // 1. Check for Admin privileges
+    if (!request.auth || request.auth.uid !== ADMIN_UID) {
+        throw new https_1.HttpsError("permission-denied", "Esta operación solo puede ser ejecutada por un administrador.");
+    }
+    const db = admin.firestore();
+    let updatedCount = 0;
+    try {
+        // 2. Create a master map of all correct email -> UID pairs
+        const allUsersSnap = await db.collection("users").get();
+        const emailToCorrectUidMap = new Map();
+        allUsersSnap.forEach(doc => {
+            const userData = doc.data();
+            if (userData.email) {
+                emailToCorrectUidMap.set(userData.email, doc.id);
+            }
+        });
+        // 3. Get all 'teamMembers' documents from all users
+        const allTeamMembersSnap = await db.collectionGroup('teamMembers').get();
+        const batch = db.batch();
+        // 4. Iterate and check for inconsistencies
+        allTeamMembersSnap.forEach(memberDoc => {
+            const member = memberDoc.data();
+            const correctUid = emailToCorrectUidMap.get(member.email);
+            if (correctUid && member.uid !== correctUid) {
+                batch.update(memberDoc.ref, { uid: correctUid });
+                updatedCount++;
+            }
+        });
+        // 5. Commit the batch if there are updates
+        if (updatedCount > 0) {
+            await batch.commit();
+        }
+        return { success: true, updatedCount: updatedCount };
+    }
+    catch (error) {
+        console.error("Error catastrófico durante la sincronización global de UIDs: ", error);
+        throw new https_1.HttpsError("internal", "Falló la sincronización global. Revisa los logs de la función.", {
+            errorMessage: error.message,
+        });
+    }
 });
 //# sourceMappingURL=index.js.map
