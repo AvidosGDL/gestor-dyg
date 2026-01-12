@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useRef, useMemo } from 'react';
@@ -23,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Trash2, Edit, Loader2, ImageUp, Wand2, LogIn, Send } from 'lucide-react';
 import { type TeamMember } from '@/lib/types';
 import { useCollection, useUser, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
-import { collection, deleteDoc, doc, updateDoc, writeBatch, getDocs, query, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, updateDoc, writeBatch, getDocs, query, where, collectionGroup } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { signInWithCustomToken } from 'firebase/auth';
@@ -392,59 +391,60 @@ export default function TeamView() {
     }
 };
 
- const handleSyncUids = async () => {
-    if (!firestore || !user || !members) return;
+  const handleSyncUids = async () => {
+    if (!firestore || !user) return;
     setIsProcessing(true);
-    toast({ title: 'Sincronizando UIDs...', description: 'Verificando la integridad de los datos del equipo.' });
+    toast({ title: 'Sincronizando UIDs para todos los equipos...', description: 'Este proceso puede tardar unos momentos.' });
 
     try {
-        const usersRef = collection(firestore, "users");
-        const teamMemberEmails = members.map(m => m.email);
-        
-        if (teamMemberEmails.length === 0) {
-            toast({ title: 'Sincronización finalizada', description: 'No hay miembros en el equipo para sincronizar.' });
-            setIsProcessing(false);
-            return;
-        }
-
-        const usersQuery = query(usersRef, where('email', 'in', teamMemberEmails));
-        const usersSnap = await getDocs(usersQuery);
-        
+        // Step 1: Create a master map of all correct email -> UID pairs from the top-level 'users' collection.
+        const allUsersRef = collection(firestore, "users");
+        const allUsersSnap = await getDocs(allUsersRef);
         const emailToCorrectUidMap = new Map<string, string>();
-        usersSnap.forEach(doc => {
+        allUsersSnap.forEach(doc => {
             const userData = doc.data();
-            emailToCorrectUidMap.set(userData.email, doc.id);
+            if (userData.email) {
+                emailToCorrectUidMap.set(userData.email, doc.id);
+            }
         });
+
+        // Step 2: Get all 'teamMembers' documents from all users.
+        const allTeamMembersQuery = collectionGroup(firestore, 'teamMembers');
+        const allTeamMembersSnap = await getDocs(allTeamMembersQuery);
 
         const batch = writeBatch(firestore);
         let updatedCount = 0;
 
-        members.forEach(member => {
+        // Step 3: Iterate through every team member document and check for inconsistencies.
+        allTeamMembersSnap.forEach(memberDoc => {
+            const member = memberDoc.data() as TeamMember;
             const correctUid = emailToCorrectUidMap.get(member.email);
+
             if (correctUid && member.uid !== correctUid) {
-                const memberDocRef = doc(firestore, `users/${user.uid}/teamMembers`, member.id);
-                batch.update(memberDocRef, { uid: correctUid });
+                // If there's a mismatch, add an update operation to the batch.
+                batch.update(memberDoc.ref, { uid: correctUid });
                 updatedCount++;
             }
         });
 
         if (updatedCount > 0) {
             await batch.commit();
-            toast({ title: '¡Sincronización completada!', description: `${updatedCount} miembros del equipo han sido actualizados con el UID correcto.` });
+            toast({ title: '¡Sincronización Global Completada!', description: `${updatedCount} miembros del equipo han sido actualizados en toda la plataforma.` });
         } else {
-            toast({ title: 'Sincronización finalizada', description: 'Todos los UIDs del equipo ya estaban correctos.' });
+            toast({ title: 'Sincronización Finalizada', description: 'Todos los UIDs en todos los equipos ya estaban correctos.' });
         }
     } catch (error: any) {
-        console.error("Error durante la sincronización de UIDs: ", error);
+        console.error("Error durante la sincronización global de UIDs: ", error);
         toast({
             variant: "destructive",
-            title: 'Error en la sincronización',
+            title: 'Error en la Sincronización Global',
             description: error.message || 'Ocurrió un error inesperado.'
         });
     } finally {
         setIsProcessing(false);
     }
   };
+
 
   const handleImpersonate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -543,24 +543,24 @@ export default function TeamView() {
                             <AlertDialogTrigger asChild>
                                 <Button disabled={isProcessing} className="w-full justify-start">
                                     <Wand2 className="mr-2 h-4 w-4" />
-                                    Sincronizar UIDs del Equipo
+                                    Sincronizar UIDs del Equipo (Global)
                                 </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                                 <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Confirmar Sincronización de UIDs?</AlertDialogTitle>
+                                    <AlertDialogTitle>¿Confirmar Sincronización Global de UIDs?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                        Esta acción verificará que el UID de cada miembro de tu equipo sea el correcto y lo corregirá si es necesario. Esto es fundamental para que la delegación de tareas funcione. Es seguro ejecutarlo varias veces.
+                                        Esta acción escaneará TODOS los equipos de TODOS los usuarios en la plataforma. Verificará que el UID de cada miembro sea el correcto y lo corregirá si es necesario. Esto es fundamental para la integridad de los datos en toda la aplicación.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleSyncUids} disabled={isProcessing}>Sí, sincronizar</AlertDialogAction>
+                                    <AlertDialogAction onClick={handleSyncUids} disabled={isProcessing}>Sí, sincronizar todo</AlertDialogAction>
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>
                         <p className="text-xs text-muted-foreground mt-2">
-                           Repara los UIDs incorrectos de los miembros del equipo existentes.
+                           Repara los UIDs incorrectos de los miembros de todos los equipos.
                         </p>
                     </div>
                      <div>
@@ -568,7 +568,7 @@ export default function TeamView() {
                             <AlertDialogTrigger asChild>
                                 <Button disabled={isProcessing} variant="secondary" className="w-full justify-start">
                                     <Wand2 className="mr-2 h-4 w-4" />
-                                    Migrar Delegaciones de Tareas
+                                    Migrar Mis Delegaciones de Tareas
                                 </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
