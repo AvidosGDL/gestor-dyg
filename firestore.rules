@@ -57,7 +57,7 @@ service cloud.firestore {
      * Checks if the authenticated user is the super administrator.
      */
     function isAdmin() {
-      return request.auth.uid == 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
+      return isSignedIn() && request.auth.uid == 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
     }
 
     /**
