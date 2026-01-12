@@ -27,7 +27,7 @@ async function sendEmail(params: { to: string; subject: string; html: string }) 
     console.error("Missing or invalid RESEND_API_KEY_SM secret at runtime. Length:", key?.length ?? 0);
     throw new HttpsError(
       "failed-precondition",
-      "El secreto de la API para enviar correos (RESEND_API_KEY_SM) no está configurado correctamente en el servidor."
+      "La configuración del servidor de correo está incompleta. El secreto 'RESEND_API_KEY_SM' no se ha configurado."
     );
   }
 
