@@ -98,7 +98,7 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
       <a href="${registrationUrl}">Crear cuenta</a>
     `;
 
-    return sendEmail({ to: email, subject, html });
+    return sendEmail({ to: email, subject: html });
   }
 );
 
@@ -223,3 +223,57 @@ export const sendTestEmail = onCall(
     return sendEmail({ to, subject, html });
   }
 );
+
+
+// ================================
+// FUNCIÓN: SINCRONIZACIÓN GLOBAL DE UIDs
+// ================================
+export const syncAllTeamMemberUIDs = onCall({ region: "us-central1" }, async (request) => {
+    // 1. Check for Admin privileges
+    if (!request.auth || request.auth.uid !== ADMIN_UID) {
+      throw new HttpsError("permission-denied", "Esta operación solo puede ser ejecutada por un administrador.");
+    }
+
+    const db = admin.firestore();
+    let updatedCount = 0;
+
+    try {
+        // 2. Create a master map of all correct email -> UID pairs
+        const allUsersSnap = await db.collection("users").get();
+        const emailToCorrectUidMap = new Map<string, string>();
+        allUsersSnap.forEach(doc => {
+            const userData = doc.data();
+            if (userData.email) {
+                emailToCorrectUidMap.set(userData.email, doc.id);
+            }
+        });
+
+        // 3. Get all 'teamMembers' documents from all users
+        const allTeamMembersSnap = await db.collectionGroup('teamMembers').get();
+        const batch = db.batch();
+        
+        // 4. Iterate and check for inconsistencies
+        allTeamMembersSnap.forEach(memberDoc => {
+            const member = memberDoc.data();
+            const correctUid = emailToCorrectUidMap.get(member.email);
+
+            if (correctUid && member.uid !== correctUid) {
+                batch.update(memberDoc.ref, { uid: correctUid });
+                updatedCount++;
+            }
+        });
+
+        // 5. Commit the batch if there are updates
+        if (updatedCount > 0) {
+            await batch.commit();
+        }
+
+        return { success: true, updatedCount: updatedCount };
+
+    } catch (error: any) {
+        console.error("Error catastrófico durante la sincronización global de UIDs: ", error);
+        throw new HttpsError("internal", "Falló la sincronización global. Revisa los logs de la función.", {
+            errorMessage: error.message,
+        });
+    }
+});

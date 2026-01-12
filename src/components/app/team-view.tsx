@@ -404,43 +404,17 @@ export default function TeamView() {
 };
 
   const handleSyncUids = async () => {
-    if (!firestore || !user) return;
     setIsProcessing(true);
     toast({ title: 'Sincronizando UIDs para todos los equipos...', description: 'Este proceso puede tardar unos momentos.' });
 
     try {
-        // Step 1: Create a master map of all correct email -> UID pairs from the top-level 'users' collection.
-        const allUsersRef = collection(firestore, "users");
-        const allUsersSnap = await getDocs(allUsersRef);
-        const emailToCorrectUidMap = new Map<string, string>();
-        allUsersSnap.forEach(doc => {
-            const userData = doc.data();
-            if (userData.email) {
-                emailToCorrectUidMap.set(userData.email, doc.id);
-            }
-        });
+        const functions = getFunctions();
+        const syncUidsFn = httpsCallable(functions, 'syncAllTeamMemberUIDs');
+        const result: any = await syncUidsFn();
 
-        // Step 2: Get all 'teamMembers' documents from all users.
-        const allTeamMembersQuery = collectionGroup(firestore, 'teamMembers');
-        const allTeamMembersSnap = await getDocs(allTeamMembersQuery);
-
-        const batch = writeBatch(firestore);
-        let updatedCount = 0;
-
-        // Step 3: Iterate through every team member document and check for inconsistencies.
-        allTeamMembersSnap.forEach(memberDoc => {
-            const member = memberDoc.data() as TeamMember;
-            const correctUid = emailToCorrectUidMap.get(member.email);
-
-            if (correctUid && member.uid !== correctUid) {
-                // If there's a mismatch, add an update operation to the batch.
-                batch.update(memberDoc.ref, { uid: correctUid });
-                updatedCount++;
-            }
-        });
-
+        const { updatedCount } = result.data;
+        
         if (updatedCount > 0) {
-            await batch.commit();
             toast({ title: '¡Sincronización Global Completada!', description: `${updatedCount} miembros del equipo han sido actualizados en toda la plataforma.` });
         } else {
             toast({ title: 'Sincronización Finalizada', description: 'Todos los UIDs en todos los equipos ya estaban correctos.' });
