@@ -52,6 +52,13 @@ service cloud.firestore {
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
+    
+    /**
+     * Checks if the authenticated user is the super administrator.
+     */
+    function isAdmin() {
+      return request.auth.uid == 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
+    }
 
     /**
      * Checks if the user is the owner of an existing document.
@@ -71,16 +78,14 @@ service cloud.firestore {
      */
     match /users/{userId} {
       allow get: if isOwner(userId) || isSignedIn();
-      allow list: if isSignedIn();
+      allow list: if isAdmin();
       allow create: if isOwner(userId) && request.resource.data.uid == userId;
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
     }
     
     match /users/{userId}/teamMembers/{memberId} {
-    	allow read: if isOwner(userId);
-      allow write: if isOwner(userId);
-      allow delete: if isOwner(userId);
+    	allow read, write, delete: if isOwner(userId) || isAdmin();
     }
     
     match /users/{userId}/prospects/{prospectId} {
