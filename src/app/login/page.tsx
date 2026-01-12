@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { doc, setDoc, getDoc, deleteDoc, query, collection, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarImage } from '@/components/ui/avatar';
@@ -25,7 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import * as z from 'zod';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { type UserProfile, type TeamMember } from '@/lib/types';
+import { type UserProfile } from '@/lib/types';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -55,10 +55,9 @@ const signupSchema = z.object({
 type LoginValues = z.infer<typeof loginSchema>;
 type SignupValues = z.infer<typeof signupSchema>;
 
-const createProfileAndHandleInvitation = async (user: User, firestore: any, signupData: SignupValues, invitationData: any) => {
+const createProfile = async (user: User, firestore: any, signupData: SignupValues) => {
     const userDocRef = doc(firestore, 'users', user.uid);
 
-    // 1. Create user profile
     const userProfile: UserProfile = {
         uid: user.uid,
         name: signupData.name,
@@ -67,6 +66,7 @@ const createProfileAndHandleInvitation = async (user: User, firestore: any, sign
         role: signupData.role,
         phone: signupData.phone || '',
     };
+    
     await setDoc(userDocRef, userProfile).catch(serverError => {
       const permissionError = new FirestorePermissionError({
          path: `users/${user.uid}`,
@@ -74,49 +74,8 @@ const createProfileAndHandleInvitation = async (user: User, firestore: any, sign
          requestResourceData: userProfile,
      });
      errorEmitter.emit('permission-error', permissionError);
-     throw serverError; // Re-throw to be caught by the main try-catch
+     throw serverError;
     });
-
-    // 2. Add user to the inviter's team
-    if (invitationData.inviterId) {
-        const teamMemberDocRef = doc(firestore, `users/${invitationData.inviterId}/teamMembers`, user.uid);
-        const teamMemberData: TeamMember = {
-            id: user.uid, // Use UID as document ID
-            uid: user.uid, // Store UID explicitly
-            name: signupData.name,
-            email: signupData.email,
-            role: signupData.role,
-            avatarUrl: signupData.avatarUrl,
-            phone: signupData.phone || '',
-            authType: 'email',
-        };
-        await setDoc(teamMemberDocRef, teamMemberData, { merge: true }).catch(serverError => {
-            const permissionError = new FirestorePermissionError({
-               path: teamMemberDocRef.path,
-               operation: 'create',
-               requestResourceData: teamMemberData,
-           });
-           errorEmitter.emit('permission-error', permissionError);
-           throw serverError;
-        });
-    }
-
-    // 3. Link pending tasks for this email
-    const tasksToUpdateQuery = query(
-      collection(firestore, 'tasks'),
-      where('delegateToEmail', '==', user.email),
-      where('delegateToId', '==', null)
-    );
-  
-    const tasksSnapshot = await getDocs(tasksToUpdateQuery);
-    if (!tasksSnapshot.empty) {
-        const batch = writeBatch(firestore);
-        tasksSnapshot.forEach(taskDoc => {
-            const taskRef = doc(firestore, 'tasks', taskDoc.id);
-            batch.update(taskRef, { delegateToId: user.uid });
-        });
-        await batch.commit();
-    }
 };
   
 function LoginForm() {
@@ -212,7 +171,6 @@ function SignupForm() {
           });
           return;
         }
-        const invitationData = invitationSnap.data();
         
         let finalAvatarUrl = data.avatarUrl;
         if (customAvatarFile) {
@@ -228,13 +186,10 @@ function SignupForm() {
             photoURL: finalAvatarUrl,
         });
 
-        // 3. Create profile in 'users', add to inviter's team, and link pending tasks
-        await createProfileAndHandleInvitation(user, firestore, {...data, avatarUrl: finalAvatarUrl}, invitationData);
+        // 3. Create profile in 'users'. The backend function will handle the rest.
+        await createProfile(user, firestore, {...data, avatarUrl: finalAvatarUrl});
 
-        // 4. Delete invitation
-        await deleteDoc(invitationRef);
-
-        toast({ title: 'Éxito', description: 'Tu cuenta ha sido creada.' });
+        toast({ title: 'Éxito', description: 'Tu cuenta ha sido creada. El sistema te está asignando a tu equipo.' });
       } catch (error: any) {
         toast({
           variant: 'destructive',

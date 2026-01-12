@@ -1,12 +1,11 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onUserCreate } from "firebase-functions/v2/identity";
 import * as admin from "firebase-admin";
 import { Resend } from "resend";
+import { defineSecret } from "firebase-functions/params";
 
-// ================================
-// CONFIGURACIÓN DIRECTA (SIN SECRET)
-// ================================
-const RESEND_API_KEY = "[REMOVED_RESEND_API_KEY]";
+const RESEND_API_KEY_SM = defineSecret("RESEND_API_KEY_SM");
 
 // The Admin UID is a constant
 const ADMIN_UID = "fKZUAAXTENPcUeEA4tUXFEV4xbr1";
@@ -21,15 +20,18 @@ const FROM_EMAIL = "Gestor D&G <gestor@fiscalflow.mx>";
 // FUNCIÓN REUTILIZABLE DE ENVÍO
 // ================================
 async function sendEmail(params: { to: string; subject: string; html: string }) {
-  if (!RESEND_API_KEY || RESEND_API_KEY.trim().length < 10) {
-    console.error("RESEND_API_KEY inválida o ausente");
+  const key = RESEND_API_KEY_SM.value();
+
+  // Preflight check to ensure the key is loaded
+  if (!key || key.trim().length < 10) {
+    console.error("Missing or invalid RESEND_API_KEY_SM secret at runtime. Length:", key?.length ?? 0);
     throw new HttpsError(
       "failed-precondition",
-      "La API Key de Resend no está configurada correctamente."
+      "El secreto de la API para enviar correos (RESEND_API_KEY_SM) no está configurado correctamente en el servidor."
     );
   }
 
-  const resend = new Resend(RESEND_API_KEY);
+  const resend = new Resend(key);
 
   try {
     const { data, error } = await resend.emails.send({
@@ -40,8 +42,8 @@ async function sendEmail(params: { to: string; subject: string; html: string }) 
     });
 
     if (error) {
-      console.error("Resend error:", error);
-      throw new HttpsError("internal", error.message);
+      console.error("Resend API Error:", error);
+      throw new HttpsError("internal", `Error from Resend: ${error.message}`);
     }
 
     return { success: true, id: data?.id };
@@ -54,24 +56,24 @@ async function sendEmail(params: { to: string; subject: string; html: string }) 
 // ================================
 // FUNCIÓN: TAREA DELEGADA
 // ================================
-export const sendEmailTask = onCall({ region: "us-central1" }, async (request) => {
+export const sendEmailTask = onCall({ region: "us-central1", secrets: [RESEND_API_KEY_SM] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Requiere login.");
   }
 
-  const { to, taskTitle, delegateName, taskUrl, delegatorName } = request.data;
+  const { to, taskTitle, delegateName, taskUrl, delegatorName } = request.data as any;
 
   if (!to || !taskTitle || !delegateName) {
-    throw new HttpsError("invalid-argument", "Datos incompletos.");
+    throw new HttpsError("invalid-argument", "Datos incompletos (to, taskTitle, delegateName).");
   }
 
   const subject = `Nueva tarea delegada: ${taskTitle}`;
   const html = `
-    <h1>Nueva tarea</h1>
+    <h1>Se te ha delegado una nueva tarea</h1>
     <p>Hola ${delegateName},</p>
-    <p>${delegatorName || "Un administrador"} te asignó la tarea:</p>
-    <strong>${taskTitle}</strong>
-    ${taskUrl ? `<p><a href="${taskUrl}">Ver tarea</a></p>` : ""}
+    <p>${delegatorName || "Un administrador"} te ha delegado la tarea:</p>
+    <p><strong>${taskTitle}</strong></p>
+    ${taskUrl ? `<p>Detalles: <a href="${taskUrl}">${taskUrl}</a></p>` : ""}
   `;
 
   return sendEmail({ to, subject, html });
@@ -81,13 +83,12 @@ export const sendEmailTask = onCall({ region: "us-central1" }, async (request) =
 // FUNCIÓN: INVITACIÓN
 // ================================
 export const onInvitationCreatedSendEmail = onDocumentCreated(
-  { document: "invitations/{email}", region: "us-central1" },
+  { document: "invitations/{email}", region: "us-central1", secrets: [RESEND_API_KEY_SM] },
   async (event) => {
     const snap = event.data;
     if (!snap) return;
 
-    const { email, registrationUrl, inviterName = "Un colega" } = snap.data();
-
+    const { email, registrationUrl, inviterName = "Un colega" } = snap.data() as any;
     if (!email || !registrationUrl) return;
 
     const subject = "Invitación a Gestor D&G";
@@ -100,6 +101,84 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
     return sendEmail({ to: email, subject, html });
   }
 );
+
+// ================================
+// FUNCIÓN: POST-REGISTRO DE USUARIO NUEVO
+// ================================
+export const onNewUserCreate = onUserCreate({ region: "us-central1" }, async (event) => {
+  const user = event.data;
+  const { email, uid, displayName, photoURL } = user;
+
+  if (!email) {
+    console.log(`User ${uid} has no email, cannot process invitation.`);
+    return;
+  }
+
+  const db = admin.firestore();
+  const invitationRef = db.collection('invitations').doc(email);
+  const userRef = db.collection('users').doc(uid);
+
+  try {
+    const invitationSnap = await invitationRef.get();
+    if (!invitationSnap.exists) {
+      console.log(`No invitation found for ${email}.`);
+      return;
+    }
+
+    const invitationData = invitationSnap.data()!;
+    const { inviterId } = invitationData;
+    
+    // Ensure user profile exists (created on client but good to be robust)
+    const userProfileSnap = await userRef.get();
+    const userProfileData = userProfileSnap.data();
+
+    if (!userProfileData) {
+        console.error(`User profile for ${uid} does not exist. Cannot add to team.`);
+        return;
+    }
+
+    const batch = db.batch();
+
+    // 1. Add new user to the inviter's team
+    if (inviterId) {
+      const teamMemberRef = db.collection('users').doc(inviterId).collection('teamMembers').doc(uid);
+      const teamMemberData = {
+        id: uid,
+        uid: uid,
+        name: displayName || userProfileData.name,
+        email: email,
+        role: userProfileData.role || 'Miembro',
+        avatarUrl: photoURL || userProfileData.avatarUrl,
+        phone: user.phoneNumber || userProfileData.phone || '',
+        authType: 'email',
+      };
+      batch.set(teamMemberRef, teamMemberData, { merge: true });
+    }
+
+    // 2. Link pending tasks for this email
+    const tasksToUpdateQuery = db.collection('tasks')
+      .where('delegateToEmail', '==', email)
+      .where('delegateToId', '==', null);
+
+    const tasksSnapshot = await tasksToUpdateQuery.get();
+    if (!tasksSnapshot.empty) {
+      tasksSnapshot.forEach(taskDoc => {
+        batch.update(taskDoc.ref, { delegateToId: uid });
+      });
+    }
+
+    // 3. Delete the invitation
+    batch.delete(invitationRef);
+
+    // Commit all operations
+    await batch.commit();
+    console.log(`Successfully processed invitation for ${email} and added to team of ${inviterId}.`);
+
+  } catch (error) {
+    console.error(`Error processing invitation for ${email}:`, error);
+  }
+});
+
 
 // ================================
 // FUNCIÓN: SUPLANTACIÓN
@@ -129,19 +208,18 @@ export const createImpersonationToken = onCall(
 // FUNCIÓN: EMAIL DE PRUEBA
 // ================================
 export const sendTestEmail = onCall(
-  { region: "us-central1" },
+  { region: "us-central1", secrets: [RESEND_API_KEY_SM] },
   async (request) => {
     if (!request.auth || request.auth.uid !== ADMIN_UID) {
       throw new HttpsError("permission-denied", "Solo admin.");
     }
 
     const { to, subject, message } = request.data;
-
     if (!to || !subject || !message) {
-      throw new HttpsError("invalid-argument", "Datos incompletos.");
+      throw new HttpsError("invalid-argument", "Se requieren destinatario, asunto y mensaje.");
     }
 
-    const html = `<p>${message}</p><p>Email de prueba</p>`;
+    const html = `<p>${message}</p><p>Este es un correo de prueba.</p>`;
     return sendEmail({ to, subject, html });
   }
 );
