@@ -345,23 +345,35 @@ export default function TeamView() {
   };
 
   const handleMigration = async () => {
-    if (!firestore || !user || !members) return;
+    if (!firestore || !user) return;
     setIsProcessing(true);
-    toast({ title: 'Iniciando migración...', description: 'Corrigiendo `delegateToId` en tus tareas.' });
+    toast({ title: 'Iniciando migración global...', description: 'Corrigiendo `delegateToId` en todas las tareas.' });
 
     try {
-        const tasksRef = collection(firestore, "tasks");
-        const ownerTasksQuery = query(tasksRef, where('ownerId', '==', user.uid));
+        const allUsersRef = collection(firestore, "users");
+        const allUsersSnap = await getDocs(allUsersRef);
+        const emailToUidMap = new Map<string, string>();
+        allUsersSnap.forEach(doc => {
+            const userData = doc.data();
+            if (userData.email) {
+                emailToUidMap.set(userData.email, doc.id);
+            }
+        });
         
-        const tasksSnap = await getDocs(ownerTasksQuery);
-        const emailToUidMap = new Map(members.map(m => [m.email, m.uid]));
+        const tasksToFixQuery = query(
+            collection(firestore, "tasks"), 
+            where('delegateToEmail', '!=', null),
+            where('delegateToId', '==', null)
+        );
+        
+        const tasksSnap = await getDocs(tasksToFixQuery);
         
         const batch = writeBatch(firestore);
         let updatedCount = 0;
 
         tasksSnap.forEach(taskDoc => {
             const task = taskDoc.data() as any;
-            if (task.delegateToEmail && (!task.delegateToId || task.delegateToId !== emailToUidMap.get(task.delegateToEmail))) {
+            if (task.delegateToEmail) {
                 const correctUid = emailToUidMap.get(task.delegateToEmail);
                 if (correctUid) {
                     const taskRef = doc(firestore, "tasks", taskDoc.id);
@@ -374,16 +386,16 @@ export default function TeamView() {
 
         if (updatedCount > 0) {
             await batch.commit();
-            toast({ title: '¡Migración completada!', description: `${updatedCount} tareas han sido actualizadas.` });
+            toast({ title: '¡Migración Global Completada!', description: `${updatedCount} tareas han sido actualizadas en toda la plataforma.` });
         } else {
-            toast({ title: 'Migración finalizada', description: 'No se encontraron tareas para actualizar en tu cuenta.' });
+            toast({ title: 'Migración Global Finalizada', description: 'No se encontraron tareas delegadas para actualizar.' });
         }
 
     } catch (error: any) {
-        console.error("Error durante la migración: ", error);
+        console.error("Error durante la migración global: ", error);
         toast({
             variant: "destructive",
-            title: 'Error en la migración',
+            title: 'Error en la Migración Global',
             description: error.message || 'Ocurrió un error inesperado.'
         });
     } finally {
@@ -568,24 +580,24 @@ export default function TeamView() {
                             <AlertDialogTrigger asChild>
                                 <Button disabled={isProcessing} variant="secondary" className="w-full justify-start">
                                     <Wand2 className="mr-2 h-4 w-4" />
-                                    Migrar Mis Delegaciones de Tareas
+                                    Migrar Delegaciones (Global)
                                 </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                                 <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Confirmar Migración de Datos?</AlertDialogTitle>
+                                    <AlertDialogTitle>¿Confirmar Migración de Datos Global?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                        Esta acción intentará corregir las tareas que TÚ delegaste en el pasado y que no tienen el `delegateToId` correcto. Ejecútala después de sincronizar los UIDs.
+                                        Esta acción buscará en TODAS las tareas de la plataforma aquellas que tengan un correo de delegación pero no un UID. Intentará asignar el UID correcto basado en el correo. Ejecútala después de sincronizar los UIDs para asegurar que la información es correcta.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleMigration} disabled={isProcessing}>Sí, iniciar migración</AlertDialogAction>
+                                    <AlertDialogAction onClick={handleMigration} disabled={isProcessing}>Sí, iniciar migración global</AlertDialogAction>
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>
                         <p className="text-xs text-muted-foreground mt-2">
-                           Corrige las tareas delegadas antiguas que no tienen el UID asignado.
+                           Corrige todas las tareas delegadas antiguas que no tienen el UID asignado.
                         </p>
                     </div>
                   </div>
