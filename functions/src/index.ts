@@ -2,10 +2,11 @@
 
 import {HttpsError, onCall} from 'firebase-functions/v2/https';
 import {onDocumentCreated} from 'firebase-functions/v2/firestore';
-import {beforeUserCreated} from 'firebase-functions/v2/identity';
+import {onUserCreated} from 'firebase-functions/v2/identity';
 import * as admin from 'firebase-admin';
 import {Resend} from 'resend';
 import {defineSecret} from 'firebase-functions/params';
+import {UserRecord} from 'firebase-admin/auth';
 
 const RESEND_API_KEY_SM = defineSecret('RESEND_API_KEY_SM');
 
@@ -127,9 +128,9 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
 // ================================
 // FUNCIÓN: POST-REGISTRO DE USUARIO NUEVO
 // ================================
-export const onNewUserCreate = beforeUserCreated(
+export const onNewUserCreate = onUserCreated(
   {region: 'us-central1'},
-  async event => {
+  async (event: {data: UserRecord}) => {
     const user = event.data;
     const {email, uid, displayName, photoURL} = user;
 
