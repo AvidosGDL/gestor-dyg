@@ -123,7 +123,7 @@ exports.onInvitationCreatedSendEmail = (0, firestore_1.onDocumentCreated)({
 // ================================
 // FUNCIÓN: POST-REGISTRO DE USUARIO NUEVO
 // ================================
-exports.onNewUserCreate = (0, identity_1.beforeUserCreated)({ region: 'us-central1' }, async (event) => {
+exports.onNewUserCreate = (0, identity_1.onUserCreated)({ region: 'us-central1' }, async (event) => {
     const user = event.data;
     const { email, uid, displayName, photoURL } = user;
     if (!email) {
