@@ -219,7 +219,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
                 </Button>
             </div>
 
-            <h4 className="col-span-2 mt-1 font-bold text-foreground break-words min-w-0">
+            <h4 className="col-span-2 mt-1 font-bold text-foreground break-all min-w-0">
                 {task.title}
             </h4>
         </div>
@@ -412,3 +412,4 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
 }
 
     
+
