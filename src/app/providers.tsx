@@ -1,8 +1,7 @@
 'use client';
 
 import { Toaster } from '@/components/ui/toaster';
-import { FirebaseClientProvider } from '@/firebase/client-provider';
-import { FirebaseErrorListener } from '@/components/firebase-error-listener';
+import { FirebaseProvider } from '@/components/firebase-provider';
 import { ThemeProvider } from '@/components/theme-provider';
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -13,10 +12,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       enableSystem
       disableTransitionOnChange
     >
-      <FirebaseClientProvider>
+      <FirebaseProvider>
         {children}
-        <FirebaseErrorListener />
-      </FirebaseClientProvider>
+      </FirebaseProvider>
       <Toaster />
     </ThemeProvider>
   );
