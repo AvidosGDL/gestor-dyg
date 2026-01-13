@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, writeBatch, query, where, getDocs, collection } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarImage } from '@/components/ui/avatar';
@@ -55,22 +55,66 @@ const signupSchema = z.object({
 type LoginValues = z.infer<typeof loginSchema>;
 type SignupValues = z.infer<typeof signupSchema>;
 
-const createProfile = async (user: User, firestore: any, signupData: SignupValues) => {
-    const userDocRef = doc(firestore, 'users', user.uid);
+const createProfileAndFinalizeInvitation = async (user: User, firestore: any, signupData: SignupValues, finalAvatarUrl: string) => {
+    const batch = writeBatch(firestore);
 
+    // 1. Create user profile document
+    const userDocRef = doc(firestore, 'users', user.uid);
     const userProfile: UserProfile = {
         uid: user.uid,
         name: signupData.name,
         email: signupData.email,
-        avatarUrl: signupData.avatarUrl,
+        avatarUrl: finalAvatarUrl,
         role: signupData.role,
         phone: signupData.phone || '',
     };
+    batch.set(userDocRef, userProfile);
+
+    // 2. Check for invitation and process it
+    const invitationRef = doc(firestore, 'invitations', signupData.email);
+    const invitationSnap = await getDoc(invitationRef);
+
+    if (invitationSnap.exists()) {
+        const { inviterId } = invitationSnap.data();
+
+        if (inviterId) {
+            // Add new user to the inviter's team
+            const teamMemberRef = doc(firestore, `users/${inviterId}/teamMembers`, user.uid);
+            const teamMemberData = {
+                id: user.uid,
+                uid: user.uid,
+                name: signupData.name,
+                email: signupData.email,
+                role: signupData.role || 'Miembro',
+                avatarUrl: finalAvatarUrl,
+                phone: signupData.phone || '',
+                authType: 'email',
+            };
+            batch.set(teamMemberRef, teamMemberData, { merge: true });
+        }
+
+        // Link pending tasks for this email
+        const tasksToUpdateQuery = query(
+            collection(firestore, 'tasks'),
+            where('delegateToEmail', '==', signupData.email),
+            where('delegateToId', '==', null)
+        );
+        const tasksSnapshot = await getDocs(tasksToUpdateQuery);
+        if (!tasksSnapshot.empty) {
+            tasksSnapshot.forEach(taskDoc => {
+                batch.update(taskDoc.ref, { delegateToId: user.uid });
+            });
+        }
+        
+        // Delete the invitation
+        batch.delete(invitationRef);
+    }
     
-    await setDoc(userDocRef, userProfile).catch(serverError => {
+    // Commit all operations
+    await batch.commit().catch(serverError => {
       const permissionError = new FirestorePermissionError({
-         path: `users/${user.uid}`,
-         operation: 'create',
+         path: `users/${user.uid} and related invitation entities`,
+         operation: 'write',
          requestResourceData: userProfile,
      });
      errorEmitter.emit('permission-error', permissionError);
@@ -186,10 +230,10 @@ function SignupForm() {
             photoURL: finalAvatarUrl,
         });
 
-        // 3. Create profile in 'users'. The backend function will handle the rest.
-        await createProfile(user, firestore, {...data, avatarUrl: finalAvatarUrl});
+        // 3. Create profile in 'users' and handle invitation logic
+        await createProfileAndFinalizeInvitation(user, firestore, data, finalAvatarUrl);
 
-        toast({ title: 'Éxito', description: 'Tu cuenta ha sido creada. El sistema te está asignando a tu equipo.' });
+        toast({ title: 'Éxito', description: 'Tu cuenta ha sido creada y asignada a tu equipo.' });
       } catch (error: any) {
         toast({
           variant: 'destructive',

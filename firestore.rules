@@ -85,7 +85,7 @@ service cloud.firestore {
     }
     
     match /users/{userId}/teamMembers/{memberId} {
-    	allow read, write, delete: if isOwner(userId) || isAdmin();
+    	allow read, write, delete: if isOwner(userId) || isAdmin() || isSignedIn();
     }
     
     match /users/{userId}/prospects/{prospectId} {
@@ -93,10 +93,7 @@ service cloud.firestore {
     }
     
     match /tasks/{taskId} {
-    	allow read: if isSignedIn() && (resource.data.ownerId == request.auth.uid || resource.data.delegateToId == request.auth.uid) || isAdmin();
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid || isAdmin();
-      allow update: if isSignedIn() && (resource.data.ownerId == request.auth.uid || resource.data.delegateToId == request.auth.uid) || isAdmin();
-      allow delete: if isSignedIn() && (resource.data.ownerId == request.auth.uid || resource.data.delegateToId == request.auth.uid) || isAdmin();
+    	allow read, write, create, update, delete: if isSignedIn();
     }
     
     match /taskHistory/{historyId} {
