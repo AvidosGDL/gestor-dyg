@@ -326,10 +326,8 @@ export default function TeamView() {
   const members = useMemo(() => {
     if (!teamMembersData) return [];
     const allMembers = [...teamMembersData];
-    // Si el usuario es un miembro, el jefe no estará en la lista de `teamMembers`.
-    // Lo añadimos manualmente para que aparezca en la UI.
     if (userProfile?.ownerId && ownerProfile && !allMembers.some(m => m.uid === ownerProfile.uid)) {
-      allMembers.push({
+       allMembers.push({
         id: ownerProfile.uid,
         uid: ownerProfile.uid,
         name: ownerProfile.name,
@@ -337,7 +335,7 @@ export default function TeamView() {
         role: `${ownerProfile.role} (Jefe)`,
         avatarUrl: ownerProfile.avatarUrl,
         phone: ownerProfile.phone,
-        authType: 'email', // Default
+        authType: 'email',
       });
     }
     return allMembers;
@@ -741,7 +739,7 @@ export default function TeamView() {
                 {!isLoading &&
                   members &&
                   members.map((member) => (
-                    <TableRow key={member.id}>
+                    <TableRow key={member.uid || member.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar>
