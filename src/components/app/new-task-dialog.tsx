@@ -130,7 +130,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
       await addTask({
         ...data,
         delegateToEmail: delegateToEmail === 'none' ? null : delegateToEmail,
-        delegateToId: delegateToId === 'none' ? null : delegateToId,
+        delegateToId: delegateToId === 'none' || delegateToId === 'undefined' ? null : delegateToId,
       }, user, attachedFiles);
 
       toast({

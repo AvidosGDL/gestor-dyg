@@ -296,7 +296,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
       const finalData: Partial<Task> = {
         ...data,
         delegateToEmail: delegateToEmail === 'none' ? null : delegateToEmail,
-        delegateToId: delegateToId === 'none' ? null : delegateToId,
+        delegateToId: delegateToId === 'none' || delegateToId === 'undefined' ? null : delegateToId,
       };
 
       updateTask(task.id, finalData, user, newAttachments);
