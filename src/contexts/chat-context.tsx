@@ -163,28 +163,35 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const teamMembers = useMemo(() => {
     if (!teamMembersData && !ownerProfile) return [];
-    
-    // Start with the members from the subcollection.
-    const allMembers = teamMembersData ? [...teamMembersData] : [];
-
-    // If the user is a team member, their owner should be available to chat with.
-    if (ownerProfile) {
-      // Check if the owner is already in the list to avoid duplicates.
-      const ownerInList = allMembers.some(m => m.uid === ownerProfile.uid);
-      if (!ownerInList) {
-        allMembers.push({
-          id: ownerProfile.uid,
-          uid: ownerProfile.uid,
-          name: ownerProfile.name,
-          email: ownerProfile.email,
-          role: `${ownerProfile.role} (Jefe)`,
-          avatarUrl: ownerProfile.avatarUrl,
-          phone: ownerProfile.phone,
-          authType: 'email', // Assuming email, adjust if necessary
-        });
-      }
+  
+    // Use a Map to ensure each user is added only once, using their UID as the key.
+    const membersMap = new Map<string, TeamMember>();
+  
+    // Add members from the subcollection first.
+    if (teamMembersData) {
+      teamMembersData.forEach(member => {
+        if (member.uid) { // Ensure member has a UID
+          membersMap.set(member.uid, member);
+        }
+      });
     }
-    return allMembers;
+  
+    // Add the owner profile if it exists and isn't already in the map.
+    if (ownerProfile && ownerProfile.uid && !membersMap.has(ownerProfile.uid)) {
+      membersMap.set(ownerProfile.uid, {
+        id: ownerProfile.uid,
+        uid: ownerProfile.uid,
+        name: ownerProfile.name,
+        email: ownerProfile.email,
+        role: `${ownerProfile.role} (Jefe)`,
+        avatarUrl: ownerProfile.avatarUrl,
+        phone: ownerProfile.phone,
+        authType: 'email', // Assuming email, adjust if necessary
+      });
+    }
+    
+    // Convert the map back to an array.
+    return Array.from(membersMap.values());
   }, [teamMembersData, ownerProfile]);
   
   useEffect(() => {
