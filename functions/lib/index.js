@@ -87,7 +87,7 @@ exports.sendEmailTask = (0, https_1.onCall)({ region: 'us-central1', secrets: [R
     if (!to || !taskTitle || !delegateName) {
         throw new https_1.HttpsError('invalid-argument', 'Datos incompletos (to, taskTitle, delegateName).');
     }
-    const subject = `Nueva tarea delegada: ${taskTitle}`;
+    const subject = `Nueva tarea delegada: ${taskTitle.replace(/\n/g, ' ')}`;
     const html = `
     <h1>Se te ha delegado una nueva tarea</h1>
     <p>Hola ${delegateName},</p>

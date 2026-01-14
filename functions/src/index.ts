@@ -1,9 +1,7 @@
-
 'use client';
 
 import {HttpsError, onCall} from 'firebase-functions/v2/https';
 import {onDocumentCreated} from 'firebase-functions/v2/firestore';
-import {onUserCreated, UserCreatedEvent} from 'firebase-functions/v2/auth';
 import * as admin from 'firebase-admin';
 import {Resend} from 'resend';
 import {defineSecret} from 'firebase-functions/params';
@@ -79,7 +77,7 @@ export const sendEmailTask = onCall(
       );
     }
 
-    const subject = `Nueva tarea delegada: ${taskTitle}`;
+    const subject = `Nueva tarea delegada: ${taskTitle.replace(/\n/g, ' ')}`;
     const html = `
     <h1>Se te ha delegado una nueva tarea</h1>
     <p>Hola ${delegateName},</p>
@@ -283,5 +281,3 @@ export const migrateOwnerIds = onCall(
     }
   }
 );
-
-    
