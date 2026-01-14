@@ -22,11 +22,12 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
 import { User } from 'firebase/auth';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 
 
 interface TasksContextType {
   tasks: Task[];
-  addTask: (taskData: Partial<Omit<Task, 'id' | 'ownerId'>>, user: User | null) => void;
+  addTask: (taskData: Partial<Omit<Task, 'id' | 'ownerId'>>, user: User | null, files: File[]) => void;
   updateTask: (id: string, updatedData: Partial<Omit<Task, 'id'>>, user: User | null, newAttachments?: Attachment[]) => void;
   bulkUpdateTasks: (updates: { id: string, changes: Partial<Task> }[], user: User | null) => void;
   deleteTask: (id: string) => void;
@@ -95,7 +96,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     setData: setTasksState,
   } = useCollection<Task>(tasksQuery);
 
-  const addTask = async (taskData: Partial<Task>, user: User | null) => {
+  const addTask = async (taskData: Partial<Task>, user: User | null, files: File[] = []) => {
     if (!tasksCollectionRef || !user || !firestore) return;
 
     const isDelegating = !!taskData.delegateToEmail && taskData.delegateToEmail !== 'none';
@@ -118,6 +119,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       editHistory: [],
+      attachments: [],
     };
 
     if (isDelegating) {
@@ -131,10 +133,34 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     }
 
     try {
+      // Step 1: Create the task document to get an ID.
       const docRef = await addDoc(tasksCollectionRef, newTask);
+      const taskId = docRef.id;
 
+      // Step 2: If there are files, upload them now that we have a taskId.
+      let newAttachments: Attachment[] = [];
+      if (files.length > 0) {
+        const storage = getStorage();
+        const uploadPromises = files.map(async file => {
+          const fileRef = storageRef(storage, `task_attachments/${taskId}/${Date.now()}_${file.name}`);
+          const snapshot = await uploadBytes(fileRef, file);
+          const downloadURL = await getDownloadURL(snapshot.ref);
+          return {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            url: downloadURL,
+          };
+        });
+        newAttachments = await Promise.all(uploadPromises);
+
+        // Step 3: Update the task document with the attachment URLs.
+        await updateDoc(docRef, { attachments: newAttachments });
+      }
+
+      // Step 4: Handle delegation email if necessary.
       if (isDelegating) {
-        const emailResult = await sendDelegationEmail(firestore, user, newTask, docRef.id);
+        const emailResult = await sendDelegationEmail(firestore, user, newTask, taskId);
         if (emailResult.success) {
             toast({
                 title: "Notificación enviada",

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -23,7 +23,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useTasks } from '@/contexts/tasks-context';
-import { DollarSign, Users, Calendar as CalendarIcon } from 'lucide-react';
+import { DollarSign, Users, Calendar as CalendarIcon, Loader2, Paperclip, X } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Task, TeamMember } from '@/lib/types';
@@ -73,13 +73,16 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
   const { addTask } = useTasks();
   const { user } = useUser();
   const firestore = useFirestore();
+  const { toast } = useToast();
   
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskSchema),
     defaultValues,
   });
-
-  const { toast } = useToast();
 
   const collectionPath = user ? `users/${user.uid}/teamMembers` : null;
   const membersCollectionRef = useMemoFirebase(() => {
@@ -87,27 +90,52 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
   }, [collectionPath, firestore]);
   const { data: members } = useCollection<TeamMember>(membersCollectionRef);
 
-  const onSubmit = (data: TaskFormValues) => {
+  const onSubmit = async (data: TaskFormValues) => {
     if (!user) return;
+    
+    setIsSubmitting(true);
 
     const [delegateToEmail, delegateToId] = data.delegateToData?.split('|') || [null, null];
 
-    addTask({
-      ...data,
-      delegateToEmail: delegateToEmail === 'none' ? null : delegateToEmail,
-      delegateToId: delegateToId === 'none' ? null : delegateToId,
-    }, user);
+    try {
+      await addTask({
+        ...data,
+        delegateToEmail: delegateToEmail === 'none' ? null : delegateToEmail,
+        delegateToId: delegateToId === 'none' ? null : delegateToId,
+      }, user, attachedFiles);
 
-    toast({
-        title: "Nueva tarea creada",
-        description: `"${data.title}" ha sido añadida a tu lista.`,
-    });
-    onOpenChange(false);
+      toast({
+          title: "Nueva tarea creada",
+          description: `"${data.title}" ha sido añadida a tu lista.`,
+      });
+      onOpenChange(false);
+
+    } catch (error) {
+       toast({
+          title: "Error al crear tarea",
+          description: "No se pudo guardar la tarea. Inténtalo de nuevo.",
+          variant: 'destructive'
+      });
+    } finally {
+        setIsSubmitting(false);
+    }
   };
+  
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      setAttachedFiles(prevFiles => [...prevFiles, ...Array.from(event.target.files!)]);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setAttachedFiles(prevFiles => prevFiles.filter((_, i) => i !== index));
+  };
+
 
   useEffect(() => {
     if (!open) {
       form.reset(defaultValues);
+      setAttachedFiles([]);
     }
   }, [open, form]);
 
@@ -329,11 +357,45 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                   </FormItem>
                 )}
               />
+
+              <div className="space-y-4 pt-4 border-t">
+                <FormLabel>Adjuntar Archivos</FormLabel>
+                <FormControl>
+                   <div>
+                      <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isSubmitting}>
+                         {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Paperclip className="mr-2 h-4 w-4" />}
+                         Seleccionar Archivos
+                      </Button>
+                      <Input 
+                        type="file"
+                        ref={fileInputRef}
+                        multiple
+                        className="hidden"
+                        onChange={handleFileChange}
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,image/*,.zip,.rar"
+                        disabled={isSubmitting}
+                      />
+                   </div>
+                </FormControl>
+                <div className="mt-4 space-y-2">
+                  {attachedFiles.map((file, index) => (
+                    <div key={`new-${index}`} className="flex items-center justify-between p-2 bg-muted rounded-md text-sm">
+                      <span className="truncate">{file.name}</span>
+                      <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeFile(index)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
           </form>
         </Form>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button type="submit" onClick={form.handleSubmit(onSubmit)}>Guardar Tarea</Button>
+          <Button type="submit" onClick={form.handleSubmit(onSubmit)} disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Guardar Tarea
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
