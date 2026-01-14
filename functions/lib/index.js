@@ -34,10 +34,10 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.syncAllTeamMemberUIDs = exports.sendTestEmail = exports.createImpersonationToken = exports.onNewUserCreate = exports.onInvitationCreatedSendEmail = exports.sendEmailTask = void 0;
+exports.migrateOwnerIds = exports.syncAllTeamMemberUIDs = exports.sendTestEmail = exports.createImpersonationToken = exports.onNewUserCreate = exports.onInvitationCreatedSendEmail = exports.sendEmailTask = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-functions/v2/firestore");
-const identity_1 = require("firebase-functions/v2/identity");
+const auth_1 = require("firebase-functions/v2/auth");
 const admin = __importStar(require("firebase-admin"));
 const resend_1 = require("resend");
 const params_1 = require("firebase-functions/params");
@@ -123,7 +123,7 @@ exports.onInvitationCreatedSendEmail = (0, firestore_1.onDocumentCreated)({
 // ================================
 // FUNCIÓN: POST-REGISTRO DE USUARIO NUEVO
 // ================================
-exports.onNewUserCreate = (0, identity_1.onUserCreated)({ region: 'us-central1' }, async (event) => {
+exports.onNewUserCreate = (0, auth_1.onUserCreated)({ region: 'us-central1' }, async (event) => {
     const user = event.data;
     const { email, uid, displayName, photoURL } = user;
     if (!email) {
@@ -265,4 +265,37 @@ exports.syncAllTeamMemberUIDs = (0, https_1.onCall)({ region: 'us-central1' }, a
         });
     }
 });
+// ================================
+// FUNCIÓN: MIGRACIÓN DE OWNER IDs
+// ================================
+exports.migrateOwnerIds = (0, https_1.onCall)({ region: 'us-central1' }, async (request) => {
+    if (!request.auth || request.auth.uid !== ADMIN_UID) {
+        throw new https_1.HttpsError('permission-denied', 'Solo admin.');
+    }
+    const db = admin.firestore();
+    let updatedCount = 0;
+    try {
+        const allUsersSnap = await db.collection('users').get();
+        const batch = db.batch();
+        for (const userDoc of allUsersSnap.docs) {
+            const ownerId = userDoc.id;
+            const teamMembersSnap = await userDoc.ref.collection('teamMembers').get();
+            teamMembersSnap.forEach(memberDoc => {
+                const memberId = memberDoc.id;
+                const memberProfileRef = db.collection('users').doc(memberId);
+                batch.update(memberProfileRef, { ownerId: ownerId });
+                updatedCount++;
+            });
+        }
+        if (updatedCount > 0) {
+            await batch.commit();
+        }
+        return { success: true, updatedCount: updatedCount };
+    }
+    catch (error) {
+        console.error('Error durante la migración de ownerId: ', error);
+        throw new https_1.HttpsError('internal', 'Falló la migración de ownerId. Revisa los logs de la función.', { errorMessage: error.message });
+    }
+});
 //# sourceMappingURL=index.js.map
+    
