@@ -1,3 +1,4 @@
+
 "use strict";
 'use client';
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
@@ -34,10 +35,9 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.migrateOwnerIds = exports.syncAllTeamMemberUIDs = exports.sendTestEmail = exports.createImpersonationToken = exports.onNewUserCreate = exports.onInvitationCreatedSendEmail = exports.sendEmailTask = void 0;
+exports.migrateOwnerIds = exports.syncAllTeamMemberUIDs = exports.sendTestEmail = exports.createImpersonationToken = exports.onInvitationCreatedSendEmail = exports.sendEmailTask = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-functions/v2/firestore");
-const auth_1 = require("firebase-functions/v2/auth");
 const admin = __importStar(require("firebase-admin"));
 const resend_1 = require("resend");
 const params_1 = require("firebase-functions/params");
@@ -119,75 +119,6 @@ exports.onInvitationCreatedSendEmail = (0, firestore_1.onDocumentCreated)({
       <a href="${registrationUrl}">Crear cuenta</a>
     `;
     return sendEmail({ to: email, subject, html });
-});
-// ================================
-// FUNCIÓN: POST-REGISTRO DE USUARIO NUEVO
-// ================================
-exports.onNewUserCreate = (0, auth_1.onUserCreated)({ region: 'us-central1' }, async (event) => {
-    const user = event.data;
-    const { email, uid, displayName, photoURL } = user;
-    if (!email) {
-        console.log(`User ${uid} has no email, cannot process invitation.`);
-        return;
-    }
-    const db = admin.firestore();
-    const invitationRef = db.collection('invitations').doc(email);
-    const userRef = db.collection('users').doc(uid);
-    try {
-        const invitationSnap = await invitationRef.get();
-        if (!invitationSnap.exists) {
-            console.log(`No invitation found for ${email}.`);
-            return;
-        }
-        const invitationData = invitationSnap.data();
-        const { inviterId } = invitationData;
-        // Ensure user profile exists (created on client but good to be robust)
-        const userProfileSnap = await userRef.get();
-        const userProfileData = userProfileSnap.data();
-        if (!userProfileData) {
-            console.error(`User profile for ${uid} does not exist. Cannot add to team.`);
-            return;
-        }
-        const batch = db.batch();
-        // 1. Add new user to the inviter's team
-        if (inviterId) {
-            const teamMemberRef = db
-                .collection('users')
-                .doc(inviterId)
-                .collection('teamMembers')
-                .doc(uid);
-            const teamMemberData = {
-                id: uid,
-                uid: uid,
-                name: displayName || userProfileData.name,
-                email: email,
-                role: userProfileData.role || 'Miembro',
-                avatarUrl: photoURL || userProfileData.avatarUrl,
-                phone: user.phoneNumber || userProfileData.phone || '',
-                authType: 'email',
-            };
-            batch.set(teamMemberRef, teamMemberData, { merge: true });
-        }
-        // 2. Link pending tasks for this email
-        const tasksToUpdateQuery = db
-            .collection('tasks')
-            .where('delegateToEmail', '==', email)
-            .where('delegateToId', '==', null);
-        const tasksSnapshot = await tasksToUpdateQuery.get();
-        if (!tasksSnapshot.empty) {
-            tasksSnapshot.forEach(taskDoc => {
-                batch.update(taskDoc.ref, { delegateToId: uid });
-            });
-        }
-        // 3. Delete the invitation
-        batch.delete(invitationRef);
-        // Commit all operations
-        await batch.commit();
-        console.log(`Successfully processed invitation for ${email} and added to team of ${inviterId}.`);
-    }
-    catch (error) {
-        console.error(`Error processing invitation for ${email}:`, error);
-    }
 });
 // ================================
 // FUNCIÓN: SUPLANTACIÓN
@@ -300,3 +231,5 @@ exports.migrateOwnerIds = (0, https_1.onCall)({ region: 'us-central1' }, async (
     }
 });
 //# sourceMappingURL=index.js.map
+
+    
