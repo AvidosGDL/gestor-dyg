@@ -128,6 +128,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             if (ownerDocSnap.exists()) {
               setOwnerProfile(ownerDocSnap.data() as UserProfile);
             }
+          } else {
+            // The user is the owner
+            setOwnerProfile(profile);
           }
         }
       }
@@ -162,11 +165,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const { data: teamMembersData, loading: membersLoading } = useCollection<TeamMember>(teamMembersCollectionRef);
 
   const teamMembers = useMemo(() => {
-    if (!teamMembersData && !ownerProfile) return [];
-  
     // Use a Map to ensure each user is added only once, using their UID as the key.
     const membersMap = new Map<string, TeamMember>();
-  
+
     // Add members from the subcollection first.
     if (teamMembersData) {
       teamMembersData.forEach(member => {
@@ -175,7 +176,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       });
     }
-  
+
     // Add the owner profile if it exists and isn't already in the map.
     if (ownerProfile && ownerProfile.uid && !membersMap.has(ownerProfile.uid)) {
       membersMap.set(ownerProfile.uid, {
@@ -183,7 +184,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         uid: ownerProfile.uid,
         name: ownerProfile.name,
         email: ownerProfile.email,
-        role: `${ownerProfile.role} (Jefe)`,
+        role: `${ownerProfile.role || 'Jefe de Equipo'}`,
         avatarUrl: ownerProfile.avatarUrl,
         phone: ownerProfile.phone,
         authType: 'email', // Assuming email, adjust if necessary

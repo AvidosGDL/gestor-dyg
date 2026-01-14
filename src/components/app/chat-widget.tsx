@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -92,7 +91,7 @@ const ConversationList = ({ onSelectConversation, activeConversationId }: any) =
                     </div>
                     {uncontactedMembers.map(member => (
                          <div 
-                            key={member.uid} 
+                            key={member.uid || member.id} 
                             onClick={() => handleSelectMember(member)}
                             className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50"
                         >

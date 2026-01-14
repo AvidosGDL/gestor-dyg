@@ -309,7 +309,6 @@ export default function TeamView() {
   }, [user, firestore]);
   
   const teamOwnerId = useMemo(() => {
-    // If the user is a member, their team is their owner's. If they are an owner, their team is their own.
     return userProfile?.ownerId || user?.uid;
   }, [userProfile, user]);
 
@@ -325,12 +324,9 @@ export default function TeamView() {
 
   const peers = useMemo(() => {
     if (!teamMembersData || !user) return [];
-    // If the user is an owner, peers are all members.
-    // If the user is a member, peers are all members excluding themselves.
-    return userProfile?.ownerId 
-      ? teamMembersData.filter(m => m.uid !== user.uid)
-      : teamMembersData;
-  }, [teamMembersData, user, userProfile]);
+    return teamMembersData.filter(m => m.uid !== user.uid);
+  }, [teamMembersData, user]);
+
 
   const [isEditMemberDialogOpen, setIsEditMemberDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
