@@ -3,12 +3,10 @@
 import {HttpsError, onCall} from 'firebase-functions/v2/https';
 import {
   onDocumentCreated,
-  onDocumentUpdated,
 } from 'firebase-functions/v2/firestore';
 import * as admin from 'firebase-admin';
 import {Resend} from 'resend';
 import {defineSecret} from 'firebase-functions/params';
-import {onUserCreated, UserCreatedEvent} from 'firebase-functions/v2/identity';
 
 const RESEND_API_KEY_SM = defineSecret('RESEND_API_KEY_SM');
 
@@ -268,7 +266,7 @@ export const migrateOwnerIds = onCall(
 
           // Check if the member's profile document exists before trying to update it
           const memberProfileSnap = await memberProfileRef.get();
-          if (memberProfileSnap.exists) {
+          if (memberProfileSnap.exists()) {
             // Only update if the ownerId is not already set to the correct one
             const currentOwnerId = memberProfileSnap.data()?.ownerId;
             if (currentOwnerId !== ownerId) {
