@@ -165,7 +165,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
             const ownerDocRef = doc(firestore, 'users', profile.ownerId);
             const ownerDocSnap = await getDoc(ownerDocRef);
             if (ownerDocSnap.exists()) {
-              setOwnerProfile(ownerDocSnap.data() as UserProfile);
+              setOwnerProfile({ ...ownerDocSnap.data() as UserProfile, id: ownerDocSnap.id });
             }
           }
         }
@@ -530,7 +530,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                         <SelectContent>
                             <SelectItem value="none">Nadie / Tarea personal</SelectItem>
                              {ownerProfile && (
-                              <SelectItem value={`${ownerProfile.email}|${ownerProfile.uid}`}>
+                              <SelectItem value={`${ownerProfile.email}|${ownerProfile.id}`}>
                                 {ownerProfile.name} (Jefe de Equipo)
                               </SelectItem>
                             )}

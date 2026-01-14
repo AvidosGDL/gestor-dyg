@@ -100,13 +100,16 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const addTask = async (taskData: any, user: User | null, files: File[] = []) => {
     if (!tasksCollectionRef || !user || !firestore) return;
 
-    const delegateToData = taskData.delegateToData || 'none';
-    const isDelegating = delegateToData !== 'none';
+    const isDelegating = taskData.delegateToData && taskData.delegateToData !== 'none';
+    
     let delegateToEmail: string | null = null;
     let delegateToId: string | null = null;
 
     if (isDelegating) {
-        [delegateToEmail, delegateToId] = delegateToData.split('|');
+        const [email, id] = taskData.delegateToData.split('|');
+        delegateToEmail = email;
+        // Protection against "undefined" string
+        delegateToId = (id && id !== 'undefined') ? id : null;
     }
     
     const newTask: Omit<Task, 'id'> = {
@@ -166,7 +169,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       }
 
       // Step 4: Handle delegation email if necessary.
-      if (isDelegating) {
+      if (isDelegating && newTask.delegateToId) {
         const emailResult = await sendDelegationEmail(firestore, user, newTask, taskId);
         if (emailResult.success) {
             toast({

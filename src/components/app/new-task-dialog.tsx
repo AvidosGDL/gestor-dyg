@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useEffect, useMemo, useState, useRef } from 'react';
@@ -80,7 +81,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [ownerProfile, setOwnerProfile] = useState<UserProfile | null>(null);
+  const [ownerProfile, setOwnerProfile] = useState<UserProfile & { id: string } | null>(null);
 
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskSchema),
@@ -108,7 +109,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
             const ownerDocRef = doc(firestore, 'users', profile.ownerId);
             const ownerDocSnap = await getDoc(ownerDocRef);
             if (ownerDocSnap.exists()) {
-              setOwnerProfile(ownerDocSnap.data() as UserProfile);
+              setOwnerProfile({ ...ownerDocSnap.data() as UserProfile, id: ownerDocSnap.id });
             }
           }
         }
@@ -358,7 +359,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                         <SelectContent>
                             <SelectItem value="none">Nadie / Tarea personal</SelectItem>
                             {ownerProfile && (
-                              <SelectItem value={`${ownerProfile.email}|${ownerProfile.uid}`}>
+                              <SelectItem value={`${ownerProfile.email}|${ownerProfile.id}`}>
                                 {ownerProfile.name} (Jefe de Equipo)
                               </SelectItem>
                             )}
