@@ -298,4 +298,3 @@ exports.migrateOwnerIds = (0, https_1.onCall)({ region: 'us-central1' }, async (
     }
 });
 //# sourceMappingURL=index.js.map
-    

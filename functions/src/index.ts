@@ -2,11 +2,10 @@
 
 import {HttpsError, onCall} from 'firebase-functions/v2/https';
 import {onDocumentCreated} from 'firebase-functions/v2/firestore';
-import {onUserCreated} from 'firebase-functions/v2/auth';
+import {onUserCreated, UserCreatedEvent} from 'firebase-functions/v2/auth';
 import * as admin from 'firebase-admin';
 import {Resend} from 'resend';
 import {defineSecret} from 'firebase-functions/params';
-import {UserRecord} from 'firebase-admin/auth';
 
 const RESEND_API_KEY_SM = defineSecret('RESEND_API_KEY_SM');
 
@@ -130,7 +129,7 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
 // ================================
 export const onNewUserCreate = onUserCreated(
   {region: 'us-central1'},
-  async event => {
+  async (event: UserCreatedEvent) => {
     const user = event.data;
     const {email, uid, displayName, photoURL} = user;
 
@@ -344,7 +343,9 @@ export const migrateOwnerIds = onCall(
 
       for (const userDoc of allUsersSnap.docs) {
         const ownerId = userDoc.id;
-        const teamMembersSnap = await userDoc.ref.collection('teamMembers').get();
+        const teamMembersSnap = await userDoc.ref
+          .collection('teamMembers')
+          .get();
 
         teamMembersSnap.forEach(memberDoc => {
           const memberId = memberDoc.id;
@@ -369,5 +370,3 @@ export const migrateOwnerIds = onCall(
     }
   }
 );
-
-    
