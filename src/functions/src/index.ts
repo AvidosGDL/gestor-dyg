@@ -2,7 +2,6 @@
 
 import {HttpsError, onCall} from 'firebase-functions/v2/https';
 import {onDocumentCreated} from 'firebase-functions/v2/firestore';
-import {onUserCreated, UserCreatedEvent} from 'firebase-functions/v2/auth';
 import * as admin from 'firebase-admin';
 import {Resend} from 'resend';
 import {defineSecret} from 'firebase-functions/params';
@@ -121,94 +120,6 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
     `;
 
     return sendEmail({to: email, subject, html});
-  }
-);
-
-// ================================
-// FUNCIÓN: POST-REGISTRO DE USUARIO NUEVO
-// ================================
-export const onNewUserCreate = onUserCreated(
-  {region: 'us-central1'},
-  async (event: UserCreatedEvent) => {
-    const user = event.data;
-    const {email, uid, displayName, photoURL} = user;
-
-    if (!email) {
-      console.log(`User ${uid} has no email, cannot process invitation.`);
-      return;
-    }
-
-    const db = admin.firestore();
-    const invitationRef = db.collection('invitations').doc(email);
-    const userRef = db.collection('users').doc(uid);
-
-    try {
-      const invitationSnap = await invitationRef.get();
-      if (!invitationSnap.exists) {
-        console.log(`No invitation found for ${email}.`);
-        return;
-      }
-
-      const invitationData = invitationSnap.data()!;
-      const {inviterId} = invitationData;
-
-      // Ensure user profile exists (created on client but good to be robust)
-      const userProfileSnap = await userRef.get();
-      const userProfileData = userProfileSnap.data();
-
-      if (!userProfileData) {
-        console.error(
-          `User profile for ${uid} does not exist. Cannot add to team.`
-        );
-        return;
-      }
-
-      const batch = db.batch();
-
-      // 1. Add new user to the inviter's team
-      if (inviterId) {
-        const teamMemberRef = db
-          .collection('users')
-          .doc(inviterId)
-          .collection('teamMembers')
-          .doc(uid);
-        const teamMemberData = {
-          id: uid,
-          uid: uid,
-          name: displayName || userProfileData.name,
-          email: email,
-          role: userProfileData.role || 'Miembro',
-          avatarUrl: photoURL || userProfileData.avatarUrl,
-          phone: user.phoneNumber || userProfileData.phone || '',
-          authType: 'email',
-        };
-        batch.set(teamMemberRef, teamMemberData, {merge: true});
-      }
-
-      // 2. Link pending tasks for this email
-      const tasksToUpdateQuery = db
-        .collection('tasks')
-        .where('delegateToEmail', '==', email)
-        .where('delegateToId', '==', null);
-
-      const tasksSnapshot = await tasksToUpdateQuery.get();
-      if (!tasksSnapshot.empty) {
-        tasksSnapshot.forEach(taskDoc => {
-          batch.update(taskDoc.ref, {delegateToId: uid});
-        });
-      }
-
-      // 3. Delete the invitation
-      batch.delete(invitationRef);
-
-      // Commit all operations
-      await batch.commit();
-      console.log(
-        `Successfully processed invitation for ${email} and added to team of ${inviterId}.`
-      );
-    } catch (error) {
-      console.error(`Error processing invitation for ${email}:`, error);
-    }
   }
 );
 

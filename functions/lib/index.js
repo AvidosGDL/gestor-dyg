@@ -1,4 +1,3 @@
-
 "use strict";
 'use client';
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
@@ -231,5 +230,3 @@ exports.migrateOwnerIds = (0, https_1.onCall)({ region: 'us-central1' }, async (
     }
 });
 //# sourceMappingURL=index.js.map
-
-    
