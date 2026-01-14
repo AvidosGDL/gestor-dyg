@@ -559,65 +559,63 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                 </div>
             )}
             
-            {['en-progreso', 'cierre', 'completado'].includes(watchedStatus) && (
-              <div className="space-y-4 pt-4 border-t">
-                <FormField
-                  control={form.control}
-                  name="completionComment"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Comentarios / Cierre</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Añade un comentario sobre el avance o la finalización de la tarea..." {...field} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                <FormItem>
-                  <FormLabel>Adjuntar Archivos</FormLabel>
-                  <FormControl>
-                     <div>
-                        <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
-                           {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Paperclip className="mr-2 h-4 w-4" />}
-                           Seleccionar Archivos
+            <div className="space-y-4 pt-4 border-t">
+              <FormField
+                control={form.control}
+                name="completionComment"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Comentarios / Cierre</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Añade un comentario sobre el avance o la finalización de la tarea..." {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormItem>
+                <FormLabel>Adjuntar Archivos</FormLabel>
+                <FormControl>
+                   <div>
+                      <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+                         {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Paperclip className="mr-2 h-4 w-4" />}
+                         Seleccionar Archivos
+                      </Button>
+                      <Input 
+                        type="file"
+                        ref={fileInputRef}
+                        multiple
+                        className="hidden"
+                        onChange={handleFileChange}
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,image/*,.zip,.rar"
+                        disabled={isUploading}
+                      />
+                   </div>
+                </FormControl>
+                <div className="mt-4 space-y-2">
+                  {task.attachments?.map((file, index) => (
+                    <div key={`existing-${index}`} className="flex items-center justify-between p-2 bg-muted/50 rounded-md text-sm">
+                      <span className="truncate flex-1 mr-2">{file.name}</span>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(file.url, '_blank')}>
+                            <Eye size={14} />
                         </Button>
-                        <Input 
-                          type="file"
-                          ref={fileInputRef}
-                          multiple
-                          className="hidden"
-                          onChange={handleFileChange}
-                          accept=".pdf,.doc,.docx,.xls,.xlsx,image/*,.zip,.rar"
-                          disabled={isUploading}
-                        />
-                     </div>
-                  </FormControl>
-                  <div className="mt-4 space-y-2">
-                    {task.attachments?.map((file, index) => (
-                      <div key={`existing-${index}`} className="flex items-center justify-between p-2 bg-muted/50 rounded-md text-sm">
-                        <span className="truncate flex-1 mr-2">{file.name}</span>
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(file.url, '_blank')}>
-                              <Eye size={14} />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownload(file.url, file.name)}>
-                              <Download size={14} />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                    {attachedFiles.map((file, index) => (
-                      <div key={`new-${index}`} className="flex items-center justify-between p-2 bg-muted rounded-md text-sm">
-                        <span className="truncate">{file.name}</span>
-                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeFile(index)}>
-                          <X className="h-4 w-4" />
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownload(file.url, file.name)}>
+                            <Download size={14} />
                         </Button>
                       </div>
-                    ))}
-                  </div>
-                </FormItem>
-              </div>
-            )}
+                    </div>
+                  ))}
+                  {attachedFiles.map((file, index) => (
+                    <div key={`new-${index}`} className="flex items-center justify-between p-2 bg-muted rounded-md text-sm">
+                      <span className="truncate">{file.name}</span>
+                      <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeFile(index)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </FormItem>
+            </div>
             
             {task.editHistory && task.editHistory.length > 0 && (
                 <div className="space-y-4 pt-4 border-t">
