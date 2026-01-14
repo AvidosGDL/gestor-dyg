@@ -162,22 +162,30 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const { data: teamMembersData, loading: membersLoading } = useCollection<TeamMember>(teamMembersCollectionRef);
 
   const teamMembers = useMemo(() => {
-    if (!teamMembersData) return [];
-    const allMembers = [...teamMembersData];
-    if (userProfile?.ownerId && ownerProfile && !allMembers.some(m => m.uid === ownerProfile.uid)) {
-       allMembers.push({
-        id: ownerProfile.uid,
-        uid: ownerProfile.uid,
-        name: ownerProfile.name,
-        email: ownerProfile.email,
-        role: `${ownerProfile.role} (Jefe)`,
-        avatarUrl: ownerProfile.avatarUrl,
-        phone: ownerProfile.phone,
-        authType: 'email',
-      });
+    if (!teamMembersData && !ownerProfile) return [];
+    
+    // Start with the members from the subcollection.
+    const allMembers = teamMembersData ? [...teamMembersData] : [];
+
+    // If the user is a team member, their owner should be available to chat with.
+    if (ownerProfile) {
+      // Check if the owner is already in the list to avoid duplicates.
+      const ownerInList = allMembers.some(m => m.uid === ownerProfile.uid);
+      if (!ownerInList) {
+        allMembers.push({
+          id: ownerProfile.uid,
+          uid: ownerProfile.uid,
+          name: ownerProfile.name,
+          email: ownerProfile.email,
+          role: `${ownerProfile.role} (Jefe)`,
+          avatarUrl: ownerProfile.avatarUrl,
+          phone: ownerProfile.phone,
+          authType: 'email', // Assuming email, adjust if necessary
+        });
+      }
     }
     return allMembers;
-  }, [teamMembersData, userProfile, ownerProfile]);
+  }, [teamMembersData, ownerProfile]);
   
   useEffect(() => {
     if (!rawConversations || !firestore) {

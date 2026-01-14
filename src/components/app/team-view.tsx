@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Edit, Loader2, ImageUp, Wand2, LogIn, Send } from 'lucide-react';
+import { Trash2, Edit, Loader2, ImageUp, Wand2, LogIn, Send, Crown } from 'lucide-react';
 import { type TeamMember, type UserProfile } from '@/lib/types';
 import { useCollection, useUser, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
 import { collection, deleteDoc, doc, updateDoc, writeBatch, getDocs, query, where, collectionGroup, getDoc } from 'firebase/firestore';
@@ -309,6 +309,7 @@ export default function TeamView() {
   }, [user, firestore]);
   
   const teamOwnerId = useMemo(() => {
+    // If the user is a member, their team is their owner's. If they are an owner, their team is their own.
     return userProfile?.ownerId || user?.uid;
   }, [userProfile, user]);
 
@@ -320,36 +321,16 @@ export default function TeamView() {
     return collectionPath ? collection(firestore, collectionPath) : null;
   }, [collectionPath, firestore]);
   
-  const { data: teamMembersData, loading: membersLoading } =
-    useCollection<TeamMember>(membersCollectionRef);
+  const { data: teamMembersData, loading: membersLoading } = useCollection<TeamMember>(membersCollectionRef);
 
-  const members = useMemo(() => {
-    if (!teamMembersData) return [];
-    // Start with the base list of members from the subcollection
-    const allMembers = [...teamMembersData];
-
-    // Check if the current user is a team member (has an ownerId)
-    // and if the owner's profile has been loaded
-    if (userProfile?.ownerId && ownerProfile) {
-      // Check if the owner is already in the list to avoid duplicates
-      const ownerInList = allMembers.some(m => m.uid === ownerProfile.uid);
-      
-      // If the owner is not in the list, add them.
-      if (!ownerInList) {
-        allMembers.push({
-          id: ownerProfile.uid,
-          uid: ownerProfile.uid,
-          name: ownerProfile.name,
-          email: ownerProfile.email,
-          role: `${ownerProfile.role} (Jefe)`,
-          avatarUrl: ownerProfile.avatarUrl,
-          phone: ownerProfile.phone,
-          authType: 'email',
-        });
-      }
-    }
-    return allMembers;
-  }, [teamMembersData, userProfile, ownerProfile]);
+  const peers = useMemo(() => {
+    if (!teamMembersData || !user) return [];
+    // If the user is an owner, peers are all members.
+    // If the user is a member, peers are all members excluding themselves.
+    return userProfile?.ownerId 
+      ? teamMembersData.filter(m => m.uid !== user.uid)
+      : teamMembersData;
+  }, [teamMembersData, user, userProfile]);
 
   const [isEditMemberDialogOpen, setIsEditMemberDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
@@ -578,7 +559,8 @@ export default function TeamView() {
 
   const isLoading = isUserLoading || membersLoading;
   const isAdmin = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
-  const isOwner = user && !userProfile?.ownerId;
+  const isOwner = userProfile && !userProfile.ownerId;
+
 
   return (
     <>
@@ -719,11 +701,36 @@ export default function TeamView() {
                 </CardContent>
             </Card>
         )}
+        
+        {ownerProfile && (
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Crown className="text-amber-500"/>
+                        Jefe de Equipo
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex items-center gap-4">
+                        <Avatar className="h-16 w-16">
+                            <AvatarImage src={ownerProfile.avatarUrl} alt={ownerProfile.name} />
+                            <AvatarFallback>{ownerProfile.name?.charAt(0).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                            <p className="text-lg font-bold">{ownerProfile.name}</p>
+                            <p className="text-muted-foreground">{ownerProfile.email}</p>
+                            <Badge variant="secondary" className="mt-1">{ownerProfile.role}</Badge>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        )}
+
         <Card>
           <CardHeader>
-            <CardTitle>Miembros del Equipo</CardTitle>
+            <CardTitle>{isOwner ? 'Miembros del Equipo' : 'Compañeros de Equipo'}</CardTitle>
             <CardDescription>
-              Aquí puedes ver y administrar los miembros de tu equipo.
+                {isOwner ? 'Aquí puedes ver y administrar los miembros de tu equipo.' : 'Estos son los otros miembros de tu equipo.'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -747,8 +754,8 @@ export default function TeamView() {
                   </TableRow>
                 )}
                 {!isLoading &&
-                  members &&
-                  members.map((member) => (
+                  peers &&
+                  peers.map((member) => (
                     <TableRow key={member.uid || member.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
@@ -811,13 +818,13 @@ export default function TeamView() {
                       </TableCell>
                     </TableRow>
                   ))}
-                {!isLoading && (!members || members.length === 0) && (
+                {!isLoading && (!peers || peers.length === 0) && (
                   <TableRow>
                     <TableCell
                       colSpan={4}
                       className="text-center py-10 text-muted-foreground"
                     >
-                      No hay miembros en el equipo todavía. Haz clic en "Nuevo Miembro" para agregar uno.
+                      No hay otros miembros en el equipo todavía.
                     </TableCell>
                   </TableRow>
                 )}
