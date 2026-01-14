@@ -321,6 +321,18 @@ export default function TeamView() {
   }, [collectionPath, firestore]);
   
   const { data: teamMembersData, loading: membersLoading } = useCollection<TeamMember>(membersCollectionRef);
+  
+  // New state for the current user's direct reports
+  const myTeamCollectionPath = useMemo(() => {
+    return user ? `users/${user.uid}/teamMembers` : null;
+  }, [user]);
+
+  const myTeamCollectionRef = useMemoFirebase(() => {
+    return myTeamCollectionPath ? collection(firestore, myTeamCollectionPath) : null;
+  }, [myTeamCollectionPath, firestore]);
+
+  const { data: myTeamMembers, loading: myTeamLoading } = useCollection<TeamMember>(myTeamCollectionRef);
+
 
   const peers = useMemo(() => {
     if (!teamMembersData || !user) return [];
@@ -346,8 +358,9 @@ export default function TeamView() {
   };
 
   const handleSaveMember = async (id: string, data: MemberFormValues) => {
-    if (!collectionPath) return;
-    const docRef = doc(firestore, collectionPath, id);
+    const pathToUpdate = `users/${user.uid}/teamMembers`;
+    if (!user) return;
+    const docRef = doc(firestore, pathToUpdate, id);
     const updatedData = { ...data };
     try {
       await updateDoc(docRef, updatedData);
@@ -368,8 +381,9 @@ export default function TeamView() {
   };
 
   const deleteMember = (id: string) => {
-    if (!collectionPath) return;
-    const docRef = doc(firestore, collectionPath, id);
+    const pathToUpdate = `users/${user.uid}/teamMembers`;
+     if (!user) return;
+    const docRef = doc(firestore, pathToUpdate, id);
     deleteDoc(docRef).catch(async (serverError) => {
       const permissionError = new FirestorePermissionError({
         path: docRef.path,
@@ -553,7 +567,7 @@ export default function TeamView() {
   }
 
 
-  const isLoading = isUserLoading || membersLoading;
+  const isLoading = isUserLoading || membersLoading || myTeamLoading;
   const isAdmin = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
   const isOwner = userProfile && !userProfile.ownerId;
 
@@ -698,10 +712,10 @@ export default function TeamView() {
             </Card>
         )}
         
-        {isOwner && (
+        {isOwner ? (
              <Card>
                 <CardHeader>
-                    <CardTitle>Miembros del Equipo</CardTitle>
+                    <CardTitle>Miembros de mi Equipo</CardTitle>
                     <CardDescription>
                         Aquí puedes ver y administrar los miembros de tu equipo.
                     </CardDescription>
@@ -727,8 +741,8 @@ export default function TeamView() {
                             </TableRow>
                             )}
                             {!isLoading &&
-                            teamMembersData &&
-                            teamMembersData.map((member) => (
+                            myTeamMembers &&
+                            myTeamMembers.map((member) => (
                                 <TableRow key={member.uid || member.id}>
                                 <TableCell>
                                     <div className="flex items-center gap-3">
@@ -785,7 +799,7 @@ export default function TeamView() {
                                 </TableCell>
                                 </TableRow>
                             ))}
-                            {!isLoading && (!teamMembersData || teamMembersData.length === 0) && (
+                            {!isLoading && (!myTeamMembers || myTeamMembers.length === 0) && (
                             <TableRow>
                                 <TableCell
                                 colSpan={4}
@@ -799,33 +813,124 @@ export default function TeamView() {
                     </Table>
                 </CardContent>
             </Card>
-        )}
-        
-        {!isOwner && ownerProfile && (
-            <Card>
+        ) : (
+          <>
+            {ownerProfile && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Crown className="text-amber-500"/>
+                            Jefe de Equipo
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex items-center gap-4">
+                            <Avatar className="h-16 w-16">
+                                <AvatarImage src={ownerProfile.avatarUrl} alt={ownerProfile.name} />
+                                <AvatarFallback>{ownerProfile.name?.charAt(0).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <p className="text-lg font-bold">{ownerProfile.name}</p>
+                                <p className="text-muted-foreground">{ownerProfile.email}</p>
+                                <Badge variant="secondary" className="mt-1">{ownerProfile.role}</Badge>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+            
+            {myTeamMembers && myTeamMembers.length > 0 && (
+              <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Crown className="text-amber-500"/>
-                        Jefe de Equipo
-                    </CardTitle>
+                  <CardTitle>Miembros de mi Equipo</CardTitle>
+                  <CardDescription>
+                    Personas que tú gestionas.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="flex items-center gap-4">
-                        <Avatar className="h-16 w-16">
-                            <AvatarImage src={ownerProfile.avatarUrl} alt={ownerProfile.name} />
-                            <AvatarFallback>{ownerProfile.name?.charAt(0).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                            <p className="text-lg font-bold">{ownerProfile.name}</p>
-                            <p className="text-muted-foreground">{ownerProfile.email}</p>
-                            <Badge variant="secondary" className="mt-1">{ownerProfile.role}</Badge>
-                        </div>
-                    </div>
+                   <Table>
+                        <TableHeader>
+                            <TableRow>
+                            <TableHead>Miembro</TableHead>
+                            <TableHead>Rol</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead className="text-right">Acciones</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading && (
+                            <TableRow>
+                                <TableCell colSpan={4} className="text-center">
+                                <div className="flex justify-center items-center p-4">
+                                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                </div>
+                                </TableCell>
+                            </TableRow>
+                            )}
+                            {!isLoading &&
+                            myTeamMembers.map((member) => (
+                                <TableRow key={member.uid || member.id}>
+                                <TableCell>
+                                    <div className="flex items-center gap-3">
+                                    <Avatar>
+                                        <AvatarImage
+                                        src={member.avatarUrl}
+                                        alt={member.name}
+                                        />
+                                        <AvatarFallback>
+                                        {member.name.charAt(0).toUpperCase()}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                        <p className="font-medium">{member.name}</p>
+                                        <p className="text-sm text-muted-foreground">
+                                        {member.email}
+                                        </p>
+                                    </div>
+                                    </div>
+                                </TableCell>
+                                <TableCell>
+                                    <Badge variant="secondary">{member.role}</Badge>
+                                </TableCell>
+                                <TableCell>
+                                    <Badge variant="outline">Activo</Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={(e) => { e.stopPropagation(); editMember(member); }}
+                                    >
+                                        <Edit className="h-4 w-4 text-muted-foreground" />
+                                    </Button>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="ghost" size="icon">
+                                            <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                Esta acción no se puede deshacer. Se eliminará permanentemente al miembro <span className="font-bold">{member.name}</span> del equipo.
+                                            </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => deleteMember(member.id)} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
                 </CardContent>
-            </Card>
-        )}
+              </Card>
+            )}
 
-        {!isOwner && (
             <Card>
             <CardHeader>
                 <CardTitle>Compañeros de Equipo</CardTitle>
@@ -901,6 +1006,7 @@ export default function TeamView() {
                 </Table>
             </CardContent>
             </Card>
+          </>
         )}
       </div>
       <EditMemberDialog
