@@ -279,7 +279,9 @@ exports.migrateOwnerIds = (0, https_1.onCall)({ region: 'us-central1' }, async (
         const batch = db.batch();
         for (const userDoc of allUsersSnap.docs) {
             const ownerId = userDoc.id;
-            const teamMembersSnap = await userDoc.ref.collection('teamMembers').get();
+            const teamMembersSnap = await userDoc.ref
+                .collection('teamMembers')
+                .get();
             teamMembersSnap.forEach(memberDoc => {
                 const memberId = memberDoc.id;
                 const memberProfileRef = db.collection('users').doc(memberId);
