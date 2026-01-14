@@ -511,7 +511,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Estado</FormLabel>
-                     <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!isOwner}>
+                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                         <SelectTrigger>
                             <SelectValue placeholder="Selecciona un estado" />
