@@ -87,10 +87,13 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
     defaultValues,
   });
 
-  const collectionPath = user ? `users/${user.uid}/teamMembers` : null;
+  const myTeamCollectionPath = useMemo(() => {
+    return user ? `users/${user.uid}/teamMembers` : null;
+  }, [user]);
+
   const membersCollectionRef = useMemoFirebase(() => {
-    return collectionPath ? collection(firestore, collectionPath) : null;
-  }, [collectionPath, firestore]);
+    return myTeamCollectionPath ? collection(firestore, myTeamCollectionPath) : null;
+  }, [myTeamCollectionPath, firestore]);
   const { data: members } = useCollection<TeamMember>(membersCollectionRef);
 
   useEffect(() => {
@@ -435,3 +438,5 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
     </Dialog>
   );
 }
+
+    

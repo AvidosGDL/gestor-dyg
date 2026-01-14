@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { ReactNode } from 'react';
@@ -41,7 +42,7 @@ const TasksContext = createContext<TasksContextType | undefined>(undefined);
 async function sendDelegationEmail(firestore: any, user: User, task: Partial<Task>, taskId: string) {
     if (!task.delegateToEmail || !task.delegateToId) {
         console.error("Missing delegation info to send email.");
-        return;
+        return { success: false, error: new Error("Missing delegation info.") };
     }
 
     const functions = getFunctions();
@@ -99,7 +100,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const addTask = async (taskData: Partial<Task>, user: User | null, files: File[] = []) => {
     if (!tasksCollectionRef || !user || !firestore) return;
 
-    const isDelegating = !!taskData.delegateToEmail && taskData.delegateToEmail !== 'none';
+    const isDelegating = !!taskData.delegateToEmail && taskData.delegateToEmail !== 'none' && !!taskData.delegateToId;
     
     const newTask: Omit<Task, 'id'> = {
       title: taskData.title || 'Nueva Tarea',
@@ -237,16 +238,13 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       const newEmail = finalData.delegateToEmail;
       const oldEmail = existingTask.delegateToEmail;
 
-      if (newEmail && newEmail !== 'none' && newEmail !== oldEmail) {
+      if (newEmail && newEmail !== 'none' && newEmail !== oldEmail && finalData.delegateToId) {
         finalData.delegationStatus = 'pending';
         const userProfileRef = doc(firestore, `users/${user.uid}`);
         const userProfileSnap = await getDoc(userProfileRef);
         finalData.delegatedByName = userProfileSnap.exists() ? userProfileSnap.data().name : user.displayName;
         
-        // delegateToId should now be passed in finalData from the form
-        if (finalData.delegateToId) {
-          shouldSendEmail = true;
-        }
+        shouldSendEmail = true;
 
       } 
       else if (newEmail === 'none' || newEmail === null) {
@@ -387,3 +385,5 @@ export function useTasks() {
   }
   return context;
 }
+
+    
