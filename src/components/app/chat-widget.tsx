@@ -92,7 +92,7 @@ const ConversationList = ({ onSelectConversation, activeConversationId }: any) =
                     </div>
                     {uncontactedMembers.map(member => (
                          <div 
-                            key={member.id} 
+                            key={member.uid || member.id} 
                             onClick={() => handleSelectMember(member)}
                             className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50"
                         >
@@ -282,3 +282,5 @@ export default function ChatWidget() {
         </Button>
     )
 }
+
+    
