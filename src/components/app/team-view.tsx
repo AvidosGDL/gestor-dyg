@@ -1,7 +1,6 @@
-
 'use client';
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -21,9 +20,9 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Trash2, Edit, Loader2, ImageUp, Wand2, LogIn, Send } from 'lucide-react';
-import { type TeamMember } from '@/lib/types';
+import { type TeamMember, type UserProfile } from '@/lib/types';
 import { useCollection, useUser, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
-import { collection, deleteDoc, doc, updateDoc, writeBatch, getDocs, query, where, collectionGroup } from 'firebase/firestore';
+import { collection, deleteDoc, doc, updateDoc, writeBatch, getDocs, query, where, collectionGroup, getDoc } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { signInWithCustomToken } from 'firebase/auth';
@@ -279,20 +278,70 @@ function EditMemberDialog({
 }
 
 export default function TeamView() {
-  const { user, loading: userLoading } = useUser();
+  const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
   const [impersonationEmail, setImpersonationEmail] = useState('');
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [ownerProfile, setOwnerProfile] = useState<UserProfile | null>(null);
 
-  const collectionPath = user ? `users/${user.uid}/teamMembers` : null;
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (user && firestore) {
+        const userDocRef = doc(firestore, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          const profile = userDocSnap.data() as UserProfile;
+          setUserProfile(profile);
+          if (profile.ownerId) {
+            const ownerDocRef = doc(firestore, 'users', profile.ownerId);
+            const ownerDocSnap = await getDoc(ownerDocRef);
+            if (ownerDocSnap.exists()) {
+              setOwnerProfile(ownerDocSnap.data() as UserProfile);
+            }
+          }
+        }
+      }
+    };
+    fetchProfile();
+  }, [user, firestore]);
+  
+  const teamOwnerId = useMemo(() => {
+    return userProfile?.ownerId || user?.uid;
+  }, [userProfile, user]);
+
+  const collectionPath = useMemo(() => {
+    return teamOwnerId ? `users/${teamOwnerId}/teamMembers` : null;
+  }, [teamOwnerId]);
+
   const membersCollectionRef = useMemoFirebase(() => {
     return collectionPath ? collection(firestore, collectionPath) : null;
   }, [collectionPath, firestore]);
   
-  const { data: members, loading: membersLoading } =
+  const { data: teamMembersData, loading: membersLoading } =
     useCollection<TeamMember>(membersCollectionRef);
+
+  const members = useMemo(() => {
+    if (!teamMembersData) return [];
+    const allMembers = [...teamMembersData];
+    // Si el usuario es un miembro, el jefe no estará en la lista de `teamMembers`.
+    // Lo añadimos manualmente para que aparezca en la UI.
+    if (userProfile?.ownerId && ownerProfile && !allMembers.some(m => m.uid === ownerProfile.uid)) {
+      allMembers.push({
+        id: ownerProfile.uid,
+        uid: ownerProfile.uid,
+        name: ownerProfile.name,
+        email: ownerProfile.email,
+        role: `${ownerProfile.role} (Jefe)`,
+        avatarUrl: ownerProfile.avatarUrl,
+        phone: ownerProfile.phone,
+        authType: 'email', // Default
+      });
+    }
+    return allMembers;
+  }, [teamMembersData, userProfile, ownerProfile]);
 
   const [isEditMemberDialogOpen, setIsEditMemberDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
@@ -496,8 +545,15 @@ export default function TeamView() {
         const migrateOwnerIdsFn = httpsCallable(functions, 'migrateOwnerIds');
         const result: any = await migrateOwnerIdsFn();
         
-        const { updatedCount } = result.data;
-        toast({ title: '¡Migración Completada!', description: `${updatedCount} miembros de equipo han sido actualizados con su respectivo jefe.` });
+        const { updatedCount, notFoundCount, notFoundMembers } = result.data as any;
+        
+        let description = `${updatedCount} miembros de equipo han sido actualizados con su respectivo jefe.`;
+        if (notFoundCount > 0) {
+            description += ` Se omitieron ${notFoundCount} miembros "fantasma" (sin perfil).`;
+            console.warn("Miembros fantasma encontrados y omitidos:", notFoundMembers);
+        }
+
+        toast({ title: '¡Migración Completada!', description });
 
     } catch (error: any) {
         console.error("Error durante la migración de ownerId: ", error);
@@ -512,8 +568,9 @@ export default function TeamView() {
   }
 
 
-  const isLoading = userLoading || membersLoading;
+  const isLoading = isUserLoading || membersLoading;
   const isAdmin = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
+  const isOwner = user && !userProfile?.ownerId;
 
   return (
     <>
@@ -711,32 +768,38 @@ export default function TeamView() {
                          <Badge variant="outline">Activo</Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => { e.stopPropagation(); editMember(member); }}
-                        >
-                          <Edit className="h-4 w-4 text-muted-foreground" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                        {isOwner ? (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => { e.stopPropagation(); editMember(member); }}
+                            >
+                              <Edit className="h-4 w-4 text-muted-foreground" />
                             </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Esta acción no se puede deshacer. Se eliminará permanentemente al miembro <span className="font-bold">{member.name}</span> del equipo. Las tareas delegadas no se verán afectadas pero no se podrán re-delegar a este usuario.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => deleteMember(member.id)} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Esta acción no se puede deshacer. Se eliminará permanentemente al miembro <span className="font-bold">{member.name}</span> del equipo. Las tareas delegadas no se verán afectadas pero no se podrán re-delegar a este usuario.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => deleteMember(member.id)} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Solo el jefe puede editar</span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
@@ -112,6 +111,33 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const firestore = useFirestore();
   const { user } = useUser();
   const [processedConversations, setProcessedConversations] = useState<Chat[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [ownerProfile, setOwnerProfile] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (user && firestore) {
+        const userDocRef = doc(firestore, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          const profile = userDocSnap.data() as UserProfile;
+          setUserProfile(profile);
+          if (profile.ownerId) {
+            const ownerDocRef = doc(firestore, 'users', profile.ownerId);
+            const ownerDocSnap = await getDoc(ownerDocRef);
+            if (ownerDocSnap.exists()) {
+              setOwnerProfile(ownerDocSnap.data() as UserProfile);
+            }
+          }
+        }
+      }
+    };
+    fetchProfile();
+  }, [user, firestore]);
+
+  const teamOwnerId = useMemo(() => {
+    return userProfile?.ownerId || user?.uid;
+  }, [userProfile, user]);
 
   const chatsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -125,12 +151,33 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const { data: rawConversations, loading: chatsLoading } = useCollection<Chat>(chatsQuery);
   
-  const teamMembersCollectionPath = user ? `users/${user.uid}/teamMembers` : null;
+  const teamMembersCollectionPath = useMemo(() => {
+    return teamOwnerId ? `users/${teamOwnerId}/teamMembers` : null;
+  }, [teamOwnerId]);
+
   const teamMembersCollectionRef = useMemoFirebase(() => {
       return teamMembersCollectionPath ? collection(firestore, teamMembersCollectionPath) : null;
   }, [teamMembersCollectionPath, firestore]);
 
-  const { data: teamMembers, loading: membersLoading } = useCollection<TeamMember>(teamMembersCollectionRef);
+  const { data: teamMembersData, loading: membersLoading } = useCollection<TeamMember>(teamMembersCollectionRef);
+
+  const teamMembers = useMemo(() => {
+    if (!teamMembersData) return [];
+    const allMembers = [...teamMembersData];
+    if (userProfile?.ownerId && ownerProfile && !allMembers.some(m => m.uid === ownerProfile.uid)) {
+       allMembers.push({
+        id: ownerProfile.uid,
+        uid: ownerProfile.uid,
+        name: ownerProfile.name,
+        email: ownerProfile.email,
+        role: `${ownerProfile.role} (Jefe)`,
+        avatarUrl: ownerProfile.avatarUrl,
+        phone: ownerProfile.phone,
+        authType: 'email',
+      });
+    }
+    return allMembers;
+  }, [teamMembersData, userProfile, ownerProfile]);
   
   useEffect(() => {
     if (!rawConversations || !firestore) {
