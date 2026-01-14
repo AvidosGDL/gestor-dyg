@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Task": {
@@ -86,6 +87,10 @@
         "phone": {
           "type": "string",
           "description": "The phone number of the user."
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "The UID of the team owner who invited this user. Establishes the member-to-owner relationship."
         }
       },
       "required": [

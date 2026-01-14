@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useMemo, useState, useRef } from 'react';
@@ -26,10 +27,10 @@ import { useTasks } from '@/contexts/tasks-context';
 import { DollarSign, Users, Calendar as CalendarIcon, Loader2, Paperclip, X } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Task, TeamMember } from '@/lib/types';
+import type { Task, TeamMember, UserProfile } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { collection, doc, getDoc } from 'firebase/firestore';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
@@ -78,6 +79,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [ownerProfile, setOwnerProfile] = useState<UserProfile | null>(null);
 
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskSchema),
@@ -89,6 +91,23 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
     return collectionPath ? collection(firestore, collectionPath) : null;
   }, [collectionPath, firestore]);
   const { data: members } = useCollection<TeamMember>(membersCollectionRef);
+
+  useEffect(() => {
+    async function fetchOwnerProfile() {
+      if (firestore && user && user.ownerId) {
+        const ownerDocRef = doc(firestore, 'users', user.ownerId);
+        const ownerDocSnap = await getDoc(ownerDocRef);
+        if (ownerDocSnap.exists()) {
+          setOwnerProfile(ownerDocSnap.data() as UserProfile);
+        }
+      } else {
+        setOwnerProfile(null);
+      }
+    }
+    if (open) {
+      fetchOwnerProfile();
+    }
+  }, [firestore, user, open]);
 
   const onSubmit = async (data: TaskFormValues) => {
     if (!user) return;
@@ -325,6 +344,11 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                         </FormControl>
                         <SelectContent>
                             <SelectItem value="none">Nadie / Tarea personal</SelectItem>
+                            {ownerProfile && (
+                              <SelectItem value={`${ownerProfile.email}|${ownerProfile.uid}`}>
+                                {ownerProfile.name} (Jefe de Equipo)
+                              </SelectItem>
+                            )}
                             {members?.map(member => (
                               <SelectItem key={member.id} value={`${member.email}|${member.uid}`}>
                                 {member.name} ({member.email})

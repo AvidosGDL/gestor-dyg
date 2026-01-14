@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
@@ -58,7 +59,15 @@ type SignupValues = z.infer<typeof signupSchema>;
 const createProfileAndFinalizeInvitation = async (user: User, firestore: any, signupData: SignupValues, finalAvatarUrl: string) => {
     const batch = writeBatch(firestore);
 
-    // 1. Create user profile document
+    const invitationRef = doc(firestore, 'invitations', signupData.email);
+    const invitationSnap = await getDoc(invitationRef);
+
+    let inviterId: string | null = null;
+    if (invitationSnap.exists()) {
+        inviterId = invitationSnap.data().inviterId;
+    }
+
+    // 1. Create user profile document, including the ownerId
     const userDocRef = doc(firestore, 'users', user.uid);
     const userProfile: UserProfile = {
         uid: user.uid,
@@ -67,31 +76,25 @@ const createProfileAndFinalizeInvitation = async (user: User, firestore: any, si
         avatarUrl: finalAvatarUrl,
         role: signupData.role,
         phone: signupData.phone || '',
+        ...(inviterId && { ownerId: inviterId }), // Add ownerId if inviter exists
     };
     batch.set(userDocRef, userProfile);
 
-    // 2. Check for invitation and process it
-    const invitationRef = doc(firestore, 'invitations', signupData.email);
-    const invitationSnap = await getDoc(invitationRef);
-
-    if (invitationSnap.exists()) {
-        const { inviterId } = invitationSnap.data();
-
-        if (inviterId) {
-            // Add new user to the inviter's team
-            const teamMemberRef = doc(firestore, `users/${inviterId}/teamMembers`, user.uid);
-            const teamMemberData = {
-                id: user.uid,
-                uid: user.uid,
-                name: signupData.name,
-                email: signupData.email,
-                role: signupData.role || 'Miembro',
-                avatarUrl: finalAvatarUrl,
-                phone: signupData.phone || '',
-                authType: 'email',
-            };
-            batch.set(teamMemberRef, teamMemberData, { merge: true });
-        }
+    // 2. If it was an invitation, process it
+    if (inviterId) {
+        // Add new user to the inviter's team
+        const teamMemberRef = doc(firestore, `users/${inviterId}/teamMembers`, user.uid);
+        const teamMemberData = {
+            id: user.uid,
+            uid: user.uid,
+            name: signupData.name,
+            email: signupData.email,
+            role: signupData.role || 'Miembro',
+            avatarUrl: finalAvatarUrl,
+            phone: signupData.phone || '',
+            authType: 'email',
+        };
+        batch.set(teamMemberRef, teamMemberData, { merge: true });
 
         // Link pending tasks for this email
         const tasksToUpdateQuery = query(

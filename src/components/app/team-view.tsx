@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useRef, useMemo } from 'react';
@@ -485,6 +486,30 @@ export default function TeamView() {
       });
     }
   };
+  
+  const handleMigrateOwnerIds = async () => {
+    setIsProcessing(true);
+    toast({ title: 'Iniciando migración de dueños...', description: 'Esto asignará un jefe a todos los miembros de equipo existentes.' });
+
+    try {
+        const functions = getFunctions();
+        const migrateOwnerIdsFn = httpsCallable(functions, 'migrateOwnerIds');
+        const result: any = await migrateOwnerIdsFn();
+        
+        const { updatedCount } = result.data;
+        toast({ title: '¡Migración Completada!', description: `${updatedCount} miembros de equipo han sido actualizados con su respectivo jefe.` });
+
+    } catch (error: any) {
+        console.error("Error durante la migración de ownerId: ", error);
+        toast({
+            variant: "destructive",
+            title: 'Error en la Migración',
+            description: error.message || 'Ocurrió un error inesperado.'
+        });
+    } finally {
+        setIsProcessing(false);
+    }
+  }
 
 
   const isLoading = userLoading || membersLoading;
@@ -523,7 +548,32 @@ export default function TeamView() {
                         Inicia sesión como cualquier usuario del sistema para verificar su funcionalidad.
                      </p>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button disabled={isProcessing} variant="secondary" className="w-full justify-start">
+                                    <Wand2 className="mr-2 h-4 w-4" />
+                                    Sincronizar Jefes (Migración)
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>¿Confirmar Migración de Jefes de Equipo?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Esta acción recorrerá todos los equipos y asignará un jefe (`ownerId`) a cada miembro que no lo tenga. Es un paso crucial para que los miembros antiguos puedan delegar tareas a sus jefes.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleMigrateOwnerIds} disabled={isProcessing}>Sí, iniciar migración</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                        <p className="text-xs text-muted-foreground mt-2">
+                           Actualiza todos los miembros de equipo existentes para asignarles su jefe.
+                        </p>
+                    </div>
                     <div>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>

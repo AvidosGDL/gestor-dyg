@@ -1,3 +1,4 @@
+
 'use client';
 
 import {HttpsError, onCall} from 'firebase-functions/v2/https';
@@ -129,7 +130,7 @@ export const onInvitationCreatedSendEmail = onDocumentCreated(
 // FUNCIÓN: SUPLANTACIÓN
 // ================================
 export const createImpersonationToken = onCall(
-  {region: 'us-central1},
+  {region: 'us-central1'},
   async request => {
     if (!request.auth || request.auth.uid !== ADMIN_UID) {
       throw new HttpsError('permission-denied', 'Solo admin.');
@@ -232,6 +233,51 @@ export const syncAllTeamMemberUIDs = onCall(
         {
           errorMessage: error.message,
         }
+      );
+    }
+  }
+);
+
+// ================================
+// FUNCIÓN: MIGRACIÓN DE OWNER IDs
+// ================================
+export const migrateOwnerIds = onCall(
+  {region: 'us-central1'},
+  async request => {
+    if (!request.auth || request.auth.uid !== ADMIN_UID) {
+      throw new HttpsError('permission-denied', 'Solo admin.');
+    }
+
+    const db = admin.firestore();
+    let updatedCount = 0;
+
+    try {
+      const allUsersSnap = await db.collection('users').get();
+      const batch = db.batch();
+
+      for (const userDoc of allUsersSnap.docs) {
+        const ownerId = userDoc.id;
+        const teamMembersSnap = await userDoc.ref.collection('teamMembers').get();
+
+        teamMembersSnap.forEach(memberDoc => {
+          const memberId = memberDoc.id;
+          const memberProfileRef = db.collection('users').doc(memberId);
+          batch.update(memberProfileRef, {ownerId: ownerId});
+          updatedCount++;
+        });
+      }
+
+      if (updatedCount > 0) {
+        await batch.commit();
+      }
+
+      return {success: true, updatedCount: updatedCount};
+    } catch (error: any) {
+      console.error('Error durante la migración de ownerId: ', error);
+      throw new HttpsError(
+        'internal',
+        'Falló la migración de ownerId. Revisa los logs de la función.',
+        {errorMessage: error.message}
       );
     }
   }
