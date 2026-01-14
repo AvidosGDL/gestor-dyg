@@ -99,12 +99,16 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
   const addTask = async (taskData: any, user: User | null, files: File[] = []) => {
     if (!tasksCollectionRef || !user || !firestore) return;
-    
-    const [delegateToEmail, delegateToIdValue] = (taskData.delegateToData || '').split('|');
-    const delegateToId = delegateToIdValue === 'undefined' ? null : delegateToIdValue;
-    
-    const isDelegating = taskData.delegateToData && taskData.delegateToData !== 'none' && delegateToEmail && delegateToId;
 
+    const delegateToData = taskData.delegateToData || 'none';
+    const isDelegating = delegateToData !== 'none';
+    let delegateToEmail: string | null = null;
+    let delegateToId: string | null = null;
+
+    if (isDelegating) {
+        [delegateToEmail, delegateToId] = delegateToData.split('|');
+    }
+    
     const newTask: Omit<Task, 'id'> = {
       title: taskData.title || 'Nueva Tarea',
       client: taskData.client || '',
@@ -116,7 +120,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       value: taskData.value || 0,
       probability: taskData.probability || 50,
       ownerId: user.uid,
-      delegatedByName: null,
+      delegatedByName: isDelegating ? (user.displayName || 'un administrador') : null,
       delegateToId: isDelegating ? delegateToId : null,
       delegationStatus: isDelegating ? 'pending' : null,
       delegateToEmail: isDelegating ? delegateToEmail : null,
@@ -126,15 +130,14 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       attachments: [],
     };
     
-    if (isDelegating) {
-      const userProfileRef = doc(firestore, `users/${user.uid}`);
-      const userProfileSnap = await getDoc(userProfileRef);
-      if (userProfileSnap.exists()) {
-        newTask.delegatedByName = userProfileSnap.data().name;
-      } else {
-        newTask.delegatedByName = user.displayName; // Fallback
-      }
+    if (isDelegating && newTask.delegatedByName === (user.displayName || 'un administrador')) {
+        const userProfileRef = doc(firestore, `users/${user.uid}`);
+        const userProfileSnap = await getDoc(userProfileRef);
+        if (userProfileSnap.exists()) {
+            newTask.delegatedByName = userProfileSnap.data().name;
+        }
     }
+
 
     try {
       // Step 1: Create the task document to get an ID.
