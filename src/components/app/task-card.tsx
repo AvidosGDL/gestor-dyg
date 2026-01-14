@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Briefcase,
   Calendar,
@@ -92,7 +92,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
             const ownerDocRef = doc(firestore, 'users', profile.ownerId);
             const ownerDocSnap = await getDoc(ownerDocRef);
             if (ownerDocSnap.exists()) {
-              setOwnerProfile(ownerDocSnap.data() as UserProfile);
+              setOwnerProfile({ ...ownerDocSnap.data(), uid: ownerDocSnap.id } as UserProfile);
             }
           }
         }
@@ -107,9 +107,20 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
   }, [collectionPath, firestore]);
   const { data: members } = useCollection<TeamMember>(membersCollectionRef);
 
-  const delegatedMember = members?.find(m => m.uid === task.delegateToId);
-  const delegatedToOwner = ownerProfile && task.delegateToId === ownerProfile.uid;
-  const delegatedPersonName = delegatedMember?.name || (delegatedToOwner ? ownerProfile?.name : null);
+  const delegatedPersonName = useMemo(() => {
+    if (!task.delegateToId) return null;
+
+    const allPossibleDelegates: { uid: string, name: string }[] = [];
+    if (members) {
+      allPossibleDelegates.push(...members);
+    }
+    if (ownerProfile) {
+       allPossibleDelegates.push({ uid: ownerProfile.uid, name: ownerProfile.name });
+    }
+    
+    const delegate = allPossibleDelegates.find(p => p.uid === task.delegateToId);
+    return delegate?.name || null;
+  }, [task.delegateToId, members, ownerProfile]);
 
   const creatorIsOwner = ownerProfile && task.ownerId === ownerProfile.uid;
   const creatorName = creatorIsOwner ? ownerProfile.name : (members?.find(m => m.uid === task.ownerId)?.name || task.delegatedByName || user?.displayName || 'Desconocido');
@@ -434,5 +445,6 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
 }
 
     
+
 
 
