@@ -63,7 +63,7 @@ async function sendDelegationEmail(firestore: any, user: User, task: Partial<Tas
     };
 
     try {
-        await sendEmailFunction(payload);
+        const result = await sendEmailFunction(payload);
         return { success: true, delegateName: delegateName };
     } catch (emailError: any) {
         console.error('Error calling sendEmailTask:', emailError);
@@ -97,11 +97,14 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     setData: setTasksState,
   } = useCollection<Task>(tasksQuery);
 
-  const addTask = async (taskData: Partial<Task>, user: User | null, files: File[] = []) => {
+  const addTask = async (taskData: any, user: User | null, files: File[] = []) => {
     if (!tasksCollectionRef || !user || !firestore) return;
-
-    const isDelegating = !!taskData.delegateToEmail && taskData.delegateToEmail !== 'none' && !!taskData.delegateToId;
     
+    const [delegateToEmail, delegateToIdValue] = (taskData.delegateToData || '').split('|');
+    const delegateToId = delegateToIdValue === 'undefined' ? null : delegateToIdValue;
+    
+    const isDelegating = taskData.delegateToData && taskData.delegateToData !== 'none' && delegateToEmail && delegateToId;
+
     const newTask: Omit<Task, 'id'> = {
       title: taskData.title || 'Nueva Tarea',
       client: taskData.client || '',
@@ -114,15 +117,15 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       probability: taskData.probability || 50,
       ownerId: user.uid,
       delegatedByName: null,
-      delegateToId: isDelegating ? taskData.delegateToId || null : null,
+      delegateToId: isDelegating ? delegateToId : null,
       delegationStatus: isDelegating ? 'pending' : null,
-      delegateToEmail: isDelegating ? taskData.delegateToEmail || null : null,
+      delegateToEmail: isDelegating ? delegateToEmail : null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       editHistory: [],
       attachments: [],
     };
-
+    
     if (isDelegating) {
       const userProfileRef = doc(firestore, `users/${user.uid}`);
       const userProfileSnap = await getDoc(userProfileRef);
@@ -385,5 +388,3 @@ export function useTasks() {
   }
   return context;
 }
-
-    
