@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Briefcase,
   Calendar,
@@ -24,7 +24,7 @@ import {
   Send,
 } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
-import type { Task, TaskStatus, TeamMember, EditLogEntry } from '@/lib/types';
+import type { Task, TaskStatus, TeamMember, EditLogEntry, UserProfile } from '@/lib/types';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -79,7 +79,27 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
   const { toast } = useToast();
   const [confirmationText, setConfirmationText] = useState('');
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [ownerProfile, setOwnerProfile] = useState<UserProfile | null>(null);
 
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (user && firestore) {
+        const userDocRef = doc(firestore, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          const profile = userDocSnap.data() as UserProfile;
+          if (profile.ownerId) {
+            const ownerDocRef = doc(firestore, 'users', profile.ownerId);
+            const ownerDocSnap = await getDoc(ownerDocRef);
+            if (ownerDocSnap.exists()) {
+              setOwnerProfile(ownerDocSnap.data() as UserProfile);
+            }
+          }
+        }
+      }
+    };
+    fetchProfile();
+  }, [user, firestore]);
 
   const collectionPath = user ? `users/${user.uid}/teamMembers` : null;
   const membersCollectionRef = useMemoFirebase(() => {
@@ -88,7 +108,11 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
   const { data: members } = useCollection<TeamMember>(membersCollectionRef);
 
   const delegatedMember = members?.find(m => m.uid === task.delegateToId);
-  const ownerMember = members?.find(m => m.uid === task.ownerId);
+  const delegatedToOwner = ownerProfile && task.delegateToId === ownerProfile.uid;
+  const delegatedPersonName = delegatedMember?.name || (delegatedToOwner ? ownerProfile?.name : null);
+
+  const creatorIsOwner = ownerProfile && task.ownerId === ownerProfile.uid;
+  const creatorName = creatorIsOwner ? ownerProfile.name : (members?.find(m => m.uid === task.ownerId)?.name || task.delegatedByName || user?.displayName || 'Desconocido');
 
   const handleStatusChange = (newStatus: TaskStatus) => {
     updateTask(task.id, { status: newStatus }, user);
@@ -163,8 +187,6 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
   const lastEdit: EditLogEntry | undefined = task.editHistory && task.editHistory.length > 0
     ? task.editHistory[task.editHistory.length - 1]
     : undefined;
-
-  const creatorName = ownerMember?.name || task.delegatedByName || 'Desconocido';
 
 
   return (
@@ -283,10 +305,10 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
                         Creada por: {creatorName}
                     </Badge>
 
-                    {task.delegateToId && delegatedMember && (
+                    {task.delegateToId && delegatedPersonName && (
                          <Badge variant="secondary" className="flex items-center gap-1.5">
                             <UserCheck size={12} />
-                            Delegada a: {delegatedMember.name} ({delegatedMember.email})
+                            Delegada a: {delegatedPersonName}
                         </Badge>
                     )}
 
@@ -412,4 +434,5 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
 }
 
     
+
 
