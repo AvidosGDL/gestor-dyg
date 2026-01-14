@@ -325,18 +325,28 @@ export default function TeamView() {
 
   const members = useMemo(() => {
     if (!teamMembersData) return [];
+    // Start with the base list of members from the subcollection
     const allMembers = [...teamMembersData];
-    if (userProfile?.ownerId && ownerProfile && !allMembers.some(m => m.uid === ownerProfile.uid)) {
-       allMembers.push({
-        id: ownerProfile.uid,
-        uid: ownerProfile.uid,
-        name: ownerProfile.name,
-        email: ownerProfile.email,
-        role: `${ownerProfile.role} (Jefe)`,
-        avatarUrl: ownerProfile.avatarUrl,
-        phone: ownerProfile.phone,
-        authType: 'email',
-      });
+
+    // Check if the current user is a team member (has an ownerId)
+    // and if the owner's profile has been loaded
+    if (userProfile?.ownerId && ownerProfile) {
+      // Check if the owner is already in the list to avoid duplicates
+      const ownerInList = allMembers.some(m => m.uid === ownerProfile.uid);
+      
+      // If the owner is not in the list, add them.
+      if (!ownerInList) {
+        allMembers.push({
+          id: ownerProfile.uid,
+          uid: ownerProfile.uid,
+          name: ownerProfile.name,
+          email: ownerProfile.email,
+          role: `${ownerProfile.role} (Jefe)`,
+          avatarUrl: ownerProfile.avatarUrl,
+          phone: ownerProfile.phone,
+          authType: 'email',
+        });
+      }
     }
     return allMembers;
   }, [teamMembersData, userProfile, ownerProfile]);
