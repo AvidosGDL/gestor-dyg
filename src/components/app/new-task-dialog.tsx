@@ -33,7 +33,7 @@ import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebas
 import { collection, doc, getDoc } from 'firebase/firestore';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { cn } from '@/lib/utils';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { Calendar } from '../ui/calendar';
 import { Textarea } from '../ui/textarea';
 
@@ -79,6 +79,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [ownerProfile, setOwnerProfile] = useState<UserProfile | null>(null);
 
   const form = useForm<TaskFormValues>({
@@ -93,19 +94,28 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
   const { data: members } = useCollection<TeamMember>(membersCollectionRef);
 
   useEffect(() => {
-    async function fetchOwnerProfile() {
-      if (firestore && user && user.ownerId) {
-        const ownerDocRef = doc(firestore, 'users', user.ownerId);
-        const ownerDocSnap = await getDoc(ownerDocRef);
-        if (ownerDocSnap.exists()) {
-          setOwnerProfile(ownerDocSnap.data() as UserProfile);
+    async function fetchProfiles() {
+      if (firestore && user) {
+        const userDocRef = doc(firestore, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          const profile = userDocSnap.data() as UserProfile;
+          setUserProfile(profile);
+          if (profile.ownerId) {
+            const ownerDocRef = doc(firestore, 'users', profile.ownerId);
+            const ownerDocSnap = await getDoc(ownerDocRef);
+            if (ownerDocSnap.exists()) {
+              setOwnerProfile(ownerDocSnap.data() as UserProfile);
+            }
+          }
         }
       } else {
+        setUserProfile(null);
         setOwnerProfile(null);
       }
     }
     if (open) {
-      fetchOwnerProfile();
+      fetchProfiles();
     }
   }, [firestore, user, open]);
 
@@ -307,7 +317,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                             )}
                           >
                             {field.value ? (
-                              format(parseISO(field.value), "dd/MM/yyyy")
+                              format(new Date(field.value), "dd/MM/yyyy")
                             ) : (
                               <span>Elige una fecha</span>
                             )}
@@ -318,7 +328,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={field.value ? parseISO(field.value) : undefined}
+                          selected={field.value ? new Date(field.value) : undefined}
                           onSelect={(date) => field.onChange(date?.toISOString())}
                           disabled={(date) => date < new Date("1900-01-01")}
                           initialFocus

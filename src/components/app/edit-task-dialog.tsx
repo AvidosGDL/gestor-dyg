@@ -28,7 +28,7 @@ import { useTasks } from '@/contexts/tasks-context';
 import { DollarSign, Percent, Users, Paperclip, X, Timer, Play, Square, History, Clock, Calendar as CalendarIcon, Eye, Download, Loader2, ArrowRight } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Task, TaskStatus, FocusSession, TeamMember, Attachment, EditLogEntry } from '@/lib/types';
+import type { Task, TaskStatus, FocusSession, TeamMember, Attachment, EditLogEntry, UserProfile } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '../ui/textarea';
 import { Badge } from '../ui/badge';
@@ -114,7 +114,7 @@ const getFieldName = (field: string) => {
 
 const formatFieldValue = (field: string, value: any) => {
     if (value === null || value === undefined || value === '') return 'vacío';
-    if (field === 'dueDate' && typeof value === 'string') return format(parseISO(value), "dd/MM/yyyy");
+    if (field === 'dueDate' && typeof value === 'string') return format(new Date(value), "dd/MM/yyyy");
     if (field === 'progress' || field === 'probability') return `${value}%`;
     if (field === 'value') return `$${Number(value).toLocaleString()}`;
     return value;
@@ -140,11 +140,45 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
   const [sessionStart, setSessionStart] = useState<Date | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   
-  const collectionPath = user ? `users/${user.uid}/teamMembers` : null;
-  const membersCollectionRef = useMemoFirebase(() => {
-    return collectionPath ? collection(firestore, collectionPath) : null;
-  }, [collectionPath, firestore]);
-  const { data: members } = useCollection<TeamMember>(membersCollectionRef);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [ownerProfile, setOwnerProfile] = useState<UserProfile | null>(null);
+
+  const myTeamCollectionPath = useMemo(() => {
+    return user ? `users/${user.uid}/teamMembers` : null;
+  }, [user]);
+
+  const myTeamCollectionRef = useMemoFirebase(() => {
+    return myTeamCollectionPath ? collection(firestore, myTeamCollectionPath) : null;
+  }, [myTeamCollectionPath, firestore]);
+  const { data: members } = useCollection<TeamMember>(myTeamCollectionRef);
+
+
+  useEffect(() => {
+    async function fetchProfiles() {
+      if (firestore && user) {
+        const userDocRef = doc(firestore, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          const profile = userDocSnap.data() as UserProfile;
+          setUserProfile(profile);
+          if (profile.ownerId) {
+            const ownerDocRef = doc(firestore, 'users', profile.ownerId);
+            const ownerDocSnap = await getDoc(ownerDocRef);
+            if (ownerDocSnap.exists()) {
+              setOwnerProfile(ownerDocSnap.data() as UserProfile);
+            }
+          }
+        }
+      } else {
+        setUserProfile(null);
+        setOwnerProfile(null);
+      }
+    }
+    if (open) {
+      fetchProfiles();
+    }
+  }, [firestore, user, open]);
+
 
   const totalTime = useMemo(() => {
     if (!task.focusSessions) return 0;
@@ -458,7 +492,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                             disabled={!isOwner}
                           >
                             {field.value ? (
-                              format(parseISO(field.value), "dd/MM/yyyy")
+                              format(new Date(field.value), "dd/MM/yyyy")
                             ) : (
                               <span>Elige una fecha</span>
                             )}
@@ -469,7 +503,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={field.value ? parseISO(field.value) : undefined}
+                          selected={field.value ? new Date(field.value) : undefined}
                           onSelect={(date) => field.onChange(date?.toISOString().split('T')[0])}
                           disabled={(date) => date < new Date("1900-01-01")}
                           initialFocus
@@ -495,6 +529,11 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                         </FormControl>
                         <SelectContent>
                             <SelectItem value="none">Nadie / Tarea personal</SelectItem>
+                             {ownerProfile && (
+                              <SelectItem value={`${ownerProfile.email}|${ownerProfile.uid}`}>
+                                {ownerProfile.name} (Jefe de Equipo)
+                              </SelectItem>
+                            )}
                             {members?.map(member => (
                               <SelectItem key={member.id} value={`${member.email}|${member.uid}`}>
                                 {member.name} ({member.email})
@@ -629,7 +668,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                             <div key={index} className="text-xs p-2 bg-muted/50 rounded-md">
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="font-bold text-foreground">{log.user}</span>
-                                    <span className="text-muted-foreground">{formatDistanceToNow(parseISO(log.date), { addSuffix: true, locale: es })}</span>
+                                    <span className="text-muted-foreground">{formatDistanceToNow(new Date(log.date), { addSuffix: true, locale: es })}</span>
                                 </div>
                                 {log.changes && log.changes.map((change, cIndex) => (
                                     <li key={cIndex} className="text-muted-foreground">
