@@ -698,7 +698,110 @@ export default function TeamView() {
             </Card>
         )}
         
-        {ownerProfile && (
+        {isOwner && (
+             <Card>
+                <CardHeader>
+                    <CardTitle>Miembros del Equipo</CardTitle>
+                    <CardDescription>
+                        Aquí puedes ver y administrar los miembros de tu equipo.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                            <TableHead>Miembro</TableHead>
+                            <TableHead>Rol</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead className="text-right">Acciones</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading && (
+                            <TableRow>
+                                <TableCell colSpan={4} className="text-center">
+                                <div className="flex justify-center items-center p-4">
+                                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                </div>
+                                </TableCell>
+                            </TableRow>
+                            )}
+                            {!isLoading &&
+                            teamMembersData &&
+                            teamMembersData.map((member) => (
+                                <TableRow key={member.uid || member.id}>
+                                <TableCell>
+                                    <div className="flex items-center gap-3">
+                                    <Avatar>
+                                        <AvatarImage
+                                        src={member.avatarUrl}
+                                        alt={member.name}
+                                        />
+                                        <AvatarFallback>
+                                        {member.name.charAt(0).toUpperCase()}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                        <p className="font-medium">{member.name}</p>
+                                        <p className="text-sm text-muted-foreground">
+                                        {member.email}
+                                        </p>
+                                    </div>
+                                    </div>
+                                </TableCell>
+                                <TableCell>
+                                    <Badge variant="secondary">{member.role}</Badge>
+                                </TableCell>
+                                <TableCell>
+                                    <Badge variant="outline">Activo</Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={(e) => { e.stopPropagation(); editMember(member); }}
+                                    >
+                                        <Edit className="h-4 w-4 text-muted-foreground" />
+                                    </Button>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="ghost" size="icon">
+                                            <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                Esta acción no se puede deshacer. Se eliminará permanentemente al miembro <span className="font-bold">{member.name}</span> del equipo. Las tareas delegadas no se verán afectadas pero no se podrán re-delegar a este usuario.
+                                            </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => deleteMember(member.id)} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </TableCell>
+                                </TableRow>
+                            ))}
+                            {!isLoading && (!teamMembersData || teamMembersData.length === 0) && (
+                            <TableRow>
+                                <TableCell
+                                colSpan={4}
+                                className="text-center py-10 text-muted-foreground"
+                                >
+                                No has invitado a nadie a tu equipo todavía.
+                                </TableCell>
+                            </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+        )}
+        
+        {!isOwner && ownerProfile && (
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -722,112 +825,83 @@ export default function TeamView() {
             </Card>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{isOwner ? 'Miembros del Equipo' : 'Compañeros de Equipo'}</CardTitle>
-            <CardDescription>
-                {isOwner ? 'Aquí puedes ver y administrar los miembros de tu equipo.' : 'Estos son los otros miembros de tu equipo.'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Miembro</TableHead>
-                  <TableHead>Rol</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading && (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center">
-                      <div className="flex justify-center items-center p-4">
-                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )}
-                {!isLoading &&
-                  peers &&
-                  peers.map((member) => (
-                    <TableRow key={member.uid || member.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar>
-                            <AvatarImage
-                              src={member.avatarUrl}
-                              alt={member.name}
-                            />
-                            <AvatarFallback>
-                              {member.name.charAt(0).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium">{member.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {member.email}
-                            </p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{member.role}</Badge>
-                      </TableCell>
-                       <TableCell>
-                         <Badge variant="outline">Activo</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {isOwner ? (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => { e.stopPropagation(); editMember(member); }}
-                            >
-                              <Edit className="h-4 w-4 text-muted-foreground" />
-                            </Button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Esta acción no se puede deshacer. Se eliminará permanentemente al miembro <span className="font-bold">{member.name}</span> del equipo. Las tareas delegadas no se verán afectadas pero no se podrán re-delegar a este usuario.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => deleteMember(member.id)} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">Solo el jefe puede editar</span>
-                        )}
-                      </TableCell>
+        {!isOwner && (
+            <Card>
+            <CardHeader>
+                <CardTitle>Compañeros de Equipo</CardTitle>
+                <CardDescription>
+                    Estos son los otros miembros de tu equipo.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                <TableHeader>
+                    <TableRow>
+                    <TableHead>Miembro</TableHead>
+                    <TableHead>Rol</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
-                  ))}
-                {!isLoading && (!peers || peers.length === 0) && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={4}
-                      className="text-center py-10 text-muted-foreground"
-                    >
-                      No hay otros miembros en el equipo todavía.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                    {isLoading && (
+                    <TableRow>
+                        <TableCell colSpan={4} className="text-center">
+                        <div className="flex justify-center items-center p-4">
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        </div>
+                        </TableCell>
+                    </TableRow>
+                    )}
+                    {!isLoading &&
+                    peers &&
+                    peers.map((member) => (
+                        <TableRow key={member.uid || member.id}>
+                        <TableCell>
+                            <div className="flex items-center gap-3">
+                            <Avatar>
+                                <AvatarImage
+                                src={member.avatarUrl}
+                                alt={member.name}
+                                />
+                                <AvatarFallback>
+                                {member.name.charAt(0).toUpperCase()}
+                                </AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <p className="font-medium">{member.name}</p>
+                                <p className="text-sm text-muted-foreground">
+                                {member.email}
+                                </p>
+                            </div>
+                            </div>
+                        </TableCell>
+                        <TableCell>
+                            <Badge variant="secondary">{member.role}</Badge>
+                        </TableCell>
+                        <TableCell>
+                            <Badge variant="outline">Activo</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                           <span className="text-xs text-muted-foreground">Solo el jefe puede editar</span>
+                        </TableCell>
+                        </TableRow>
+                    ))}
+                    {!isLoading && (!peers || peers.length === 0) && (
+                    <TableRow>
+                        <TableCell
+                        colSpan={4}
+                        className="text-center py-10 text-muted-foreground"
+                        >
+                        No hay otros miembros en el equipo todavía.
+                        </TableCell>
+                    </TableRow>
+                    )}
+                </TableBody>
+                </Table>
+            </CardContent>
+            </Card>
+        )}
       </div>
       <EditMemberDialog
         isOpen={isEditMemberDialogOpen}
