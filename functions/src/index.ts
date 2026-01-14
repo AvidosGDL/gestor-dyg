@@ -266,7 +266,7 @@ export const migrateOwnerIds = onCall(
 
           // Check if the member's profile document exists before trying to update it
           const memberProfileSnap = await memberProfileRef.get();
-          if (memberProfileSnap.exists()) {
+          if (memberProfileSnap.exists) {
             // Only update if the ownerId is not already set to the correct one
             const currentOwnerId = memberProfileSnap.data()?.ownerId;
             if (currentOwnerId !== ownerId) {
