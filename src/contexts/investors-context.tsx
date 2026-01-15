@@ -11,7 +11,6 @@ import {
   updateDoc,
   deleteDoc,
   doc,
-  writeBatch,
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -22,7 +21,6 @@ interface InvestorsContextType {
   addInvestor: (investorData: Omit<Investor, 'id'>) => void;
   updateInvestor: (id: string, updatedData: Partial<Omit<Investor, 'id'>>) => void;
   deleteInvestor: (id: string) => void;
-  bulkAddInvestors: (investorsData: Omit<Investor, 'id'>[]) => Promise<void>;
   loading: boolean;
 }
 
@@ -57,40 +55,6 @@ export function InvestorsProvider({ children }: { children: ReactNode }) {
       errorEmitter.emit('permission-error', permissionError);
     });
   };
-  
-  const bulkAddInvestors = async (investorsData: Omit<Investor, 'id'>[]) => {
-    if (!investorsCollectionRef) {
-        toast({ title: 'Error', description: 'No tienes permisos para realizar esta acción.', variant: 'destructive' });
-        return;
-    };
-    const batch = writeBatch(firestore);
-    investorsData.forEach((investor) => {
-      const docRef = doc(investorsCollectionRef);
-       const initialTransaction = {
-          id: crypto.randomUUID(),
-          date: new Date().toISOString(),
-          type: 'Inversión Inicial' as const,
-          amount: investor.investmentAmount,
-          description: 'Inversión inicial importada desde imagen.',
-          attachments: [],
-      };
-      batch.set(docRef, {...investor, transactions: [initialTransaction]});
-    });
-    
-    try {
-      await batch.commit();
-      toast({ title: 'Éxito', description: `${investorsData.length} inversionistas importados correctamente.` });
-    } catch (error: any) {
-        toast({ title: 'Error de Importación', description: error.message, variant: 'destructive' });
-        const permissionError = new FirestorePermissionError({
-          path: investorsCollectionRef.path,
-          operation: 'write',
-          requestResourceData: {info: "Bulk investor import failed"},
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    }
-  };
-
 
   const updateInvestor = (id: string, updatedData: Partial<Omit<Investor, 'id'>>) => {
     if (!firestore || !collectionPath) return;
@@ -123,7 +87,6 @@ export function InvestorsProvider({ children }: { children: ReactNode }) {
     addInvestor,
     updateInvestor,
     deleteInvestor,
-    bulkAddInvestors,
   };
 
   return (

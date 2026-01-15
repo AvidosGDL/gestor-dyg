@@ -27,6 +27,8 @@ import { es } from 'date-fns/locale';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+
 
 const attachmentSchema = z.object({
   name: z.string(),
@@ -85,12 +87,13 @@ export default function EditInvestorDialog({
   onOpenChange,
   investor,
 }: EditInvestorDialogProps) {
-  const { updateInvestor } = useInvestors();
+  const { updateInvestor, deleteInvestor } = useInvestors();
   const { toast } = useToast();
   
   const [newTransaction, setNewTransaction] = useState<{type: InvestmentTransaction['type'], amount: string, description: string}>({ type: 'Pago de Interés', amount: '', description: '' });
   const [newAttachments, setNewAttachments] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
 
   const form = useForm<InvestorFormValues>({
     resolver: zodResolver(investorSchema),
@@ -113,6 +116,7 @@ export default function EditInvestorDialog({
       });
       setNewTransaction({ type: 'Pago de Interés', amount: '', description: '' });
       setNewAttachments([]);
+      setDeleteConfirmation('');
     }
   }, [isOpen, investor, form]);
   
@@ -165,6 +169,15 @@ export default function EditInvestorDialog({
     link.click();
     document.body.removeChild(link);
   };
+
+  const handleDeleteInvestor = () => {
+    deleteInvestor(investor.id);
+    toast({
+        title: 'Inversionista Eliminado',
+        description: `Se ha eliminado a ${investor.name}.`,
+    });
+    onOpenChange(false);
+  }
 
 
   const onSubmit: SubmitHandler<InvestorFormValues> = async (data) => {
@@ -395,18 +408,52 @@ export default function EditInvestorDialog({
             </div>
           </div>
           </ScrollArea>
-          <DialogFooter className="pt-4 border-t">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Guardar Cambios
-            </Button>
+          <DialogFooter className="pt-4 border-t flex justify-between">
+             <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Eliminar Inversionista
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta acción no se puede deshacer. Esto eliminará permanentemente al inversionista y todos sus datos asociados. Para confirmar, escribe <strong>ELIMINAR</strong>.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <Input
+                    id="delete-confirm"
+                    placeholder='Escribe "ELIMINAR"'
+                    value={deleteConfirmation}
+                    onChange={(e) => setDeleteConfirmation(e.target.value)}
+                    autoComplete="off"
+                />
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    disabled={deleteConfirmation !== 'ELIMINAR'}
+                    onClick={handleDeleteInvestor}
+                    className="bg-destructive hover:bg-destructive/90"
+                  >
+                    Confirmar Eliminación
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <div className="flex gap-2">
+                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+                Cancelar
+                </Button>
+                <Button type="submit" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Guardar Cambios
+                </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
   );
 }
-
