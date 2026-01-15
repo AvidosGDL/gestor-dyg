@@ -91,6 +91,8 @@ export interface Prospect {
   businessDescription: string;
   nextContactDate?: string; // ISO 8601 date string (YYYY-MM-DD)
   contactLog?: ContactLogEntry[];
+  value: number;
+  probability: number;
 }
 
 export type MessageMediaType = 'image' | 'video' | 'audio' | 'file';

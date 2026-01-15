@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -5,13 +6,25 @@ import { useProspects } from '@/contexts/prospects-context';
 import { Prospect } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Trash2, Edit, Phone, Mail, Calendar, Plus, Handshake } from 'lucide-react';
+import { Trash2, Edit, Phone, Mail, Calendar, DollarSign, Percent } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '../ui/badge';
 import EditProspectDialog from './edit-prospect-dialog';
 import { format, isPast, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
+
+const getProgressColor = (prob: number) => {
+  if (prob >= 75) return 'bg-emerald-500';
+  if (prob >= 40) return 'bg-amber-500';
+  return 'bg-blue-500';
+};
+
+const getPotentialColor = (value: number) => {
+    if (value >= 10000) return 'bg-purple-500';
+    if (value >= 5000) return 'bg-indigo-500';
+    return 'bg-sky-500';
+}
 
 function ProspectCard({ prospect, onEdit }: { prospect: Prospect, onEdit: (prospect: Prospect) => void }) {
   const { deleteProspect } = useProspects();
@@ -59,6 +72,38 @@ function ProspectCard({ prospect, onEdit }: { prospect: Prospect, onEdit: (prosp
       <CardContent className="flex-1 flex flex-col justify-between">
         <div>
             <p className="text-sm text-muted-foreground mb-3">{prospect.businessDescription}</p>
+
+            <div className="bg-muted/50 rounded-lg p-2 mb-3 grid grid-cols-1 gap-3 text-xs">
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-muted-foreground flex items-center gap-1"><DollarSign size={12} /> Valor Estimado</span>
+                  <span className="font-bold text-foreground text-right">
+                    ${(prospect.value || 0).toLocaleString()}
+                  </span>
+                </div>
+                <div className="w-full bg-border h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full ${getPotentialColor(prospect.value || 0)}`}
+                    style={{ width: `${Math.min(((prospect.value || 0) / 20000) * 100, 100)}%` }}
+                  ></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-muted-foreground flex items-center gap-1"><Percent size={12} /> Probabilidad</span>
+                  <span className="font-bold text-foreground text-right">
+                    {prospect.probability || 0}%
+                  </span>
+                </div>
+                <div className="w-full bg-border h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full ${getProgressColor(prospect.probability || 0)}`}
+                    style={{ width: `${prospect.probability || 0}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+
             {nextContactDateFormatted && (
                 <Badge variant={isDatePast ? 'destructive' : 'secondary'} className="flex items-center gap-2 w-fit">
                     <Calendar size={14} />

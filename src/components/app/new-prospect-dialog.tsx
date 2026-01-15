@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect } from 'react';
@@ -16,9 +17,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2 } from 'lucide-react';
+import { DollarSign, Loader2, Percent } from 'lucide-react';
 import { useProspects } from '@/contexts/prospects-context';
 import { useToast } from '@/hooks/use-toast';
+import { Slider } from '../ui/slider';
 
 const prospectSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
@@ -26,6 +28,8 @@ const prospectSchema = z.object({
   phone: z.string().optional(),
   businessDescription: z.string().min(1, 'La descripción es requerida'),
   nextContactDate: z.string().optional(),
+  value: z.coerce.number().min(0),
+  probability: z.coerce.number().min(0).max(100),
 });
 
 type ProspectFormValues = z.infer<typeof prospectSchema>;
@@ -46,10 +50,23 @@ export default function NewProspectDialog({
     register,
     handleSubmit,
     reset,
+    watch,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<ProspectFormValues>({
     resolver: zodResolver(prospectSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      phone: '',
+      businessDescription: '',
+      nextContactDate: '',
+      value: 0,
+      probability: 50,
+    }
   });
+
+  const watchProbability = watch('probability', 50);
   
   useEffect(() => {
     if(!open) {
@@ -59,6 +76,8 @@ export default function NewProspectDialog({
         phone: '',
         businessDescription: '',
         nextContactDate: '',
+        value: 0,
+        probability: 50,
       })
     }
   }, [open, reset]);
@@ -115,6 +134,33 @@ export default function NewProspectDialog({
             <Label htmlFor="businessDescription">Descripción del Negocio</Label>
             <Textarea id="businessDescription" {...register('businessDescription')} disabled={isSubmitting} />
             {errors.businessDescription && <p className="text-sm text-destructive">{errors.businessDescription.message}</p>}
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="value">Valor del Negocio ($)</Label>
+              <div className="relative">
+                <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="value"
+                  type="number"
+                  step="100"
+                  className="pl-9"
+                  {...register('value')}
+                  disabled={isSubmitting}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="probability">Probabilidad de Cierre - {watchProbability}%</Label>
+              <Slider
+                id="probability"
+                min={0} max={100} step={5}
+                defaultValue={[50]}
+                onValueChange={(value) => control.setValue('probability', value[0])}
+                disabled={isSubmitting}
+              />
+            </div>
           </div>
 
           <div className="space-y-2">

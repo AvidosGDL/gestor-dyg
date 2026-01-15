@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -16,13 +17,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { useForm, type SubmitHandler, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import { DollarSign, Loader2, Percent, PlusCircle, Trash2 } from 'lucide-react';
 import { useProspects } from '@/contexts/prospects-context';
 import { useToast } from '@/hooks/use-toast';
 import type { Prospect, ContactLogEntry } from '@/lib/types';
 import { ScrollArea } from '../ui/scroll-area';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { Slider } from '../ui/slider';
 
 const contactLogSchema = z.object({
   date: z.string(),
@@ -36,6 +38,8 @@ const prospectSchema = z.object({
   businessDescription: z.string().min(1, 'La descripción es requerida'),
   nextContactDate: z.string().optional(),
   contactLog: z.array(contactLogSchema).optional(),
+  value: z.coerce.number().min(0),
+  probability: z.coerce.number().min(0).max(100),
 });
 
 type ProspectFormValues = z.infer<typeof prospectSchema>;
@@ -61,8 +65,12 @@ export default function EditProspectDialog({
       ...prospect,
       nextContactDate: prospect.nextContactDate ? prospect.nextContactDate.split('T')[0] : '',
       contactLog: prospect.contactLog || [],
+      value: prospect.value || 0,
+      probability: prospect.probability || 50,
     },
   });
+  
+  const watchProbability = form.watch('probability');
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -75,6 +83,8 @@ export default function EditProspectDialog({
         ...prospect,
         nextContactDate: prospect.nextContactDate ? prospect.nextContactDate.split('T')[0] : '',
         contactLog: prospect.contactLog || [],
+        value: prospect.value || 0,
+        probability: prospect.probability || 50,
       });
       setNewNote('');
     }
@@ -139,6 +149,31 @@ export default function EditProspectDialog({
                 <Label htmlFor="edit-businessDescription">Descripción del Negocio</Label>
                 <Textarea id="edit-businessDescription" {...form.register('businessDescription')} />
                 {form.formState.errors.businessDescription && <p className="text-sm text-destructive">{form.formState.errors.businessDescription.message}</p>}
+            </div>
+            
+             <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-value">Valor del Negocio ($)</Label>
+                <div className="relative">
+                  <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="edit-value"
+                    type="number"
+                    step="100"
+                    className="pl-9"
+                    {...form.register('value')}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-probability">Probabilidad de Cierre - {watchProbability}%</Label>
+                <Slider
+                  id="edit-probability"
+                  min={0} max={100} step={5}
+                  defaultValue={[prospect.probability || 50]}
+                  onValueChange={(value) => form.control.setValue('probability', value[0])}
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
