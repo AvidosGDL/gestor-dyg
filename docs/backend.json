@@ -256,9 +256,23 @@
           "type": "string",
           "description": "Current status of the investment (e.g., Active, Liquidated).",
           "enum": ["Activa", "Liquidada"]
+        },
+        "paymentType": {
+          "type": "string",
+          "enum": ["mensual", "pago_unico"],
+          "description": "The payment scheme for the investment interest."
+        },
+        "monthlyPaymentDay": {
+          "type": "number",
+          "description": "The day of the month for monthly interest payments (1-31)."
+        },
+        "liquidationDate": {
+          "type": "string",
+          "format": "date",
+          "description": "The date for the final lump sum payment (capital + interest)."
         }
       },
-      "required": ["id", "name", "investmentDate", "investmentAmount", "interestRate"]
+      "required": ["id", "name", "investmentDate", "investmentAmount", "interestRate", "paymentType"]
     },
     "InvestmentTransaction": {
       "$schema": "http://json-schema.org/draft-07/schema#",

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -5,7 +6,7 @@ import { useInvestors } from '@/contexts/investors-context';
 import { Investor } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Trash2, Edit, Phone, Mail, Calendar, DollarSign, Percent, Landmark, Upload, Loader2, Sparkles, Plus } from 'lucide-react';
+import { Trash2, Edit, Phone, Mail, Calendar, DollarSign, Percent, Landmark, Upload, Loader2, Sparkles, Plus, CalendarClock, Repeat } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '../ui/badge';
@@ -16,6 +17,16 @@ import { useToast } from '@/hooks/use-toast';
 
 function InvestorCard({ investor, onEdit }: { investor: Investor, onEdit: (investor: Investor) => void }) {
   const { deleteInvestor } = useInvestors();
+
+  const getPaymentInfo = () => {
+    if (investor.paymentType === 'mensual') {
+        return `Día ${investor.monthlyPaymentDay} de cada mes`;
+    }
+    if (investor.paymentType === 'pago_unico' && investor.liquidationDate) {
+        return `Liquidación el ${format(parseISO(investor.liquidationDate), 'dd/MM/yyyy')}`;
+    }
+    return 'No definido';
+  }
 
   return (
     <Card className="flex flex-col">
@@ -63,7 +74,13 @@ function InvestorCard({ investor, onEdit }: { investor: Investor, onEdit: (inves
                     <span>{(investor.interestRate || 0)}% Interés</span>
                 </div>
             </div>
-            <Badge variant={investor.status === 'Activa' ? 'secondary' : 'outline'}>{investor.status}</Badge>
+             <div className="space-y-2 text-xs">
+                <Badge variant="secondary" className="flex items-center gap-2 w-fit">
+                    {investor.paymentType === 'mensual' ? <Repeat size={14} /> : <CalendarClock size={14} />}
+                    {getPaymentInfo()}
+                </Badge>
+                <Badge variant={investor.status === 'Activa' ? 'outline' : 'destructive'}>{investor.status}</Badge>
+            </div>
         </div>
         <Button variant="outline" className="w-full mt-4" onClick={() => onEdit(investor)}>
           <Edit size={16} className="mr-2" /> Ver / Editar
@@ -95,7 +112,11 @@ const ImportFromImage = ({ onImport }: { onImport: (investors: Omit<Investor, 'i
         setRecognizedInvestors([]);
         try {
             const result = await recognizeInvestorsFromImage({ imageDataUri: imageSrc });
-            setRecognizedInvestors(result.investors.map(inv => ({...inv})));
+            setRecognizedInvestors(result.investors.map(inv => ({
+                ...inv, 
+                paymentType: 'mensual', // default
+                monthlyPaymentDay: 15, // default
+            })));
             toast({
                 title: '¡Inversionistas Reconocidos!',
                 description: `Se encontraron ${result.investors.length} inversionistas en la imagen. Por favor, verifica la información.`,
@@ -202,3 +223,4 @@ export default function InvestorsView() {
     </>
   );
 }
+

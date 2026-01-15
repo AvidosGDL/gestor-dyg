@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { createContext, useContext, ReactNode, useMemo } from 'react';
@@ -65,7 +66,15 @@ export function InvestorsProvider({ children }: { children: ReactNode }) {
     const batch = writeBatch(firestore);
     investorsData.forEach((investor) => {
       const docRef = doc(investorsCollectionRef);
-      batch.set(docRef, investor);
+       const initialTransaction = {
+          id: crypto.randomUUID(),
+          date: new Date().toISOString(),
+          type: 'Inversión Inicial' as const,
+          amount: investor.investmentAmount,
+          description: 'Inversión inicial importada desde imagen.',
+          attachments: [],
+      };
+      batch.set(docRef, {...investor, transactions: [initialTransaction]});
     });
     
     try {

@@ -1,4 +1,5 @@
 
+
 export type TaskStatus =
   | 'pendiente'
   | 'en-progreso'
@@ -136,6 +137,9 @@ export interface Investor {
   paymentMethod: string;
   status: 'Activa' | 'Liquidada';
   transactions?: InvestmentTransaction[];
+  paymentType: 'mensual' | 'pago_unico';
+  monthlyPaymentDay?: number;
+  liquidationDate?: string;
 }
 
     

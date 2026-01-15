@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -13,10 +14,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useForm, type SubmitHandler, useFieldArray } from 'react-hook-form';
+import { useForm, type SubmitHandler, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { DollarSign, Loader2, Percent, PlusCircle, Trash2, Paperclip, Eye, Download, X } from 'lucide-react';
+import { DollarSign, Loader2, Percent, PlusCircle, Trash2, Paperclip, Eye, Download, X, Repeat, CalendarClock } from 'lucide-react';
 import { useInvestors } from '@/contexts/investors-context';
 import { useToast } from '@/hooks/use-toast';
 import type { Investor, InvestmentTransaction, Attachment } from '@/lib/types';
@@ -25,6 +26,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 
 const attachmentSchema = z.object({
   name: z.string(),
@@ -52,7 +54,23 @@ const investorSchema = z.object({
   paymentMethod: z.string().min(1, 'El método de pago es requerido'),
   status: z.enum(['Activa', 'Liquidada']),
   transactions: z.array(transactionSchema).optional(),
+  paymentType: z.enum(['mensual', 'pago_unico'], { required_error: 'Debes seleccionar un tipo de pago.' }),
+  monthlyPaymentDay: z.coerce.number().min(1).max(31).optional(),
+  liquidationDate: z.string().optional(),
+}).refine(data => {
+    if (data.paymentType === 'mensual') return !!data.monthlyPaymentDay;
+    return true;
+}, {
+    message: 'El día de pago es requerido para pagos mensuales.',
+    path: ['monthlyPaymentDay'],
+}).refine(data => {
+    if (data.paymentType === 'pago_unico') return !!data.liquidationDate;
+    return true;
+}, {
+    message: 'La fecha de liquidación es requerida para pago único.',
+    path: ['liquidationDate'],
 });
+
 
 type InvestorFormValues = z.infer<typeof investorSchema>;
 
@@ -77,6 +95,8 @@ export default function EditInvestorDialog({
   const form = useForm<InvestorFormValues>({
     resolver: zodResolver(investorSchema),
   });
+
+  const paymentType = form.watch('paymentType');
   
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -88,6 +108,7 @@ export default function EditInvestorDialog({
       form.reset({
         ...investor,
         investmentDate: investor.investmentDate ? investor.investmentDate.split('T')[0] : '',
+        liquidationDate: investor.liquidationDate ? investor.liquidationDate.split('T')[0] : '',
         transactions: investor.transactions || [],
       });
       setNewTransaction({ type: 'Pago de Interés', amount: '', description: '' });
@@ -148,7 +169,12 @@ export default function EditInvestorDialog({
 
   const onSubmit: SubmitHandler<InvestorFormValues> = async (data) => {
     try {
-      updateInvestor(investor.id, { ...data, transactions: data.transactions || [] });
+      updateInvestor(investor.id, { 
+          ...data, 
+          transactions: data.transactions || [],
+          monthlyPaymentDay: data.paymentType === 'mensual' ? data.monthlyPaymentDay : undefined,
+          liquidationDate: data.paymentType === 'pago_unico' ? data.liquidationDate : undefined,
+      });
       toast({
         title: 'Inversionista Actualizado',
         description: `Los datos de ${data.name} han sido actualizados.`,
@@ -183,13 +209,19 @@ export default function EditInvestorDialog({
               </div>
                <div className="space-y-2">
                 <Label htmlFor="status">Estado</Label>
-                <Select onValueChange={(value) => form.control.setValue('status', value as 'Activa' | 'Liquidada')} defaultValue={investor.status}>
-                    <SelectTrigger id="status"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="Activa">Activa</SelectItem>
-                        <SelectItem value="Liquidada">Liquidada</SelectItem>
-                    </SelectContent>
-                </Select>
+                <Controller
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                     <Select onValueChange={field.onChange} value={field.value}>
+                        <SelectTrigger id="status"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Activa">Activa</SelectItem>
+                            <SelectItem value="Liquidada">Liquidada</SelectItem>
+                        </SelectContent>
+                    </Select>
+                  )}
+                />
               </div>
             </div>
 
@@ -235,7 +267,50 @@ export default function EditInvestorDialog({
                   </div>
                   {form.formState.errors.interestRate && <p className="text-sm text-destructive">{form.formState.errors.interestRate.message}</p>}
                 </div>
-              </div>
+            </div>
+
+            <div className="space-y-4 pt-4 border-t">
+                 <Label className="text-base font-semibold">Esquema de Pago</Label>
+                 <Controller
+                    name="paymentType"
+                    control={form.control}
+                    render={({ field }) => (
+                    <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-4">
+                        <div>
+                        <RadioGroupItem value="mensual" id="edit-mensual" className="peer sr-only" />
+                        <Label htmlFor="edit-mensual" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
+                            <Repeat className="mb-3 h-6 w-6" />
+                            Pago mensual de interés
+                        </Label>
+                        </div>
+                        <div>
+                        <RadioGroupItem value="pago_unico" id="edit-pago_unico" className="peer sr-only" />
+                        <Label htmlFor="edit-pago_unico" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
+                           <CalendarClock className="mb-3 h-6 w-6" />
+                           Pago único al vencimiento
+                        </Label>
+                        </div>
+                    </RadioGroup>
+                    )}
+                />
+                 {form.formState.errors.paymentType && <p className="text-sm text-destructive">{form.formState.errors.paymentType.message}</p>}
+
+
+                {paymentType === 'mensual' && (
+                    <div className="space-y-2">
+                        <Label htmlFor="monthlyPaymentDay">Día de pago mensual (1-31)</Label>
+                        <Input id="monthlyPaymentDay" type="number" min="1" max="31" {...form.register('monthlyPaymentDay')} />
+                        {form.formState.errors.monthlyPaymentDay && <p className="text-sm text-destructive">{form.formState.errors.monthlyPaymentDay.message}</p>}
+                    </div>
+                )}
+                {paymentType === 'pago_unico' && (
+                    <div className="space-y-2">
+                        <Label htmlFor="liquidationDate">Fecha de liquidación total</Label>
+                        <Input id="liquidationDate" type="date" {...form.register('liquidationDate')} />
+                        {form.formState.errors.liquidationDate && <p className="text-sm text-destructive">{form.formState.errors.liquidationDate.message}</p>}
+                    </div>
+                )}
+            </div>
 
             <div className="space-y-4 pt-4 border-t">
               <Label className="text-base font-semibold">Historial de Transacciones</Label>
@@ -334,3 +409,4 @@ export default function EditInvestorDialog({
     </Dialog>
   );
 }
+
