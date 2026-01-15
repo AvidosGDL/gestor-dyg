@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState } from 'react';
@@ -10,7 +9,7 @@ import { Trash2, Edit, Phone, Mail, Calendar, DollarSign, Percent, Landmark, Upl
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '../ui/badge';
-// import EditInvestorDialog from './edit-investor-dialog'; // Will be created in a future step
+import EditInvestorDialog from './edit-investor-dialog';
 import { format, parseISO } from 'date-fns';
 import { recognizeInvestorsFromImage } from '@/ai/flows/recognize-investors-flow';
 import { useToast } from '@/hooks/use-toast';
@@ -163,7 +162,7 @@ export default function InvestorsView() {
   const [editingInvestor, setEditingInvestor] = useState<Investor | null>(null);
 
   const handleEdit = (investor: Investor) => {
-    // setEditingInvestor(investor); // Will be enabled later
+    setEditingInvestor(investor);
   };
   
   const handleCloseDialog = () => {
@@ -193,14 +192,13 @@ export default function InvestorsView() {
             </div>
         )}
     </div>
-    {/* {editingInvestor && (
+    {editingInvestor && (
         <EditInvestorDialog
             isOpen={!!editingInvestor}
             onOpenChange={handleCloseDialog}
             investor={editingInvestor}
         />
-    )} */}
+    )}
     </>
   );
 }
-
