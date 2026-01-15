@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Layout, Calendar, Users, FileUp, Handshake, LineChart, Archive } from 'lucide-react';
+import { Layout, Calendar, Users, FileUp, Handshake, LineChart, Archive, Landmark } from 'lucide-react';
 import type { View } from '@/app/page';
 import { cn } from '@/lib/utils';
 import {
@@ -10,6 +10,7 @@ import {
   SidebarMenuButton,
   SidebarMenuBadge,
 } from '@/components/ui/sidebar';
+import { useUser } from '@/firebase';
 
 interface SidebarNavProps {
   view: View;
@@ -17,6 +18,9 @@ interface SidebarNavProps {
 }
 
 export default function SidebarNav({ view, setView }: SidebarNavProps) {
+  const { user } = useUser();
+  const isAuthorizedForInvestors = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2';
+
   const navItems = [
     { id: 'board', label: 'Tablero Visual', icon: Layout },
     { id: 'planning', label: 'Planeación Diaria', icon: Calendar },
@@ -25,6 +29,7 @@ export default function SidebarNav({ view, setView }: SidebarNavProps) {
     { id: 'team', label: 'Equipo', icon: Users },
     { id: 'import', label: 'Importar Tareas', icon: FileUp },
     { id: 'history', label: 'Histórico de Tareas', icon: Archive },
+    ...(isAuthorizedForInvestors ? [{ id: 'investors', label: 'Inversionistas', icon: Landmark }] : []),
   ];
 
   return (

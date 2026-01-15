@@ -1,13 +1,13 @@
-
 'use client';
 
 import React from 'react';
 import Image from 'next/image';
-import { Plus, UserPlus, Timer, Handshake, Filter, User, Users } from 'lucide-react';
+import { Plus, UserPlus, Timer, Handshake, Filter, User, Users, Landmark } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import NewTaskDialog from './new-task-dialog';
 import NewMemberDialog from './new-member-dialog';
 import NewProspectDialog from './new-prospect-dialog';
+import NewInvestorDialog from './new-investor-dialog';
 import type { View } from '@/app/page';
 import type { Task, TeamMember } from '@/lib/types';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -32,6 +32,7 @@ export default function AppHeader({
   const [showNewTaskModal, setShowNewTaskModal] = React.useState(false);
   const [showNewMemberModal, setShowNewMemberModal] = React.useState(false);
   const [showNewProspectModal, setShowNewProspectModal] = React.useState(false);
+  const [showNewInvestorModal, setShowNewInvestorModal] = React.useState(false);
   const { user } = useUser();
   const firestore = useFirestore();
 
@@ -64,6 +65,17 @@ export default function AppHeader({
         >
           <Handshake size={18} />
           <span className="hidden sm:inline">Nuevo Prospecto</span>
+        </Button>
+      );
+    }
+     if (view === 'investors') {
+      return (
+        <Button
+          onClick={() => setShowNewInvestorModal(true)}
+          className="shadow-sm transition-transform active:scale-95"
+        >
+          <Landmark size={18} />
+          <span className="hidden sm:inline">Nuevo Inversionista</span>
         </Button>
       );
     }
@@ -147,6 +159,7 @@ export default function AppHeader({
         onOpenChange={setShowNewMemberModal}
       />}
       <NewProspectDialog open={showNewProspectModal} onOpenChange={setShowNewProspectModal} />
+      <NewInvestorDialog open={showNewInvestorModal} onOpenChange={setShowNewInvestorModal} />
     </>
   );
 }
@@ -159,4 +172,5 @@ const viewTitles: Record<View, string> = {
   prospects: 'Seguimiento de Prospectos',
   analytics: 'Análisis de Avances',
   history: 'Histórico de Tareas',
+  investors: 'Gestión de Inversionistas',
 };
