@@ -10,8 +10,8 @@ function initializeAi() {
     aiInstance = genkit({
       plugins: [
         googleAI(),
-        firebaseAuth(),
-        firebaseFirestore(),
+        firebaseAuth,
+        firebaseFirestore,
       ],
       flowStateStore: 'firebase',
       traceStore: 'firebase',
