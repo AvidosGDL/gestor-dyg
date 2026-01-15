@@ -115,3 +115,27 @@ export interface Chat {
   lastMessage?: Pick<Message, 'text' | 'timestamp' | 'senderId' | 'readBy' | 'mediaType'>;
   lastMessageTimestamp?: any; // Firestore Timestamp
 }
+
+export interface InvestmentTransaction {
+  id: string;
+  date: string; // ISO 8601 string
+  type: 'Inversión Inicial' | 'Pago de Interés' | 'Abono a Capital' | 'Devolución';
+  amount: number;
+  description: string;
+  attachments?: Attachment[];
+}
+
+export interface Investor {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  investmentDate: string; // ISO 8601 string
+  investmentAmount: number;
+  interestRate: number;
+  paymentMethod: string;
+  status: 'Activa' | 'Liquidada';
+  transactions?: InvestmentTransaction[];
+}
+
+    

@@ -1,3 +1,4 @@
+
 /**
  * This ruleset enforces a strict user-ownership model for the TaskMaster Pro application.
  *
@@ -58,6 +59,17 @@ service cloud.firestore {
      */
     function isAdmin() {
       return isSignedIn() && request.auth.uid == 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
+    }
+    
+    /**
+     * Checks if the user is authorized to access the investors module.
+     * Access is restricted to the super admin and a specific user UID.
+     */
+    function isAuthorizedForInvestors() {
+      return isSignedIn() && (
+        request.auth.uid == 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || // Superadmin daniel@avidos.mx
+        request.auth.uid == 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2'    // User roberto.d@gygproyectosfiscales.com
+      );
     }
 
     /**
@@ -130,5 +142,19 @@ service cloud.firestore {
         allow delete: if false; // Messages cannot be deleted
       }
     }
+    
+    /**
+     * @description Rules for the investors module.
+     * Access is highly restricted to authorized users only.
+     */
+    match /investors/{investorId} {
+      allow read, write, create, update, delete: if isAuthorizedForInvestors();
+      
+      match /transactions/{transactionId} {
+      	allow read, write, create, update, delete: if isAuthorizedForInvestors();
+      }
+    }
   }
 }
+
+    

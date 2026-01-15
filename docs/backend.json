@@ -211,6 +211,99 @@
         "senderId",
         "timestamp"
       ]
+    },
+    "Investor": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Investor",
+      "type": "object",
+      "description": "Represents an investor and their primary investment details.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Investor."
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name of the investor."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email of the investor.",
+          "format": "email"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Phone number of the investor."
+        },
+        "investmentDate": {
+          "type": "string",
+          "description": "Date of the initial investment.",
+          "format": "date"
+        },
+        "investmentAmount": {
+          "type": "number",
+          "description": "Total amount of the investment."
+        },
+        "interestRate": {
+          "type": "number",
+          "description": "Agreed interest rate in percentage."
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "Method of payment (e.g., Transfer, Cash)."
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status of the investment (e.g., Active, Liquidated).",
+          "enum": ["Activa", "Liquidada"]
+        }
+      },
+      "required": ["id", "name", "investmentDate", "investmentAmount", "interestRate"]
+    },
+    "InvestmentTransaction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "InvestmentTransaction",
+      "type": "object",
+      "description": "Represents a single transaction related to an investment.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the transaction."
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of the transaction.",
+          "format": "date-time"
+        },
+        "type": {
+          "type": "string",
+          "description": "Type of transaction.",
+          "enum": ["Inversión Inicial", "Pago de Interés", "Abono a Capital", "Devolución"]
+        },
+        "amount": {
+          "type": "number",
+          "description": "Amount of the transaction."
+        },
+        "description": {
+          "type": "string",
+          "description": "Notes or details about the transaction."
+        },
+        "attachments": {
+          "type": "array",
+          "description": "Array of evidence files attached to the transaction.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "type": {"type": "string"},
+              "size": {"type": "number"},
+              "url": {"type": "string", "format": "uri"}
+            },
+            "required": ["name", "url"]
+          }
+        }
+      },
+      "required": ["id", "date", "type", "amount"]
     }
   },
   "auth": {
@@ -312,8 +405,33 @@
             }
           ]
         }
+      },
+      {
+        "path": "/investors/{investorId}",
+        "definition": {
+          "entityName": "Investor",
+          "schema": { "$ref": "#/backend/entities/Investor" },
+          "description": "Top-level collection to store investor information. Access is highly restricted.",
+          "params": [
+            { "name": "investorId", "description": "The unique identifier for the investor." }
+          ]
+        }
+      },
+      {
+        "path": "/investors/{investorId}/transactions/{transactionId}",
+        "definition": {
+          "entityName": "InvestmentTransaction",
+          "schema": { "$ref": "#/backend/entities/InvestmentTransaction" },
+          "description": "Subcollection for all financial movements related to a specific investor.",
+          "params": [
+            { "name": "investorId", "description": "The unique identifier for the investor." },
+            { "name": "transactionId", "description": "The unique identifier for the transaction." }
+          ]
+        }
       }
     ],
-    "reasoning": "The Firestore structure is designed to manage tasks and user profiles for the TaskMaster Pro application, prioritizing security, scalability, and debuggability. It emphasizes Authorization Independence by avoiding hierarchical authorization dependencies.\\n\\n**Authorization Independence and QAPs:**\\n\\n*   **User Profiles:** User profile data is stored under `/users/{userId}/profile`.  Authorization rules can directly check if `request.auth.uid == userId`. Segregation ensures only the user can access their profile.\\n*   **Tasks:** Tasks are stored within a user's document in the `/users/{userId}/tasks/{taskId}` collection. This structure ensures that only the authenticated user can access and manipulate tasks under their ownership. The structure allows for secure listing of tasks, as the query will always be scoped to the user's own tasks, satisfying QAPs (Rules are not Filters) requirements.\\n* **Chats**: A top-level `/chats` collection stores conversation metadata. Each chat document contains an array `memberIds`. Security rules ensure only users whose UID is in `memberIds` can read/write to the chat document and its `messages` subcollection. This enforces privacy for 1-on-1 and group chats.\\n\\nThis structure promotes clarity of intent and supports robust security rules without relying on complex `get()` calls. The path-based ownership model provides inherent security and facilitates simple, efficient rules."
+    "reasoning": "The Firestore structure is designed to manage tasks and user profiles for the TaskMaster Pro application, prioritizing security, scalability, and debuggability. It emphasizes Authorization Independence by avoiding hierarchical authorization dependencies.\\n\\n**Authorization Independence and QAPs:**\\n\\n*   **User Profiles:** User profile data is stored under `/users/{userId}/profile`.  Authorization rules can directly check if `request.auth.uid == userId`. Segregation ensures only the user can access their profile.\\n*   **Tasks:** Tasks are stored within a user's document in the `/users/{userId}/tasks/{taskId}` collection. This structure ensures that only the authenticated user can access and manipulate tasks under their ownership. The structure allows for secure listing of tasks, as the query will be always be scoped to the user's own tasks, satisfying QAPs (Rules are not Filters) requirements.\\n* **Chats**: A top-level `/chats` collection stores conversation metadata. Each chat document contains an array `memberIds`. Security rules ensure only users whose UID is in `memberIds` can read/write to the chat document and its `messages` subcollection. This enforces privacy for 1-on-1 and group chats.\\n\\nThis structure promotes clarity of intent and supports robust security rules without relying on complex `get()` calls. The path-based ownership model provides inherent security and facilitates simple, efficient rules."
   }
 }
+
+    
