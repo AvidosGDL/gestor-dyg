@@ -124,6 +124,7 @@ export interface InvestmentTransaction {
   amount: number;
   description: string;
   attachments?: Attachment[];
+  dueDate?: string; // ISO 8601 string
 }
 
 export interface Investor {

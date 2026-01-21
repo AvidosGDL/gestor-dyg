@@ -13,30 +13,23 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { useForm, type SubmitHandler, useFieldArray, Controller } from 'react-hook-form';
+import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { DollarSign, Loader2, Percent, PlusCircle, Trash2, Paperclip, Eye, Download, X, Repeat, CalendarClock, Info } from 'lucide-react';
+import { DollarSign, Loader2, Percent, Trash2, Repeat, CalendarClock, Info, Upload, Eye, Download } from 'lucide-react';
 import { useInvestors } from '@/contexts/investors-context';
 import { useToast } from '@/hooks/use-toast';
 import type { Investor, InvestmentTransaction, Attachment } from '@/lib/types';
 import { ScrollArea } from '../ui/scroll-area';
-import { format, addMonths, getDate } from 'date-fns';
+import { format, addMonths, getDate, isPast, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Alert, AlertDescription } from '../ui/alert';
+import { cn } from '@/lib/utils';
 
-
-const attachmentSchema = z.object({
-  name: z.string(),
-  type: z.string(),
-  size: z.number(),
-  url: z.string(),
-});
 
 const transactionSchema = z.object({
   id: z.string().optional(),
@@ -44,7 +37,13 @@ const transactionSchema = z.object({
   type: z.enum(['Inversión Inicial', 'Pago de Interés', 'Abono a Capital', 'Devolución']),
   amount: z.coerce.number().min(0.01, "El monto debe ser mayor a 0"),
   description: z.string().optional(),
-  attachments: z.array(attachmentSchema).optional(),
+  attachments: z.array(z.object({
+    name: z.string(),
+    type: z.string(),
+    size: z.number(),
+    url: z.string(),
+  })).optional(),
+  dueDate: z.string().optional(),
 });
 
 const investorSchema = z.object({
@@ -78,10 +77,8 @@ export default function EditInvestorDialog({
   const { updateInvestor, deleteInvestor } = useInvestors();
   const { toast } = useToast();
   
-  const [newTransaction, setNewTransaction] = useState<{type: InvestmentTransaction['type'], amount: string, description: string}>({ type: 'Pago de Interés', amount: '', description: '' });
-  const [newAttachments, setNewAttachments] = useState<File[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [uploadingMonth, setUploadingMonth] = useState<Date | null>(null);
 
   const form = useForm<InvestorFormValues>({
     resolver: zodResolver(investorSchema),
@@ -89,11 +86,6 @@ export default function EditInvestorDialog({
 
   const watchedFields = form.watch(['paymentType', 'investmentDate', 'investmentTerm']);
   const [paymentType, investmentDate, investmentTerm] = watchedFields;
-  
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "transactions",
-  });
   
   const summary = React.useMemo(() => {
     if (!investmentDate || !investmentTerm) return null;
@@ -110,6 +102,38 @@ export default function EditInvestorDialog({
     return null;
   }, [paymentType, investmentDate, investmentTerm]);
 
+  const paymentSchedule = React.useMemo(() => {
+    if (!investor || investor.paymentType !== 'mensual' || !investor.investmentDate || !investor.investmentTerm) {
+      return [];
+    }
+    const schedule = [];
+    const startDate = parseISO(investor.investmentDate);
+    
+    for (let i = 1; i <= investor.investmentTerm; i++) {
+      const dueDate = addMonths(startDate, i);
+      const transaction = investor.transactions?.find(t => t.dueDate === dueDate.toISOString().split('T')[0] && t.type === 'Pago de Interés');
+      
+      let status: 'Pagado' | 'Pendiente' | 'Vencido' = 'Pendiente';
+      if (transaction) {
+        status = 'Pagado';
+      } else if (isPast(dueDate)) {
+        status = 'Vencido';
+      }
+
+      schedule.push({
+        dueDate,
+        status,
+        transaction,
+      });
+    }
+    return schedule;
+  }, [investor]);
+  
+  const monthlyInterestAmount = React.useMemo(() => {
+    if (!investor) return 0;
+    return (investor.investmentAmount * investor.interestRate) / 100;
+  }, [investor]);
+
 
   useEffect(() => {
     if (isOpen) {
@@ -118,61 +142,51 @@ export default function EditInvestorDialog({
         investmentDate: investor.investmentDate ? investor.investmentDate.split('T')[0] : '',
         transactions: investor.transactions || [],
       });
-      setNewTransaction({ type: 'Pago de Interés', amount: '', description: '' });
-      setNewAttachments([]);
       setDeleteConfirmation('');
     }
   }, [isOpen, investor, form]);
-  
-  const handleAddTransaction = async () => {
-    if (!newTransaction.amount || isNaN(parseFloat(newTransaction.amount))) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Por favor, ingresa un monto válido para la transacción.' });
-      return;
-    }
-    
-    let uploadedAttachments: Attachment[] = [];
-    if (newAttachments.length > 0) {
-        const storage = getStorage();
-        const uploadPromises = newAttachments.map(async file => {
-            const fileRef = storageRef(storage, `investor_attachments/${investor.id}/${Date.now()}_${file.name}`);
-            const snapshot = await uploadBytes(fileRef, file);
-            const downloadURL = await getDownloadURL(snapshot.ref);
-            return { name: file.name, type: file.type, size: file.size, url: downloadURL };
-        });
-        uploadedAttachments = await Promise.all(uploadPromises);
-    }
-    
-    append({ 
-      id: crypto.randomUUID(),
-      date: new Date().toISOString(), 
-      type: newTransaction.type,
-      amount: parseFloat(newTransaction.amount),
-      description: newTransaction.description,
-      attachments: uploadedAttachments,
-    });
-    
-    setNewTransaction({ type: 'Pago de Interés', amount: '', description: '' });
-    setNewAttachments([]);
-  };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setNewAttachments(prev => [...prev, ...Array.from(e.target.files!)]);
+  const handleUploadProof = async (event: React.ChangeEvent<HTMLInputElement>, dueDate: Date) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadingMonth(dueDate);
+    toast({ title: 'Subiendo comprobante...', description: 'Por favor, espera.' });
+
+    try {
+        const storage = getStorage();
+        const fileRef = storageRef(storage, `investor_attachments/${investor.id}/${dueDate.toISOString()}_${file.name}`);
+        const snapshot = await uploadBytes(fileRef, file);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+
+        const newAttachment: Attachment = {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            url: downloadURL,
+        };
+
+        const newTransaction: InvestmentTransaction = {
+            id: crypto.randomUUID(),
+            date: new Date().toISOString(),
+            type: 'Pago de Interés',
+            amount: monthlyInterestAmount,
+            description: `Pago de interés para ${format(dueDate, 'MMMM yyyy', { locale: es })}`,
+            attachments: [newAttachment],
+            dueDate: dueDate.toISOString().split('T')[0],
+        };
+        
+        const updatedTransactions = [...(investor.transactions || []), newTransaction];
+        updateInvestor(investor.id, { transactions: updatedTransactions });
+
+        toast({ title: '¡Éxito!', description: 'Comprobante subido y pago registrado.' });
+    } catch (error) {
+        console.error("Error al subir comprobante: ", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo subir el archivo.' });
+    } finally {
+        setUploadingMonth(null);
     }
-  };
-  
-  const removeNewAttachment = (index: number) => {
-    setNewAttachments(prev => prev.filter((_, i) => i !== index));
-  };
-  
-   const handleDownload = (fileUrl: string, fileName: string) => {
-    const link = document.createElement('a');
-    link.href = fileUrl;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  }
 
   const handleDeleteInvestor = () => {
     deleteInvestor(investor.id);
@@ -210,7 +224,7 @@ export default function EditInvestorDialog({
         <DialogHeader>
           <DialogTitle>Editar Inversionista</DialogTitle>
           <DialogDescription>
-            Actualiza la información y el historial de transacciones.
+            Actualiza la información y el calendario de pagos.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] pr-2 -mr-4">
@@ -337,87 +351,69 @@ export default function EditInvestorDialog({
                  )}
             </div>
 
-            <div className="space-y-4 pt-4 border-t">
-              <Label className="text-base font-semibold">Historial de Transacciones</Label>
-              <div className="space-y-3">
-                {fields.map((field, index) => (
-                  <div key={field.id} className="flex flex-col gap-3 p-3 bg-muted/50 rounded-lg text-sm">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <p className="font-semibold text-foreground">{field.type}</p>
-                            <p className="text-xs text-muted-foreground">
-                                {format(new Date(field.date), "dd/MM/yyyy 'a las' HH:mm", { locale: es })}
-                            </p>
+            {paymentType === 'mensual' && (
+                <div className="space-y-4 pt-4 border-t">
+                    <Label className="text-base font-semibold">Calendario de Pagos de Intereses</Label>
+                    <div className="space-y-3">
+                    {paymentSchedule.map(({ dueDate, status, transaction }) => (
+                      <div key={dueDate.toISOString()} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg text-sm">
+                        <div className="flex-1">
+                          <p className="font-semibold text-foreground">
+                            Vencimiento: {format(dueDate, "dd 'de' MMMM, yyyy", { locale: es })}
+                          </p>
+                          <div className='flex items-center gap-2 mt-1'>
+                            <span
+                                className={cn(
+                                'px-2 py-0.5 rounded-full text-xs font-medium',
+                                status === 'Pagado' && 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300',
+                                status === 'Pendiente' && 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300',
+                                status === 'Vencido' && 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300',
+                                )}
+                            >
+                                {status}
+                            </span>
+                            {status === 'Pagado' && transaction?.date && (
+                                <span className="text-xs text-muted-foreground">
+                                    (Pagado el {format(parseISO(transaction.date), 'dd/MM/yyyy')})
+                                </span>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            <span className="font-bold text-lg text-foreground">${field.amount.toLocaleString()}</span>
-                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => remove(index)}>
-                              <Trash2 size={14}/>
+                           {uploadingMonth?.getTime() === dueDate.getTime() ? (
+                             <Button size="sm" disabled><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Subiendo...</Button>
+                           ) : status !== 'Pagado' ? (
+                            <>
+                                <input
+                                    type="file"
+                                    id={`file-upload-${dueDate.toISOString()}`}
+                                    className="hidden"
+                                    onChange={(e) => handleUploadProof(e, dueDate)}
+                                    accept="image/*,.pdf"
+                                />
+                                <Button asChild size="sm" variant="outline">
+                                    <label htmlFor={`file-upload-${dueDate.toISOString()}`}>
+                                    <Upload className="mr-2 h-4 w-4"/> Subir Comprobante
+                                    </label>
+                                </Button>
+                            </>
+                           ) : (
+                                transaction?.attachments?.[0] && (
+                                    <Button size="sm" variant="secondary" onClick={() => window.open(transaction.attachments![0].url, '_blank')}>
+                                    <Eye className="mr-2 h-4 w-4"/> Ver Comprobante
+                                    </Button>
+                                )
+                           )}
+                            <Button size="sm" variant="ghost" disabled>
+                                <Download className="mr-2 h-4 w-4"/> Edo. Cuenta
                             </Button>
                         </div>
-                    </div>
-                    {field.description && <p className="text-foreground text-xs italic">"{field.description}"</p>}
-                    {field.attachments && field.attachments.length > 0 && (
-                        <div className="space-y-1">
-                            <p className="text-xs font-semibold text-muted-foreground">Archivos adjuntos:</p>
-                            {field.attachments.map((file, fileIdx) => (
-                                <div key={fileIdx} className="flex items-center justify-between text-xs p-1.5 bg-background rounded">
-                                    <span>{file.name}</span>
-                                    <div className="flex gap-1">
-                                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => window.open(file.url, '_blank')}><Eye size={12} /></Button>
-                                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDownload(file.url, file.name)}><Download size={12} /></Button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                  </div>
-                ))}
-                {fields.length === 0 && <p className="text-center text-muted-foreground text-xs italic py-4">No hay transacciones registradas.</p>}
-              </div>
-
-              <div className="p-4 border rounded-lg space-y-4">
-                  <h4 className="font-semibold">Agregar Nueva Transacción</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Tipo de Transacción</Label>
-                        <Select value={newTransaction.type} onValueChange={(value) => setNewTransaction(prev => ({...prev, type: value as InvestmentTransaction['type']}))}>
-                            <SelectTrigger><SelectValue/></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="Pago de Interés">Pago de Interés</SelectItem>
-                                <SelectItem value="Abono a Capital">Abono a Capital</SelectItem>
-                                <SelectItem value="Devolución">Devolución</SelectItem>
-                                <SelectItem value="Inversión Inicial">Inversión Inicial</SelectItem>
-                            </SelectContent>
-                        </Select>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Monto</Label>
-                        <Input value={newTransaction.amount} onChange={(e) => setNewTransaction(prev => ({...prev, amount: e.target.value}))} type="number" placeholder="0.00"/>
-                      </div>
-                  </div>
-                  <div className="space-y-2">
-                      <Label>Descripción (Opcional)</Label>
-                      <Textarea value={newTransaction.description} onChange={(e) => setNewTransaction(prev => ({...prev, description: e.target.value}))} placeholder="Notas sobre la transacción..."/>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Adjuntar Comprobantes</Label>
-                    <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}><Paperclip className="mr-2 h-4 w-4"/>Adjuntar</Button>
-                    <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileChange} />
-                    <div className="space-y-1">
-                        {newAttachments.map((file, index) => (
-                            <div key={index} className="flex items-center justify-between text-xs p-1 bg-muted rounded">
-                                <span>{file.name}</span>
-                                <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeNewAttachment(index)}><X size={12} /></Button>
-                            </div>
-                        ))}
+                    ))}
                     </div>
-                  </div>
-                  <Button type="button" onClick={handleAddTransaction} disabled={!newTransaction.amount}>
-                    <PlusCircle size={16} className="mr-2" /> Añadir Transacción
-                  </Button>
-              </div>
-            </div>
+                </div>
+            )}
+            
           </div>
           </ScrollArea>
           <DialogFooter className="pt-4 border-t flex justify-between">
@@ -469,5 +465,3 @@ export default function EditInvestorDialog({
     </Dialog>
   );
 }
-
-    
