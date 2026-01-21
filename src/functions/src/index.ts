@@ -1,7 +1,7 @@
-'use client';
-
 import {HttpsError, onCall} from 'firebase-functions/v2/https';
-import {onDocumentCreated} from 'firebase-functions/v2/firestore';
+import {
+  onDocumentCreated,
+} from 'firebase-functions/v2/firestore';
 import * as admin from 'firebase-admin';
 import {Resend} from 'resend';
 import {defineSecret} from 'firebase-functions/params';
@@ -77,13 +77,11 @@ export const sendEmailTask = onCall(
       );
     }
 
-    const subject = `Nueva tarea delegada: ${taskTitle}`;
+    const subject = `Nueva tarea delegada: ${taskTitle.replace(/\n/g, ' ')}`;
     const html = `
     <h1>Se te ha delegado una nueva tarea</h1>
     <p>Hola ${delegateName},</p>
-    <p>${
-      delegatorName || 'Un administrador'
-    } te ha delegado la tarea:</p>
+    <p>${delegatorName || 'Un administrador'} te ha delegado la tarea:</p>
     <p><strong>${taskTitle}</strong></p>
     ${taskUrl ? `<p>Detalles: <a href="${taskUrl}">${taskUrl}</a></p>` : ''}
   `;
@@ -247,30 +245,52 @@ export const migrateOwnerIds = onCall(
 
     const db = admin.firestore();
     let updatedCount = 0;
+    const notFoundMembers: string[] = [];
 
     try {
       const allUsersSnap = await db.collection('users').get();
       const batch = db.batch();
+      const userDocs = allUsersSnap.docs;
 
-      for (const userDoc of allUsersSnap.docs) {
+      for (const userDoc of userDocs) {
         const ownerId = userDoc.id;
         const teamMembersSnap = await userDoc.ref
           .collection('teamMembers')
           .get();
 
-        teamMembersSnap.forEach(memberDoc => {
+        for (const memberDoc of teamMembersSnap.docs) {
           const memberId = memberDoc.id;
           const memberProfileRef = db.collection('users').doc(memberId);
-          batch.update(memberProfileRef, {ownerId: ownerId});
-          updatedCount++;
-        });
+
+          // Check if the member's profile document exists before trying to update it
+          const memberProfileSnap = await memberProfileRef.get();
+          if (memberProfileSnap.exists) {
+            // Only update if the ownerId is not already set to the correct one
+            const currentOwnerId = memberProfileSnap.data()?.ownerId;
+            if (currentOwnerId !== ownerId) {
+              batch.update(memberProfileRef, {ownerId: ownerId});
+              updatedCount++;
+            }
+          } else {
+            // Log if the member document doesn't exist to identify "ghost" members
+            notFoundMembers.push(memberId);
+            console.warn(
+              `Skipping member update: User document not found for memberId: ${memberId} in owner's (${ownerId}) team.`
+            );
+          }
+        }
       }
 
       if (updatedCount > 0) {
         await batch.commit();
       }
 
-      return {success: true, updatedCount: updatedCount};
+      return {
+        success: true,
+        updatedCount: updatedCount,
+        notFoundCount: notFoundMembers.length,
+        notFoundMembers: notFoundMembers,
+      };
     } catch (error: any) {
       console.error('Error durante la migración de ownerId: ', error);
       throw new HttpsError(
