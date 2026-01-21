@@ -149,10 +149,13 @@ export default function EditActivityDialog({ isOpen, onOpenChange, project, acti
                 name="dependencyId"
                 control={control}
                 render={({ field }) => (
-                <Select onValueChange={field.onChange} value={field.value || ''} >
+                <Select
+                  onValueChange={(value) => field.onChange(value === 'none' ? null : value)}
+                  value={field.value || 'none'}
+                >
                     <SelectTrigger><SelectValue placeholder="Ninguna"/></SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="">Ninguna</SelectItem>
+                        <SelectItem value="none">Ninguna</SelectItem>
                         {projectActivities.filter(a => a.id !== activity?.id).map(a => (
                             <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
                         ))}
@@ -218,5 +221,3 @@ export default function EditActivityDialog({ isOpen, onOpenChange, project, acti
     </Dialog>
   );
 }
-
-    
