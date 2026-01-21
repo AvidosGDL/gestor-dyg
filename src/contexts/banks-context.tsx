@@ -22,6 +22,7 @@ type BankAccountFormValues = Omit<BankAccount, 'id' | 'currentBalance' | 'logoUr
 interface BanksContextType {
   bankAccounts: BankAccount[];
   addBankAccount: (bankAccountData: BankAccountFormValues, logoFile: File | null) => Promise<void>;
+  updateBankAccount: (id: string, bankAccountData: BankAccountFormValues, logoFile: File | null) => Promise<void>;
   addBankTransaction: (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source'>) => void;
   deleteBankTransaction: (bankAccountId: string, transaction: BankTransaction) => void;
   batchAddBankTransactions: (bankAccountId: string, transactionsWithFiles: { data: Omit<BankTransaction, 'id' | 'attachments' | 'source'>, file: File }[]) => Promise<void>;
@@ -76,6 +77,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
 
     const dataToSave = {
         ...bankAccountData,
+        companyName: bankAccountData.companyName,
         clabe: bankAccountData.clabe || '',
         logoUrl: logoUrl,
         currentBalance: bankAccountData.initialBalance
@@ -93,6 +95,43 @@ export function BanksProvider({ children }: { children: ReactNode }) {
         throw serverError;
     }
   };
+
+  const updateBankAccount = async (id: string, bankAccountData: BankAccountFormValues, logoFile: File | null) => {
+    if (!banksCollectionRef || !firestore) return;
+    const docRef = doc(firestore, banksCollectionRef.path, id);
+
+    const dataToUpdate: Partial<BankAccount> = { ...bankAccountData };
+
+    if (logoFile) {
+        try {
+            const storage = getStorage();
+            const logoRef = storageRef(storage, `bank_logos/${Date.now()}_${logoFile.name}`);
+            const snapshot = await uploadBytes(logoRef, logoFile);
+            dataToUpdate.logoUrl = await getDownloadURL(snapshot.ref);
+        } catch (error) {
+            console.error("Error al subir nuevo logo:", error);
+            toast({
+                variant: 'destructive',
+                title: 'Error de Carga',
+                description: 'No se pudo subir el nuevo logo del banco.'
+            });
+            throw error;
+        }
+    }
+
+    try {
+        await updateDoc(docRef, dataToUpdate);
+    } catch(serverError) {
+        const permissionError = new FirestorePermissionError({
+            path: docRef.path,
+            operation: 'update',
+            requestResourceData: dataToUpdate,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        throw serverError;
+    }
+  };
+
 
   const addBankTransaction = async (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source'>) => {
     if (!firestore || !collectionPath) return;
@@ -293,6 +332,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     bankAccounts: bankAccounts || [],
     loading,
     addBankAccount,
+    updateBankAccount,
     addBankTransaction,
     deleteBankTransaction,
     batchAddBankTransactions,
