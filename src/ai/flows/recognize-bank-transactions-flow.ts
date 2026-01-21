@@ -4,11 +4,10 @@
  *
  * This file defines:
  * - recognizeBankTransactions: An async function that takes files and returns structured transaction data.
- * - RecognizeBankTransactionsInput: The Zod schema for the flow's input.
- * - RecognizeBankTransactionsOutput: The Zod schema for the flow's output.
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'zod';
 
 const RecognizeBankTransactionsInputSchema = z.object({
@@ -52,6 +51,7 @@ export async function recognizeBankTransactions(
 
 const recognizeTransactionsPrompt = ai.definePrompt({
   name: 'recognizeBankTransactionsPrompt',
+  model: googleAI.model('gemini-pro-vision'),
   input: { schema: RecognizeBankTransactionsInputSchema },
   output: { schema: RecognizeBankTransactionsOutputSchema },
   prompt: `You are an expert accounting assistant specialized in optical character recognition (OCR) from receipts and invoices.

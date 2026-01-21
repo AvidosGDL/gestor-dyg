@@ -9,6 +9,7 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'zod';
 
 const RecognizeInvestorsInputSchema = z.object({
@@ -45,6 +46,7 @@ export async function recognizeInvestorsFromImage(
 
 const recognizeInvestorsPrompt = ai.definePrompt({
   name: 'recognizeInvestorsPrompt',
+  model: googleAI.model('gemini-pro-vision'),
   input: { schema: RecognizeInvestorsInputSchema },
   output: { schema: RecognizeInvestorsOutputSchema },
   prompt: `You are an expert accounting assistant. Analyze the provided image of a spreadsheet and extract a list of distinct investors.

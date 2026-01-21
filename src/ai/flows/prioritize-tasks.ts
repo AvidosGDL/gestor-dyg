@@ -9,6 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 
 const TaskSchema = z.object({
@@ -39,6 +40,7 @@ export async function prioritizeTasks(input: PrioritizeTasksInput): Promise<Prio
 
 const prompt = ai.definePrompt({
   name: 'prioritizeTasksPrompt',
+  model: googleAI.model('gemini-pro'),
   input: {schema: PrioritizeTasksInputSchema},
   output: {schema: PrioritizeTasksOutputSchema},
   prompt: `You are an expert project manager. Given the following list of tasks, re-order them by priority, with the most critical tasks first. Consider due date, priority level, value, probability, and who it's delegated to. Return the tasks in the re-ordered list.

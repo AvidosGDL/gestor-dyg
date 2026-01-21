@@ -10,6 +10,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 
 const FocusTipsInputSchema = z.object({
@@ -28,6 +29,7 @@ export async function generateFocusTips(input: FocusTipsInput): Promise<FocusTip
 
 const focusTipsPrompt = ai.definePrompt({
   name: 'focusTipsPrompt',
+  model: googleAI.model('gemini-pro'),
   input: {schema: FocusTipsInputSchema},
   output: {schema: FocusTipsOutputSchema},
   prompt: `You are a productivity expert. Given the following task description, generate 3 personalized tips to help the user stay focused on the task.
