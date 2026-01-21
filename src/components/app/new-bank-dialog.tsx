@@ -1,7 +1,6 @@
-
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -16,15 +15,15 @@ import { Label } from '@/components/ui/label';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { DollarSign, Loader2 } from 'lucide-react';
+import { DollarSign, Loader2, ImageUp } from 'lucide-react';
 import { useBanks } from '@/contexts/banks-context';
 import { useToast } from '@/hooks/use-toast';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 
 const bankAccountSchema = z.object({
   bankName: z.string().min(1, 'El nombre del banco es requerido'),
   accountNumber: z.string().min(1, 'El número de cuenta es requerido'),
   clabe: z.string().length(18, 'La CLABE debe tener 18 dígitos').optional().or(z.literal('')),
-  logoUrl: z.string().url('URL del logo no válida').optional().or(z.literal('')),
   initialBalance: z.coerce.number(),
   balanceDate: z.string().min(1, 'La fecha del saldo es requerida'),
 });
@@ -36,7 +35,6 @@ const defaultValues: Partial<BankAccountFormValues> = {
     bankName: '',
     accountNumber: '',
     clabe: '',
-    logoUrl: '',
     initialBalance: 0,
     balanceDate: new Date().toISOString().split('T')[0],
 };
@@ -52,6 +50,9 @@ export default function NewBankDialog({
 }: NewBankDialogProps) {
   const { addBankAccount } = useBanks();
   const { toast } = useToast();
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
     register,
@@ -67,17 +68,27 @@ export default function NewBankDialog({
   useEffect(() => {
     if(!open) {
       reset(defaultValues);
+      setLogoFile(null);
+      setLogoPreview(null);
     }
   }, [open, reset]);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setLogoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
 
   const onSubmit: SubmitHandler<BankAccountFormValues> = async (data) => {
     try {
-      addBankAccount({
-        ...data,
-        clabe: data.clabe || '',
-        logoUrl: data.logoUrl || '',
-      });
+      await addBankAccount(data, logoFile);
 
       toast({
         title: 'Cuenta Bancaria Agregada',
@@ -111,9 +122,25 @@ export default function NewBankDialog({
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="logoUrl">URL del Logo del Banco (Opcional)</Label>
-            <Input id="logoUrl" {...register('logoUrl')} placeholder="https://..." disabled={isSubmitting} />
-            {errors.logoUrl && <p className="text-sm text-destructive">{errors.logoUrl.message}</p>}
+            <Label>Logo del Banco (Opcional)</Label>
+            <div className="flex items-center gap-4">
+              <Avatar className="h-16 w-16 rounded-md">
+                {logoPreview ? (
+                  <AvatarImage src={logoPreview} alt="Vista previa del logo" className="object-contain" />
+                ) : (
+                  <AvatarFallback className="rounded-md bg-muted">
+                    <ImageUp className="h-8 w-8 text-muted-foreground" />
+                  </AvatarFallback>
+                )}
+              </Avatar>
+              <div className="flex flex-col gap-2">
+                <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
+                  Subir Imagen
+                </Button>
+                {logoFile && <Button type="button" variant="ghost" size="sm" onClick={() => { setLogoFile(null); setLogoPreview(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}>Quitar</Button>}
+              </div>
+              <input type="file" ref={fileInputRef} className="hidden" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange} />
+            </div>
           </div>
           
           <div className="grid grid-cols-2 gap-4">

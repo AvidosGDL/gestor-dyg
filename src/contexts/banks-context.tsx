@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, ReactNode, useMemo } from 'react';
@@ -18,9 +17,11 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
 
+type BankAccountFormValues = Omit<BankAccount, 'id' | 'currentBalance' | 'logoUrl'>;
+
 interface BanksContextType {
   bankAccounts: BankAccount[];
-  addBankAccount: (bankAccountData: Omit<BankAccount, 'id' | 'currentBalance'>) => void;
+  addBankAccount: (bankAccountData: BankAccountFormValues, logoFile: File | null) => Promise<void>;
   addBankTransaction: (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source'>) => void;
   deleteBankTransaction: (bankAccountId: string, transaction: BankTransaction) => void;
   batchAddBankTransactions: (bankAccountId: string, transactionsWithFiles: { data: Omit<BankTransaction, 'id' | 'attachments' | 'source'>, file: File }[]) => Promise<void>;
@@ -51,22 +52,46 @@ export function BanksProvider({ children }: { children: ReactNode }) {
 
   const { data: bankAccounts, loading } = useCollection<BankAccount>(banksCollectionRef);
   
-  const addBankAccount = (bankAccountData: Omit<BankAccount, 'id' | 'currentBalance'>) => {
+  const addBankAccount = async (bankAccountData: BankAccountFormValues, logoFile: File | null) => {
     if (!banksCollectionRef) return;
     
+    let logoUrl = '';
+    
+    if (logoFile) {
+        try {
+            const storage = getStorage();
+            const logoRef = storageRef(storage, `bank_logos/${Date.now()}_${logoFile.name}`);
+            const snapshot = await uploadBytes(logoRef, logoFile);
+            logoUrl = await getDownloadURL(snapshot.ref);
+        } catch (error) {
+            console.error("Error al subir logo:", error);
+            toast({
+                variant: 'destructive',
+                title: 'Error de Carga',
+                description: 'No se pudo subir el logo del banco.'
+            });
+            throw error;
+        }
+    }
+
     const dataToSave = {
         ...bankAccountData,
+        clabe: bankAccountData.clabe || '',
+        logoUrl: logoUrl,
         currentBalance: bankAccountData.initialBalance
     };
 
-    addDoc(banksCollectionRef, dataToSave).catch(async (serverError) => {
-      const permissionError = new FirestorePermissionError({
-        path: banksCollectionRef.path,
-        operation: 'create',
-        requestResourceData: dataToSave,
-      });
-      errorEmitter.emit('permission-error', permissionError);
-    });
+    try {
+        await addDoc(banksCollectionRef, dataToSave);
+    } catch(serverError) {
+        const permissionError = new FirestorePermissionError({
+            path: banksCollectionRef.path,
+            operation: 'create',
+            requestResourceData: dataToSave,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        throw serverError;
+    }
   };
 
   const addBankTransaction = async (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source'>) => {
