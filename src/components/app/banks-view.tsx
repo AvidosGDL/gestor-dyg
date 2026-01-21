@@ -1,15 +1,16 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useBanks } from '@/contexts/banks-context';
 import { BankAccount } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Landmark, Loader2 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import BankDetailView from './bank-detail-view';
 
-function BankAccountCard({ bankAccount }: { bankAccount: BankAccount }) {
+function BankAccountCard({ bankAccount, onSelect }: { bankAccount: BankAccount, onSelect: (id: string) => void }) {
   return (
     <Card className="flex flex-col">
       <CardHeader>
@@ -30,7 +31,7 @@ function BankAccountCard({ bankAccount }: { bankAccount: BankAccount }) {
             <p className="text-xs text-muted-foreground">Saldo Actual</p>
             <p className="text-2xl font-bold">${(bankAccount.currentBalance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
         </div>
-        <Button variant="outline" className="w-full mt-4" disabled>
+        <Button variant="outline" className="w-full mt-4" onClick={() => onSelect(bankAccount.id)}>
           Ver Transacciones
         </Button>
       </CardContent>
@@ -41,9 +42,20 @@ function BankAccountCard({ bankAccount }: { bankAccount: BankAccount }) {
 
 export default function BanksView() {
   const { bankAccounts, loading } = useBanks();
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+
+  const selectedAccount = useMemo(() => {
+    if (!selectedAccountId) return null;
+    return bankAccounts.find(acc => acc.id === selectedAccountId);
+  }, [selectedAccountId, bankAccounts]);
+
 
   if (loading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
+  }
+
+  if (selectedAccount) {
+    return <BankDetailView bankAccount={selectedAccount} onBack={() => setSelectedAccountId(null)} />;
   }
 
   return (
@@ -52,7 +64,7 @@ export default function BanksView() {
         {bankAccounts.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {bankAccounts.map(account => (
-                  <BankAccountCard key={account.id} bankAccount={account} />
+                  <BankAccountCard key={account.id} bankAccount={account} onSelect={setSelectedAccountId} />
                 ))}
             </div>
         ) : (
