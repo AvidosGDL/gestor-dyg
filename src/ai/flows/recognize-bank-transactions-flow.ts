@@ -11,7 +11,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 
-export const RecognizeBankTransactionsInputSchema = z.object({
+const RecognizeBankTransactionsInputSchema = z.object({
   files: z.array(
     z.object({
       dataUri: z.string().describe('A file (PDF or image) as a data URI.'),
@@ -37,7 +37,7 @@ const RecognizedTransactionSchema = z.object({
     ),
 });
 
-export const RecognizeBankTransactionsOutputSchema = z.object({
+const RecognizeBankTransactionsOutputSchema = z.object({
   transactions: z.array(RecognizedTransactionSchema),
 });
 export type RecognizeBankTransactionsOutput = z.infer<

@@ -20,7 +20,7 @@ const BankTransactionSchema = z.object({
     source: z.enum(['manual', 'import_csv', 'conciliado_pdf', 'import_file']),
 });
 
-export const ConciliationInputSchema = z.object({
+const ConciliationInputSchema = z.object({
   statementPdfUri: z
     .string()
     .describe(
