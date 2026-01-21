@@ -4,8 +4,6 @@
  *
  * This file defines:
  * - recognizeInvestorsFromImage: An async function that takes an image data URI and returns a list of investors.
- * - RecognizeInvestorsInput: The Zod schema for the flow's input.
- * - RecognizeInvestorsOutput: The Zod schema for the flow's output.
  */
 
 import { ai } from '@/ai/genkit';
@@ -46,7 +44,7 @@ export async function recognizeInvestorsFromImage(
 
 const recognizeInvestorsPrompt = ai.definePrompt({
   name: 'recognizeInvestorsPrompt',
-  model: googleAI.model('gemini-pro-vision'),
+  model: googleAI.model('gemini-1.5-flash-latest'),
   input: { schema: RecognizeInvestorsInputSchema },
   output: { schema: RecognizeInvestorsOutputSchema },
   prompt: `You are an expert accounting assistant. Analyze the provided image of a spreadsheet and extract a list of distinct investors.

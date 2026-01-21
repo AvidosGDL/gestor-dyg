@@ -4,8 +4,6 @@
  *
  * This file defines:
  * - recognizeTasksFromImage: An async function that takes an image data URI and returns a list of task titles.
- * - RecognizeTasksInput: The Zod schema for the flow's input.
- * - RecognizeTasksOutput: The Zod schema for the flow's output.
  */
 
 import { ai } from '@/ai/genkit';
@@ -40,7 +38,7 @@ export async function recognizeTasksFromImage(
 
 const recognizeTasksPrompt = ai.definePrompt({
   name: 'recognizeTasksPrompt',
-  model: googleAI.model('gemini-pro-vision'),
+  model: googleAI.model('gemini-1.5-flash-latest'),
   input: { schema: RecognizeTasksInputSchema },
   output: { schema: RecognizeTasksOutputSchema },
   prompt: `You are an expert in recognizing handwritten text from an image. Analyze the provided image and extract a list of distinct tasks. Each item in the list should be a single task.

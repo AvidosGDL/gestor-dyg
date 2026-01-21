@@ -53,7 +53,7 @@ export async function conciliateStatement(
 
 const conciliationPrompt = ai.definePrompt({
   name: 'conciliationPrompt',
-  model: googleAI.model('gemini-pro-vision'),
+  model: googleAI.model('gemini-1.5-flash-latest'),
   input: { schema: ConciliationInputSchema },
   output: { schema: ConciliationOutputSchema },
   prompt: `You are an expert accounting and auditing assistant. Your task is to conciliate a bank statement (PDF) against a list of transactions already registered in the system.
