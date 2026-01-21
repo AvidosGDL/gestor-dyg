@@ -21,8 +21,7 @@ interface SidebarNavProps {
 export default function SidebarNav({ view, setView }: SidebarNavProps) {
   const { user } = useUser();
   const isAuthorizedForInvestors = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2';
-  // TODO: Replace placeholder UID when direccion@dygproyectosfiscales.com is registered
-  const isAuthorizedForBanks = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2' || user?.uid === 'DIRECCION_UID_PLACEHOLDER';
+  const isAuthorizedForBanks = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2';
 
   const navItems = [
     { id: 'board', label: 'Tablero Visual', icon: Layout },

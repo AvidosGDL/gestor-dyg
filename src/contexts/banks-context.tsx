@@ -33,7 +33,6 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     const authorizedUIDs = [
       'fKZUAAXTENPcUeEA4tUXFEV4xbr1', // daniel@avidos.mx
       'cbXyvN4G98Q7Y9IaJHhec0MyjlT2',   // roberto.d@gygproyectosfiscales.com
-      'DIRECCION_UID_PLACEHOLDER'    // TODO: Replace with actual UID for direccion@dygproyectosfiscales.com
     ];
     return authorizedUIDs.includes(user.uid) ? 'banks' : null;
   }, [user]);
