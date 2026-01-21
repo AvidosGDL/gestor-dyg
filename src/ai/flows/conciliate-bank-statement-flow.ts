@@ -21,6 +21,7 @@ const BankTransactionSchema = z.object({
     source: z.enum(['manual', 'import_csv', 'conciliado_pdf', 'import_file']),
 });
 
+export type ConciliationInput = z.infer<typeof ConciliationInputSchema>;
 const ConciliationInputSchema = z.object({
   statementPdfUri: z
     .string()
@@ -29,9 +30,9 @@ const ConciliationInputSchema = z.object({
     ),
   existingTransactions: z.array(BankTransactionSchema).describe('An array of transactions already registered in the system for the period.'),
 });
-export type ConciliationInput = z.infer<typeof ConciliationInputSchema>;
 
 
+export type ConciliationOutput = z.infer<typeof ConciliationOutputSchema>;
 const ConciliationOutputSchema = z.object({
   unmatchedTransactions: z.array(z.object({
     date: z.string(),
@@ -41,7 +42,6 @@ const ConciliationOutputSchema = z.object({
   })).describe('Transactions found in the PDF but not in the system.'),
   exceptions: z.array(z.string()).describe('A list of discrepancies or potential issues found during conciliation.'),
 });
-export type ConciliationOutput = z.infer<typeof ConciliationOutputSchema>;
 
 
 export async function conciliateStatement(
@@ -53,7 +53,7 @@ export async function conciliateStatement(
 
 const conciliationPrompt = ai.definePrompt({
   name: 'conciliationPrompt',
-  model: googleAI.model('gemini-1.5-flash-latest'),
+  model: googleAI.model('gemini-1.5-flash'),
   input: { schema: ConciliationInputSchema },
   output: { schema: ConciliationOutputSchema },
   prompt: `You are an expert accounting and auditing assistant. Your task is to conciliate a bank statement (PDF) against a list of transactions already registered in the system.

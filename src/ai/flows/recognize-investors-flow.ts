@@ -10,6 +10,7 @@ import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'zod';
 
+export type RecognizeInvestorsInput = z.infer<typeof RecognizeInvestorsInputSchema>;
 const RecognizeInvestorsInputSchema = z.object({
   imageDataUri: z
     .string()
@@ -17,7 +18,6 @@ const RecognizeInvestorsInputSchema = z.object({
       "A photo of a spreadsheet with investor data, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
     ),
 });
-export type RecognizeInvestorsInput = z.infer<typeof RecognizeInvestorsInputSchema>;
 
 const InvestorSchema = z.object({
     name: z.string().describe("Full name of the investor. From the 'NOMBRE DEL INVERSIONISTA' column."),
@@ -29,12 +29,12 @@ const InvestorSchema = z.object({
 });
 
 
+export type RecognizeInvestorsOutput = z.infer<typeof RecognizeInvestorsOutputSchema>;
 const RecognizeInvestorsOutputSchema = z.object({
   investors: z
     .array(InvestorSchema)
     .describe('An array of investor data recognized from the image.'),
 });
-export type RecognizeInvestorsOutput = z.infer<typeof RecognizeInvestorsOutputSchema>;
 
 export async function recognizeInvestorsFromImage(
   input: RecognizeInvestorsInput
@@ -44,7 +44,7 @@ export async function recognizeInvestorsFromImage(
 
 const recognizeInvestorsPrompt = ai.definePrompt({
   name: 'recognizeInvestorsPrompt',
-  model: googleAI.model('gemini-1.5-flash-latest'),
+  model: googleAI.model('gemini-1.5-flash'),
   input: { schema: RecognizeInvestorsInputSchema },
   output: { schema: RecognizeInvestorsOutputSchema },
   prompt: `You are an expert accounting assistant. Analyze the provided image of a spreadsheet and extract a list of distinct investors.

@@ -10,6 +10,7 @@ import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'zod';
 
+export type RecognizeTasksInput = z.infer<typeof RecognizeTasksInputSchema>;
 const RecognizeTasksInputSchema = z.object({
   imageDataUri: z
     .string()
@@ -17,18 +18,17 @@ const RecognizeTasksInputSchema = z.object({
       "A photo of handwritten text, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
     ),
 });
-export type RecognizeTasksInput = z.infer<typeof RecognizeTasksInputSchema>;
 
 const TaskTitleSchema = z.object({
   title: z.string().describe('The recognized title of a single task.'),
 });
 
+export type RecognizeTasksOutput = z.infer<typeof RecognizeTasksOutputSchema>;
 const RecognizeTasksOutputSchema = z.object({
   tasks: z
     .array(TaskTitleSchema)
     .describe('An array of task titles recognized from the image.'),
 });
-export type RecognizeTasksOutput = z.infer<typeof RecognizeTasksOutputSchema>;
 
 export async function recognizeTasksFromImage(
   input: RecognizeTasksInput
@@ -38,7 +38,7 @@ export async function recognizeTasksFromImage(
 
 const recognizeTasksPrompt = ai.definePrompt({
   name: 'recognizeTasksPrompt',
-  model: googleAI.model('gemini-1.5-flash-latest'),
+  model: googleAI.model('gemini-1.5-flash'),
   input: { schema: RecognizeTasksInputSchema },
   output: { schema: RecognizeTasksOutputSchema },
   prompt: `You are an expert in recognizing handwritten text from an image. Analyze the provided image and extract a list of distinct tasks. Each item in the list should be a single task.

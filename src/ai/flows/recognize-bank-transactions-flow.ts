@@ -10,6 +10,7 @@ import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'zod';
 
+export type RecognizeBankTransactionsInput = z.infer<typeof RecognizeBankTransactionsInputSchema>;
 const RecognizeBankTransactionsInputSchema = z.object({
   files: z.array(
     z.object({
@@ -18,7 +19,6 @@ const RecognizeBankTransactionsInputSchema = z.object({
     })
   ),
 });
-export type RecognizeBankTransactionsInput = z.infer<typeof RecognizeBankTransactionsInputSchema>;
 
 const RecognizedTransactionSchema = z.object({
   date: z.string().describe('The transaction date in YYYY-MM-DD format.'),
@@ -36,12 +36,12 @@ const RecognizedTransactionSchema = z.object({
     ),
 });
 
-const RecognizeBankTransactionsOutputSchema = z.object({
-  transactions: z.array(RecognizedTransactionSchema),
-});
 export type RecognizeBankTransactionsOutput = z.infer<
   typeof RecognizeBankTransactionsOutputSchema
 >;
+const RecognizeBankTransactionsOutputSchema = z.object({
+  transactions: z.array(RecognizedTransactionSchema),
+});
 
 export async function recognizeBankTransactions(
   input: RecognizeBankTransactionsInput
@@ -51,7 +51,7 @@ export async function recognizeBankTransactions(
 
 const recognizeTransactionsPrompt = ai.definePrompt({
   name: 'recognizeBankTransactionsPrompt',
-  model: googleAI.model('gemini-1.5-flash-latest'),
+  model: googleAI.model('gemini-1.5-flash'),
   input: { schema: RecognizeBankTransactionsInputSchema },
   output: { schema: RecognizeBankTransactionsOutputSchema },
   prompt: `You are an expert accounting assistant specialized in optical character recognition (OCR) from receipts and invoices.
