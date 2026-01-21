@@ -146,6 +146,7 @@ export interface Investor {
 
 export interface BankAccount {
   id: string;
+  companyName: string;
   bankName: string;
   accountNumber: string;
   clabe: string;

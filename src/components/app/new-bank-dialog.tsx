@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -21,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 
 const bankAccountSchema = z.object({
+  companyName: z.string().min(1, 'El nombre de la empresa es requerido'),
   bankName: z.string().min(1, 'El nombre del banco es requerido'),
   accountNumber: z.string().min(1, 'El número de cuenta es requerido'),
   clabe: z.string().length(18, 'La CLABE debe tener 18 dígitos').optional().or(z.literal('')),
@@ -32,6 +34,7 @@ const bankAccountSchema = z.object({
 type BankAccountFormValues = z.infer<typeof bankAccountSchema>;
 
 const defaultValues: Partial<BankAccountFormValues> = {
+    companyName: '',
     bankName: '',
     accountNumber: '',
     clabe: '',
@@ -115,6 +118,12 @@ export default function NewBankDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           
+          <div className="space-y-2">
+            <Label htmlFor="companyName">Nombre de la Empresa</Label>
+            <Input id="companyName" {...register('companyName')} placeholder="Ej. Mi Empresa S.A. de C.V." disabled={isSubmitting} />
+            {errors.companyName && <p className="text-sm text-destructive">{errors.companyName.message}</p>}
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="bankName">Nombre del Banco</Label>
             <Input id="bankName" {...register('bankName')} placeholder="Ej. BBVA México" disabled={isSubmitting} />

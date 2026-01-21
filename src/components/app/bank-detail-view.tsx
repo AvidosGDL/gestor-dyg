@@ -38,8 +38,8 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h2 className="text-xl font-bold">{bankAccount.bankName}</h2>
-            <p className="text-sm text-muted-foreground">Terminación: ...{bankAccount.accountNumber.slice(-4)}</p>
+            <h2 className="text-xl font-bold">{bankAccount.companyName}</h2>
+            <p className="text-sm text-muted-foreground">{bankAccount.bankName} | Terminación: ...{bankAccount.accountNumber.slice(-4)}</p>
           </div>
         </div>
 

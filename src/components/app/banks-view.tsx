@@ -16,12 +16,10 @@ function BankAccountCard({ bankAccount, onSelect }: { bankAccount: BankAccount, 
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle className="flex items-center gap-2">
-                {bankAccount.logoUrl ? <img src={bankAccount.logoUrl} alt={bankAccount.bankName} className="h-6 w-6 object-contain" /> : <Landmark />}
-                {bankAccount.bankName}
-            </CardTitle>
-            <CardDescription>
-                Terminación: ...{bankAccount.accountNumber.slice(-4)}
+            <CardTitle>{bankAccount.companyName}</CardTitle>
+            <CardDescription className="flex items-center gap-2 pt-1">
+                {bankAccount.logoUrl ? <img src={bankAccount.logoUrl} alt={bankAccount.bankName} className="h-5 w-5 object-contain" /> : <Landmark size={14} />}
+                {bankAccount.bankName} | Terminación: ...{bankAccount.accountNumber.slice(-4)}
             </CardDescription>
           </div>
         </div>
