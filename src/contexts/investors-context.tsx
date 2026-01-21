@@ -36,11 +36,11 @@ const processInvestorData = (data: Partial<Omit<Investor, 'id'>>) => {
     
     if (paymentType === 'mensual') {
       processedData.monthlyPaymentDay = getDate(startDate);
-      processedData.liquidationDate = undefined;
+      processedData.liquidationDate = null;
     } else if (paymentType === 'pago_unico') {
       const endDate = addMonths(startDate, investmentTerm);
       processedData.liquidationDate = format(endDate, 'yyyy-MM-dd');
-      processedData.monthlyPaymentDay = undefined;
+      processedData.monthlyPaymentDay = null;
     }
   }
 
@@ -126,5 +126,3 @@ export function useInvestors() {
   }
   return context;
 }
-
-    

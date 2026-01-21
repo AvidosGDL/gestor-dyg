@@ -139,8 +139,6 @@ export interface Investor {
   status: 'Activa' | 'Liquidada';
   transactions?: InvestmentTransaction[];
   paymentType: 'mensual' | 'pago_unico';
-  monthlyPaymentDay?: number;
-  liquidationDate?: string;
+  monthlyPaymentDay?: number | null;
+  liquidationDate?: string | null;
 }
-
-    
