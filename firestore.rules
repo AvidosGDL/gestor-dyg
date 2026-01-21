@@ -71,6 +71,17 @@ service cloud.firestore {
         request.auth.uid == 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2'    // User roberto.d@gygproyectosfiscales.com
       );
     }
+    
+    /**
+     * Checks if the user is authorized to access the banks module.
+     */
+    function isAuthorizedForBanks() {
+      return isSignedIn() && (
+        request.auth.uid == 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || // daniel@avidos.mx
+        request.auth.uid == 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2' ||   // roberto.d@gygproyectosfiscales.com
+        request.auth.uid == 'DIRECCION_UID_PLACEHOLDER' // TODO: Replace with actual UID for direccion@dygproyectosfiscales.com
+      );
+    }
 
     /**
      * Checks if the user is the owner of an existing document.
@@ -154,7 +165,17 @@ service cloud.firestore {
       	allow read, write, create, update, delete: if isAuthorizedForInvestors();
       }
     }
+
+    /**
+     * @description Rules for the banks module.
+     * Access is restricted to authorized financial users.
+     */
+    match /banks/{bankId} {
+      allow read, write, create, update, delete: if isAuthorizedForBanks();
+      
+      match /transactions/{transactionId} {
+      	allow read, write, create, update, delete: if isAuthorizedForBanks();
+      }
+    }
   }
 }
-
-    

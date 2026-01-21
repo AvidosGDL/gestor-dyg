@@ -327,6 +327,38 @@
         }
       },
       "required": ["id", "date", "type", "amount"]
+    },
+    "BankAccount": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "BankAccount",
+      "type": "object",
+      "description": "Represents a bank account with its details and balance.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the BankAccount." },
+        "bankName": { "type": "string", "description": "Name of the bank (e.g., BBVA, Santander)." },
+        "accountNumber": { "type": "string", "description": "The bank account number." },
+        "clabe": { "type": "string", "description": "The 18-digit CLABE number." },
+        "logoUrl": { "type": "string", "format": "uri", "description": "URL of the bank's logo." },
+        "initialBalance": { "type": "number", "description": "The initial balance amount at a specific date." },
+        "balanceDate": { "type": "string", "format": "date", "description": "The date of the initial balance." },
+        "currentBalance": { "type": "number", "description": "The current balance, calculated automatically." }
+      },
+      "required": ["id", "bankName", "accountNumber", "initialBalance", "balanceDate"]
+    },
+    "BankTransaction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "BankTransaction",
+      "type": "object",
+      "description": "Represents a single transaction for a bank account.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the transaction." },
+        "date": { "type": "string", "format": "date-time", "description": "Date and time of the transaction." },
+        "description": { "type": "string", "description": "Description of the transaction." },
+        "amount": { "type": "number", "description": "Amount of the transaction. Positive for income, negative for expense." },
+        "type": { "type": "string", "enum": ["ingreso", "egreso"], "description": "Type of transaction (income or expense)." },
+        "source": { "type": "string", "enum": ["manual", "import_csv", "conciliado_pdf"], "description": "Source of the transaction record." }
+      },
+      "required": ["id", "date", "description", "amount", "type", "source"]
     }
   },
   "auth": {
@@ -448,6 +480,29 @@
           "description": "Subcollection for all financial movements related to a specific investor.",
           "params": [
             { "name": "investorId", "description": "The unique identifier for the investor." },
+            { "name": "transactionId", "description": "The unique identifier for the transaction." }
+          ]
+        }
+      },
+      {
+        "path": "/banks/{bankId}",
+        "definition": {
+          "entityName": "BankAccount",
+          "schema": { "$ref": "#/backend/entities/BankAccount" },
+          "description": "Top-level collection for shared bank accounts. Access is restricted to authorized financial users.",
+          "params": [
+            { "name": "bankId", "description": "The unique identifier for the bank account." }
+          ]
+        }
+      },
+      {
+        "path": "/banks/{bankId}/transactions/{transactionId}",
+        "definition": {
+          "entityName": "BankTransaction",
+          "schema": { "$ref": "#/backend/entities/BankTransaction" },
+          "description": "Subcollection for all financial movements related to a specific bank account.",
+          "params": [
+            { "name": "bankId", "description": "The unique identifier for the bank account." },
             { "name": "transactionId", "description": "The unique identifier for the transaction." }
           ]
         }

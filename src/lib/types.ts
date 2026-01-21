@@ -143,3 +143,23 @@ export interface Investor {
   monthlyPaymentDay?: number | null;
   liquidationDate?: string | null;
 }
+
+export interface BankAccount {
+  id: string;
+  bankName: string;
+  accountNumber: string;
+  clabe: string;
+  logoUrl: string;
+  initialBalance: number;
+  balanceDate: string; // ISO Date
+  currentBalance: number;
+}
+
+export interface BankTransaction {
+  id: string;
+  date: string; // ISO DateTime
+  description: string;
+  amount: number;
+  type: 'ingreso' | 'egreso';
+  source: 'manual' | 'import_csv' | 'conciliado_pdf';
+}

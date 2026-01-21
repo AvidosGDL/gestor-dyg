@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -8,6 +9,7 @@ import NewTaskDialog from './new-task-dialog';
 import NewMemberDialog from './new-member-dialog';
 import NewProspectDialog from './new-prospect-dialog';
 import NewInvestorDialog from './new-investor-dialog';
+import NewBankDialog from './new-bank-dialog';
 import type { View } from '@/app/page';
 import type { Task, TeamMember } from '@/lib/types';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -33,6 +35,7 @@ export default function AppHeader({
   const [showNewMemberModal, setShowNewMemberModal] = React.useState(false);
   const [showNewProspectModal, setShowNewProspectModal] = React.useState(false);
   const [showNewInvestorModal, setShowNewInvestorModal] = React.useState(false);
+  const [showNewBankDialog, setShowNewBankDialog] = React.useState(false);
   const { user } = useUser();
   const firestore = useFirestore();
 
@@ -76,6 +79,17 @@ export default function AppHeader({
         >
           <Landmark size={18} />
           <span className="hidden sm:inline">Nuevo Inversionista</span>
+        </Button>
+      );
+    }
+    if (view === 'banks') {
+      return (
+        <Button
+          onClick={() => setShowNewBankDialog(true)}
+          className="shadow-sm transition-transform active:scale-95"
+        >
+          <Landmark size={18} />
+          <span className="hidden sm:inline">Nueva Cuenta</span>
         </Button>
       );
     }
@@ -160,6 +174,7 @@ export default function AppHeader({
       />}
       <NewProspectDialog open={showNewProspectModal} onOpenChange={setShowNewProspectModal} />
       <NewInvestorDialog open={showNewInvestorModal} onOpenChange={setShowNewInvestorModal} />
+      <NewBankDialog open={showNewBankDialog} onOpenChange={setShowNewBankDialog} />
     </>
   );
 }
@@ -173,4 +188,5 @@ const viewTitles: Record<View, string> = {
   analytics: 'Análisis de Avances',
   history: 'Histórico de Tareas',
   investors: 'Gestión de Inversionistas',
+  banks: 'Bancos y Saldos',
 };
