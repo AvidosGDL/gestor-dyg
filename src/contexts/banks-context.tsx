@@ -24,6 +24,7 @@ interface BanksContextType {
   addBankTransaction: (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source'>) => void;
   deleteBankTransaction: (bankAccountId: string, transaction: BankTransaction) => void;
   batchAddBankTransactions: (bankAccountId: string, transactionsWithFiles: { data: Omit<BankTransaction, 'id' | 'attachments' | 'source'>, file: File }[]) => Promise<void>;
+  batchAddConciliatedTransactions: (bankAccountId: string, transactions: Omit<BankTransaction, 'id' | 'source' | 'attachments'>[]) => Promise<void>;
   loading: boolean;
 }
 
@@ -216,6 +217,53 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const batchAddConciliatedTransactions = async (bankAccountId: string, transactions: Omit<BankTransaction, 'id' | 'source' | 'attachments'>[]) => {
+    if (!firestore || !collectionPath) return;
+
+    const bankAccountRef = doc(firestore, collectionPath, bankAccountId);
+    
+    try {
+        const bankAccountSnap = await getDoc(bankAccountRef);
+        if (!bankAccountSnap.exists()) {
+            throw new Error("La cuenta bancaria no existe.");
+        }
+        const currentAccountData = bankAccountSnap.data() as BankAccount;
+
+        let balanceChange = 0;
+        transactions.forEach(tx => {
+            balanceChange += tx.type === 'ingreso' ? tx.amount : -tx.amount;
+        });
+        const newBalance = currentAccountData.currentBalance + balanceChange;
+
+        const batch = writeBatch(firestore);
+        const transactionsCollectionRef = collection(firestore, `${collectionPath}/${bankAccountId}/transactions`);
+
+        transactions.forEach(txData => {
+            const newTransactionRef = doc(transactionsCollectionRef);
+            const finalTransactionData: Omit<BankTransaction, 'id'> = {
+                ...txData,
+                source: 'conciliado_pdf',
+            };
+            batch.set(newTransactionRef, finalTransactionData);
+        });
+        
+        batch.update(bankAccountRef, { currentBalance: newBalance });
+        
+        await batch.commit();
+
+    } catch (error: any) {
+        console.error("Error en la importación por conciliación:", error);
+        const permissionError = new FirestorePermissionError({
+            path: `banks/${bankAccountId}/transactions`,
+            operation: 'create',
+            requestResourceData: { info: "Conciliation import operation." },
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        throw error;
+    }
+  };
+
+
   const contextValue = {
     bankAccounts: bankAccounts || [],
     loading,
@@ -223,6 +271,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     addBankTransaction,
     deleteBankTransaction,
     batchAddBankTransactions,
+    batchAddConciliatedTransactions,
   };
 
   return (

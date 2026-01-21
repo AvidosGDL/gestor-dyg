@@ -17,7 +17,7 @@ const BankTransactionSchema = z.object({
     description: z.string(),
     amount: z.number(),
     type: z.enum(['ingreso', 'egreso']),
-    source: z.enum(['manual', 'import_csv', 'conciliado_pdf']),
+    source: z.enum(['manual', 'import_csv', 'conciliado_pdf', 'import_file']),
 });
 
 export const ConciliationInputSchema = z.object({
@@ -46,13 +46,8 @@ export type ConciliationOutput = z.infer<typeof ConciliationOutputSchema>;
 export async function conciliateStatement(
   input: ConciliationInput
 ): Promise<ConciliationOutput> {
-  // This is a placeholder. The actual implementation will call the Genkit flow.
   console.log("Attempting to conciliate statement for:", input.statementPdfUri.substring(0, 50) + '...');
-  // return conciliateStatementFlow(input);
-  return {
-    unmatchedTransactions: [],
-    exceptions: ["Flow not implemented yet."]
-  }
+  return conciliateStatementFlow(input);
 }
 
 const conciliationPrompt = ai.definePrompt({
@@ -63,7 +58,7 @@ const conciliationPrompt = ai.definePrompt({
 
   1.  Extract all transactions (date, description, amount, type) from the provided PDF.
   2.  Compare each extracted transaction with the list of 'existingTransactions'.
-  3.  Identify all transactions from the PDF that do not have a corresponding match in the existing transactions. These are 'unmatchedTransactions'.
+  3.  Identify all transactions from the PDF that do not have a corresponding match in the existing transactions. These are 'unmatchedTransactions'. A match is considered valid if the amount and date are very close (within a day).
   4.  Identify any potential discrepancies, such as transactions that exist in the system but not in the PDF, or amounts that do not match for what looks like the same transaction. List these as 'exceptions'.
   5.  Return the result in the specified format.
 
@@ -83,8 +78,6 @@ const conciliateStatementFlow = ai.defineFlow(
     outputSchema: ConciliationOutputSchema,
   },
   async (input) => {
-    // In a real implementation, you would process the PDF and compare.
-    // For now, this is a placeholder.
     const { output } = await conciliationPrompt(input);
     return output!;
   }

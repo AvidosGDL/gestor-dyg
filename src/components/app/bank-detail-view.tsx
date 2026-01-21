@@ -6,7 +6,7 @@ import { useBanks } from '@/contexts/banks-context';
 import type { BankAccount, BankTransaction } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Upload, Loader2, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
@@ -15,6 +15,7 @@ import { es } from 'date-fns/locale';
 import NewBankTransactionDialog from './new-bank-transaction-dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import ImportBankTransactionsDialog from './import-bank-transactions-dialog';
+import ConciliateStatementDialog from './conciliate-statement-dialog';
 
 
 export default function BankDetailView({ bankAccount, onBack }: { bankAccount: BankAccount, onBack: () => void }) {
@@ -22,6 +23,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
   const { deleteBankTransaction } = useBanks();
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isConciliateOpen, setIsConciliateOpen] = useState(false);
 
   const transactionsPath = useMemo(() => `banks/${bankAccount.id}/transactions`, [bankAccount.id]);
   const transactionsRef = useMemoFirebase(() => collection(firestore, transactionsPath), [firestore, transactionsPath]);
@@ -135,6 +137,20 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                 </div>
             </CardContent>
         </Card>
+
+        <Card>
+            <CardHeader>
+                <CardTitle>Conciliación Bancaria con IA</CardTitle>
+                <CardDescription>
+                    Sube tu estado de cuenta mensual en PDF para compararlo con las transacciones registradas y encontrar discrepancias.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Button onClick={() => setIsConciliateOpen(true)}>
+                    <FileCheck2 className="mr-2 h-4 w-4"/> Iniciar Conciliación
+                </Button>
+            </CardContent>
+        </Card>
       </div>
 
       <NewBankTransactionDialog
@@ -146,6 +162,12 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
         isOpen={isImportOpen}
         onOpenChange={setIsImportOpen}
         bankAccountId={bankAccount.id}
+       />
+       <ConciliateStatementDialog
+        isOpen={isConciliateOpen}
+        onOpenChange={setIsConciliateOpen}
+        bankAccount={bankAccount}
+        existingTransactions={transactions || []}
        />
     </>
   );
