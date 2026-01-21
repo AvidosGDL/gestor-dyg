@@ -21,6 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 interface ProjectsContextType {
   projects: Project[];
   addProject: (projectData: Omit<Project, 'id' | 'ownerId'>) => Promise<string | null>;
+  updateProject: (projectId: string, updatedData: Partial<Omit<Project, 'id' | 'ownerId'>>) => Promise<void>;
   addActivity: (projectId: string, activityData: Omit<ProjectActivity, 'id'>) => void;
   updateActivity: (projectId: string, activityId: string, updatedData: Partial<Omit<ProjectActivity, 'id'>>, newFiles: File[]) => Promise<void>;
   deleteProject: (id: string) => void;
@@ -61,6 +62,22 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       });
       errorEmitter.emit('permission-error', permissionError);
       return null;
+    }
+  };
+
+  const updateProject = async (projectId: string, updatedData: Partial<Omit<Project, 'id' | 'ownerId'>>) => {
+    if (!firestore || !collectionPath) return;
+    const docRef = doc(firestore, collectionPath, projectId);
+    try {
+      await updateDoc(docRef, updatedData);
+    } catch (serverError) {
+      const permissionError = new FirestorePermissionError({
+        path: docRef.path,
+        operation: 'update',
+        requestResourceData: updatedData,
+      });
+      errorEmitter.emit('permission-error', permissionError);
+      throw serverError; // Re-throw to be caught in the component
     }
   };
 
@@ -117,6 +134,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   const deleteProject = (id: string) => {
     if (!firestore || !collectionPath) return;
     const docRef = doc(firestore, collectionPath, id);
+    // Note: Deleting a project will not automatically delete its subcollections (activities) in the client.
+    // A Cloud Function would be required for that. For now, we delete the project document.
     deleteDoc(docRef).catch(async (serverError) => {
       const permissionError = new FirestorePermissionError({
         path: docRef.path,
@@ -170,6 +189,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     projects: projects || [],
     loading,
     addProject,
+    updateProject,
     addActivity,
     updateActivity,
     deleteProject,
