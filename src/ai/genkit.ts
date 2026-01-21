@@ -1,7 +1,7 @@
 import 'server-only';
 import {genkit, type Genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/google-genai';
-import {firebase} from '@genkit-ai/firebase';
+import {firebase as firebasePlugin} from '@genkit-ai/firebase';
 
 let aiInstance: Genkit | null = null;
 
@@ -10,7 +10,7 @@ function initializeAi() {
     aiInstance = genkit({
       plugins: [
         googleAI(),
-        firebase,
+        firebasePlugin(),
       ],
       flowStateStore: 'firebase',
       traceStore: 'firebase',
