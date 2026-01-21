@@ -161,5 +161,6 @@ export interface BankTransaction {
   description: string;
   amount: number;
   type: 'ingreso' | 'egreso';
-  source: 'manual' | 'import_csv' | 'conciliado_pdf';
+  source: 'manual' | 'import_csv' | 'conciliado_pdf' | 'import_file';
+  attachments?: Attachment[];
 }

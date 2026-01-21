@@ -356,7 +356,21 @@
         "description": { "type": "string", "description": "Description of the transaction." },
         "amount": { "type": "number", "description": "Amount of the transaction. Positive for income, negative for expense." },
         "type": { "type": "string", "enum": ["ingreso", "egreso"], "description": "Type of transaction (income or expense)." },
-        "source": { "type": "string", "enum": ["manual", "import_csv", "conciliado_pdf"], "description": "Source of the transaction record." }
+        "source": { "type": "string", "enum": ["manual", "import_csv", "conciliado_pdf", "import_file"], "description": "Source of the transaction record." },
+        "attachments": {
+          "type": "array",
+          "description": "Array of evidence files attached to the transaction.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "type": {"type": "string"},
+              "size": {"type": "number"},
+              "url": {"type": "string", "format": "uri"}
+            },
+            "required": ["name", "url"]
+          }
+        }
       },
       "required": ["id", "date", "description", "amount", "type", "source"]
     }

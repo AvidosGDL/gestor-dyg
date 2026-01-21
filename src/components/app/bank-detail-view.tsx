@@ -14,12 +14,14 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import NewBankTransactionDialog from './new-bank-transaction-dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import ImportBankTransactionsDialog from './import-bank-transactions-dialog';
 
 
 export default function BankDetailView({ bankAccount, onBack }: { bankAccount: BankAccount, onBack: () => void }) {
   const firestore = useFirestore();
   const { deleteBankTransaction } = useBanks();
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   const transactionsPath = useMemo(() => `banks/${bankAccount.id}/transactions`, [bankAccount.id]);
   const transactionsRef = useMemoFirebase(() => collection(firestore, transactionsPath), [firestore, transactionsPath]);
@@ -55,8 +57,8 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                     <CardDescription>Lista de ingresos y egresos de la cuenta.</CardDescription>
                 </div>
                 <div className="flex gap-2">
-                    <Button variant="outline" disabled>
-                        <Upload className="mr-2 h-4 w-4"/> Importar CSV
+                    <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+                        <Upload className="mr-2 h-4 w-4"/> Importar Comprobantes
                     </Button>
                     <Button onClick={() => setIsAddTransactionOpen(true)}>
                         <Plus className="mr-2 h-4 w-4"/> Agregar Transacción
@@ -140,7 +142,11 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
         onOpenChange={setIsAddTransactionOpen}
         bankAccountId={bankAccount.id}
        />
+      <ImportBankTransactionsDialog
+        isOpen={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        bankAccountId={bankAccount.id}
+       />
     </>
   );
 }
-

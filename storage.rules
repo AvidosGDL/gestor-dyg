@@ -25,5 +25,14 @@ service firebase.storage {
       allow read;
       allow write: if request.auth != null;
     }
+
+    // Rules for bank transaction attachments
+    // Only authorized users can read/write attachments for bank transactions
+    match /bank_attachments/{bankId}/{transactionId}/{fileName} {
+      allow read, write: if request.auth != null && (
+        request.auth.uid == 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || // daniel@avidos.mx
+        request.auth.uid == 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2'    // roberto.d@gygproyectosfiscales.com
+      );
+    }
   }
 }

@@ -2,7 +2,7 @@
 'use client';
 
 import React, { createContext, useContext, ReactNode, useMemo } from 'react';
-import type { BankAccount, BankTransaction } from '@/lib/types';
+import type { BankAccount, BankTransaction, Attachment } from '@/lib/types';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import {
   collection,
@@ -13,6 +13,7 @@ import {
   writeBatch,
   getDoc,
 } from 'firebase/firestore';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
@@ -22,6 +23,7 @@ interface BanksContextType {
   addBankAccount: (bankAccountData: Omit<BankAccount, 'id' | 'currentBalance'>) => void;
   addBankTransaction: (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source'>) => void;
   deleteBankTransaction: (bankAccountId: string, transaction: BankTransaction) => void;
+  batchAddBankTransactions: (bankAccountId: string, transactionsWithFiles: { data: Omit<BankTransaction, 'id' | 'attachments' | 'source'>, file: File }[]) => Promise<void>;
   loading: boolean;
 }
 
@@ -146,12 +148,81 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const batchAddBankTransactions = async (bankAccountId: string, transactionsWithFiles: { data: Omit<BankTransaction, 'id' | 'attachments' | 'source'>, file: File }[]) => {
+    if (!firestore || !collectionPath) return;
+
+    const bankAccountRef = doc(firestore, collectionPath, bankAccountId);
+    const storage = getStorage();
+
+    try {
+        const bankAccountSnap = await getDoc(bankAccountRef);
+        if (!bankAccountSnap.exists()) {
+            throw new Error("La cuenta bancaria no existe.");
+        }
+        const currentAccountData = bankAccountSnap.data() as BankAccount;
+
+        let balanceChange = 0;
+        transactionsWithFiles.forEach(({ data }) => {
+            balanceChange += data.type === 'ingreso' ? data.amount : -data.amount;
+        });
+        const newBalance = currentAccountData.currentBalance + balanceChange;
+
+        const batch = writeBatch(firestore);
+        const transactionsCollectionRef = collection(firestore, `${collectionPath}/${bankAccountId}/transactions`);
+
+        const uploadPromises = transactionsWithFiles.map(async ({ data, file }) => {
+            const newTransactionRef = doc(transactionsCollectionRef);
+            
+            const attachmentRef = storageRef(storage, `bank_attachments/${bankAccountId}/${newTransactionRef.id}/${file.name}`);
+            const snapshot = await uploadBytes(attachmentRef, file);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+
+            const newAttachment: Attachment = {
+                name: file.name,
+                type: file.type,
+                size: file.size,
+                url: downloadURL,
+            };
+
+            const finalTransactionData: Omit<BankTransaction, 'id'> = {
+                ...data,
+                source: 'import_file',
+                attachments: [newAttachment]
+            };
+            
+            batch.set(newTransactionRef, finalTransactionData);
+        });
+
+        await Promise.all(uploadPromises);
+        
+        batch.update(bankAccountRef, { currentBalance: newBalance });
+        
+        await batch.commit();
+        
+        toast({
+            title: "Importación Exitosa",
+            description: `${transactionsWithFiles.length} transacciones han sido agregadas.`
+        });
+
+    } catch (error: any) {
+        console.error("Error en la importación batch:", error);
+        toast({ variant: 'destructive', title: 'Error de Importación', description: error.message });
+        const permissionError = new FirestorePermissionError({
+            path: `banks/${bankAccountId}/transactions`,
+            operation: 'create',
+            requestResourceData: { info: "Batch import operation." },
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    }
+  };
+
   const contextValue = {
     bankAccounts: bankAccounts || [],
     loading,
     addBankAccount,
     addBankTransaction,
     deleteBankTransaction,
+    batchAddBankTransactions,
   };
 
   return (
