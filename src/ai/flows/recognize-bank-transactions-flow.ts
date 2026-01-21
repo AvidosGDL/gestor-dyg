@@ -26,7 +26,7 @@ const RecognizedTransactionSchema = z.object({
   description: z
     .string()
     .describe(
-      'A brief description of the transaction (e.g., vendor name).'
+      'A brief, clear description of the transaction (e.g., vendor name).'
     ),
   type: z.enum(['ingreso', 'egreso']).describe('The type of transaction.'),
   originalFileName: z
