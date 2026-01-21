@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { Layout, Calendar, Users, FileUp, Handshake, LineChart, Archive, Landmark } from 'lucide-react';
+import { Layout, Calendar, Users, FileUp, Handshake, LineChart, Archive, Landmark, KanbanSquare } from 'lucide-react';
 import type { View } from '@/app/page';
 import { cn } from '@/lib/utils';
 import {
@@ -22,11 +22,14 @@ export default function SidebarNav({ view, setView }: SidebarNavProps) {
   const { user } = useUser();
   const isAuthorizedForInvestors = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2';
   const isAuthorizedForBanks = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2';
+  const isAuthorizedForProjects = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2';
+
 
   const navItems = [
     { id: 'board', label: 'Tablero Visual', icon: Layout },
     { id: 'planning', label: 'Planeación Diaria', icon: Calendar },
     { id: 'prospects', label: 'Prospectos', icon: Handshake },
+    ...(isAuthorizedForProjects ? [{ id: 'projects', label: 'Proyectos', icon: KanbanSquare }] : []),
     { id: 'analytics', label: 'Análisis', icon: LineChart },
     { id: 'team', label: 'Equipo', icon: Users },
     { id: 'import', label: 'Importar Tareas', icon: FileUp },
@@ -61,3 +64,5 @@ export default function SidebarNav({ view, setView }: SidebarNavProps) {
     </SidebarMenu>
   );
 }
+
+    

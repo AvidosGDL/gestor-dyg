@@ -3,7 +3,7 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { Plus, UserPlus, Timer, Handshake, Filter, User, Users, Landmark } from 'lucide-react';
+import { Plus, UserPlus, Timer, Handshake, Filter, User, Users, Landmark, KanbanSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import NewTaskDialog from './new-task-dialog';
 import NewMemberDialog from './new-member-dialog';
@@ -17,6 +17,7 @@ import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebas
 import { UserNav } from '@/components/app/user-nav';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { collection } from 'firebase/firestore';
+import NewProjectDialog from './new-project-dialog';
 
 interface AppHeaderProps {
   view: View;
@@ -36,6 +37,7 @@ export default function AppHeader({
   const [showNewProspectModal, setShowNewProspectModal] = React.useState(false);
   const [showNewInvestorModal, setShowNewInvestorModal] = React.useState(false);
   const [showNewBankDialog, setShowNewBankDialog] = React.useState(false);
+  const [showNewProjectDialog, setShowNewProjectDialog] = React.useState(false);
   const { user } = useUser();
   const firestore = useFirestore();
 
@@ -90,6 +92,17 @@ export default function AppHeader({
         >
           <Landmark size={18} />
           <span className="hidden sm:inline">Nueva Cuenta</span>
+        </Button>
+      );
+    }
+    if (view === 'projects') {
+      return (
+        <Button
+          onClick={() => setShowNewProjectDialog(true)}
+          className="shadow-sm transition-transform active:scale-95"
+        >
+          <KanbanSquare size={18} />
+          <span className="hidden sm:inline">Nuevo Proyecto</span>
         </Button>
       );
     }
@@ -175,6 +188,7 @@ export default function AppHeader({
       <NewProspectDialog open={showNewProspectModal} onOpenChange={setShowNewProspectModal} />
       <NewInvestorDialog open={showNewInvestorModal} onOpenChange={setShowNewInvestorModal} />
       <NewBankDialog open={showNewBankDialog} onOpenChange={setShowNewBankDialog} />
+      <NewProjectDialog open={showNewProjectDialog} onOpenChange={setShowNewProjectDialog} />
     </>
   );
 }
@@ -189,4 +203,7 @@ const viewTitles: Record<View, string> = {
   history: 'Histórico de Tareas',
   investors: 'Gestión de Inversionistas',
   banks: 'Bancos y Saldos',
+  projects: 'Gestión de Proyectos',
 };
+
+    

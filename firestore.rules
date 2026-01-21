@@ -82,6 +82,16 @@ service cloud.firestore {
       );
     }
 
+     /**
+     * Checks if the user is authorized to access the projects module.
+     */
+    function isAuthorizedForProjects() {
+      return isSignedIn() && (
+        request.auth.uid == 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || // daniel@avidos.mx
+        request.auth.uid == 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2'    // roberto.d@dygproyectosfiscales.com
+      );
+    }
+
     /**
      * Checks if the user is the owner of an existing document.
      * Used for safe update and delete operations.
@@ -176,5 +186,19 @@ service cloud.firestore {
       	allow read, write, create, update, delete: if isAuthorizedForBanks();
       }
     }
+
+    /**
+     * @description Rules for the projects module.
+     * Access is restricted to authorized project managers.
+     */
+    match /projects/{projectId} {
+      allow read, write, create, update, delete: if isAuthorizedForProjects();
+      
+      match /activities/{activityId} {
+      	allow read, write, create, update, delete: if isAuthorizedForProjects();
+      }
+    }
   }
 }
+
+    

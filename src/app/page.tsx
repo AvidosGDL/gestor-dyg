@@ -12,6 +12,7 @@ import { HistoryProvider } from '@/contexts/history-context';
 import { ChatProvider } from '@/contexts/chat-context';
 import { InvestorsProvider } from '@/contexts/investors-context';
 import { BanksProvider } from '@/contexts/banks-context';
+import { ProjectsProvider } from '@/contexts/projects-context';
 import BoardView from '@/components/app/board-view';
 import PlanningView from '@/components/app/planning-view';
 import SidebarNav from '@/components/app/sidebar-nav';
@@ -25,6 +26,7 @@ import AnalyticsView from '@/components/app/analytics-view';
 import HistoryView from '@/components/app/history-view';
 import InvestorsView from '@/components/app/investors-view';
 import BanksView from '@/components/app/banks-view';
+import ProjectsView from '@/components/app/projects-view';
 import { doc, getDoc } from 'firebase/firestore';
 import ChatWidget from '@/components/app/chat-widget';
 import { Button } from '@/components/ui/button';
@@ -33,7 +35,7 @@ import { signOut } from 'firebase/auth';
 import { cn } from '@/lib/utils';
 
 
-export type View = 'board' | 'planning' | 'team' | 'import' | 'prospects' | 'analytics' | 'history' | 'investors' | 'banks';
+export type View = 'board' | 'planning' | 'team' | 'import' | 'prospects' | 'analytics' | 'history' | 'investors' | 'banks' | 'projects';
 
 const productivityTips = [
   "Si tarda menos de 2 minutos, hazlo ahora. Si no, ponlo en el backlog.",
@@ -99,80 +101,83 @@ function Dashboard() {
           <ChatProvider>
             <InvestorsProvider>
               <BanksProvider>
-                {isImpersonating && (
-                  <div className="bg-yellow-400 text-yellow-900 font-bold text-center p-2 flex items-center justify-center gap-4 fixed top-0 w-full z-50">
-                    <span>Estás viendo como <strong>{impersonatedUserName}</strong>.</span>
-                    <Button variant="ghost" size="sm" onClick={handleStopImpersonating} className="border border-yellow-800/50 hover:bg-yellow-500 h-auto">
-                      <LogOut className="mr-2 h-4 w-4" /> Volver a mi cuenta
-                    </Button>
-                  </div>
-                )}
-                <SidebarProvider defaultOpen={true}>
-                  <Sidebar
-                    variant="sidebar"
-                    collapsible="icon"
-                    className={cn("text-sidebar-foreground z-20", isImpersonating && "pt-10")}
-                  >
-                    <div className="group flex h-full flex-col">
-                      <div className="flex h-16 items-center justify-between p-4 group-data-[state=collapsed]:hidden">
-                          <div className="flex items-center gap-3">
-                              <span className="font-bold text-lg">Gestor D&G</span>
-                          </div>
-                      </div>
-
-                      <SidebarRail />
-
-                      <div className="flex flex-col h-full">
-                        <SidebarNav view={view} setView={setView} />
-                        <div className="p-4 mt-auto space-y-4">
-                          <div className="bg-sidebar-border rounded-xl p-4 space-y-2 group-data-[state=collapsed]:hidden">
-                            <div className="group-data-[collapsible=icon]:hidden">
-                              <h5 className="text-xs font-bold text-muted-foreground uppercase mb-1">
-                                Consejo Productividad
-                              </h5>
-                              <p className="text-sm text-sidebar-foreground/80 italic">
-                                "{currentTip}"
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex justify-center items-center group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-4">
-                              <ThemeToggle />
+                <ProjectsProvider>
+                  {isImpersonating && (
+                    <div className="bg-yellow-400 text-yellow-900 font-bold text-center p-2 flex items-center justify-center gap-4 fixed top-0 w-full z-50">
+                      <span>Estás viendo como <strong>{impersonatedUserName}</strong>.</span>
+                      <Button variant="ghost" size="sm" onClick={handleStopImpersonating} className="border border-yellow-800/50 hover:bg-yellow-500 h-auto">
+                        <LogOut className="mr-2 h-4 w-4" /> Volver a mi cuenta
+                      </Button>
+                    </div>
+                  )}
+                  <SidebarProvider defaultOpen={true}>
+                    <Sidebar
+                      variant="sidebar"
+                      collapsible="icon"
+                      className={cn("text-sidebar-foreground z-20", isImpersonating && "pt-10")}
+                    >
+                      <div className="group flex h-full flex-col">
+                        <div className="flex h-16 items-center justify-between p-4 group-data-[state=collapsed]:hidden">
+                            <div className="flex items-center gap-3">
+                                <span className="font-bold text-lg">Gestor D&G</span>
                             </div>
                         </div>
+
+                        <SidebarRail />
+
+                        <div className="flex flex-col h-full">
+                          <SidebarNav view={view} setView={setView} />
+                          <div className="p-4 mt-auto space-y-4">
+                            <div className="bg-sidebar-border rounded-xl p-4 space-y-2 group-data-[state=collapsed]:hidden">
+                              <div className="group-data-[collapsible=icon]:hidden">
+                                <h5 className="text-xs font-bold text-muted-foreground uppercase mb-1">
+                                  Consejo Productividad
+                                </h5>
+                                <p className="text-sm text-sidebar-foreground/80 italic">
+                                  "{currentTip}"
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex justify-center items-center group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-4">
+                                <ThemeToggle />
+                              </div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </Sidebar>
+                    </Sidebar>
 
-                  <SidebarInset className={cn(isImpersonating && "pt-10")}>
-                    <AppHeader
-                      view={view}
-                      activeTaskForPomodoro={activeTaskForPomodoro}
-                      taskFilter={taskFilter}
-                      setTaskFilter={setTaskFilter}
-                    />
+                    <SidebarInset className={cn(isImpersonating && "pt-10")}>
+                      <AppHeader
+                        view={view}
+                        activeTaskForPomodoro={activeTaskForPomodoro}
+                        taskFilter={taskFilter}
+                        setTaskFilter={setTaskFilter}
+                      />
 
-                    <main className="flex-1 overflow-hidden p-4 md:p-6 bg-background">
-                      {view === 'board' && (
-                        <BoardView setActiveTaskForPomodoro={setActiveTaskForPomodoro} taskFilter={taskFilter} />
-                      )}
-                      {view === 'planning' && (
-                        <PlanningView
-                          activeTaskForPomodoro={activeTaskForPomodoro}
-                          setActiveTaskForPomodoro={setActiveTaskForPomodoro}
-                          taskFilter={taskFilter}
-                        />
-                      )}
-                      {view === 'team' && <TeamView />}
-                      {view === 'import' && <ImportView />}
-                      {view === 'prospects' && <ProspectsView />}
-                      {view === 'analytics' && <AnalyticsView taskFilter={taskFilter} />}
-                      {view === 'history' && <HistoryView taskFilter={taskFilter} />}
-                      {view === 'investors' && <InvestorsView />}
-                      {view === 'banks' && <BanksView />}
-                    </main>
-                  </SidebarInset>
-                  <ChatWidget />
-                </SidebarProvider>
+                      <main className="flex-1 overflow-hidden p-4 md:p-6 bg-background">
+                        {view === 'board' && (
+                          <BoardView setActiveTaskForPomodoro={setActiveTaskForPomodoro} taskFilter={taskFilter} />
+                        )}
+                        {view === 'planning' && (
+                          <PlanningView
+                            activeTaskForPomodoro={activeTaskForPomodoro}
+                            setActiveTaskForPomodoro={setActiveTaskForPomodoro}
+                            taskFilter={taskFilter}
+                          />
+                        )}
+                        {view === 'team' && <TeamView />}
+                        {view === 'import' && <ImportView />}
+                        {view === 'prospects' && <ProspectsView />}
+                        {view === 'analytics' && <AnalyticsView taskFilter={taskFilter} />}
+                        {view === 'history' && <HistoryView taskFilter={taskFilter} />}
+                        {view === 'investors' && <InvestorsView />}
+                        {view === 'banks' && <BanksView />}
+                        {view === 'projects' && <ProjectsView />}
+                      </main>
+                    </SidebarInset>
+                    <ChatWidget />
+                  </SidebarProvider>
+                </ProjectsProvider>
               </BanksProvider>
             </InvestorsProvider>
           </ChatProvider>
@@ -214,3 +219,5 @@ export default function Home() {
     </AuthWrapper>
   );
 }
+
+    
