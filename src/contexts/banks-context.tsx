@@ -23,6 +23,7 @@ interface BanksContextType {
   bankAccounts: BankAccount[];
   addBankAccount: (bankAccountData: BankAccountFormValues, logoFile: File | null) => Promise<void>;
   updateBankAccount: (id: string, bankAccountData: BankAccountFormValues, logoFile: File | null) => Promise<void>;
+  deleteBankAccount: (id: string) => void;
   addBankTransaction: (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source'>) => void;
   deleteBankTransaction: (bankAccountId: string, transaction: BankTransaction) => void;
   batchAddBankTransactions: (bankAccountId: string, transactionsWithFiles: { data: Omit<BankTransaction, 'id' | 'attachments' | 'source'>, file: File }[]) => Promise<void>;
@@ -130,6 +131,22 @@ export function BanksProvider({ children }: { children: ReactNode }) {
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
     }
+  };
+  
+  const deleteBankAccount = (id: string) => {
+    if (!firestore || !collectionPath) return;
+    const docRef = doc(firestore, collectionPath, id);
+    // Note: Deleting a document does not delete its subcollections.
+    // A Cloud Function would be needed to delete all transactions.
+    deleteDoc(docRef).then(() => {
+        toast({ title: 'Cuenta eliminada', description: `La cuenta ha sido eliminada.` });
+    }).catch(async (serverError) => {
+      const permissionError = new FirestorePermissionError({
+        path: docRef.path,
+        operation: 'delete',
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    });
   };
 
 
@@ -333,6 +350,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     loading,
     addBankAccount,
     updateBankAccount,
+    deleteBankAccount,
     addBankTransaction,
     deleteBankTransaction,
     batchAddBankTransactions,
