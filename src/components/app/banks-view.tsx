@@ -51,8 +51,8 @@ export default function BanksView() {
   const filteredBankAccounts = useMemo(() => {
     if (!bankAccounts) return [];
     return bankAccounts.filter(account =>
-      account.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      account.bankName.toLowerCase().includes(searchTerm.toLowerCase())
+      (account.companyName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (account.bankName || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [bankAccounts, searchTerm]);
 
