@@ -132,6 +132,7 @@ export interface Investor {
   email?: string;
   phone?: string;
   investmentDate: string; // ISO 8601 string
+  investmentTerm: number;
   investmentAmount: number;
   interestRate: number;
   paymentMethod: string;

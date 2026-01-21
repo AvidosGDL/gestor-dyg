@@ -240,6 +240,10 @@
           "description": "Date of the initial investment.",
           "format": "date"
         },
+        "investmentTerm": {
+          "type": "number",
+          "description": "The term of the investment in months (e.g., 6, 12, 24)."
+        },
         "investmentAmount": {
           "type": "number",
           "description": "Total amount of the investment."
@@ -264,15 +268,15 @@
         },
         "monthlyPaymentDay": {
           "type": "number",
-          "description": "The day of the month for monthly interest payments (1-31)."
+          "description": "The day of the month for monthly interest payments (1-31). Calculated automatically from investmentDate."
         },
         "liquidationDate": {
           "type": "string",
           "format": "date",
-          "description": "The date for the final lump sum payment (capital + interest)."
+          "description": "The date for the final lump sum payment (capital + interest). Calculated automatically from investmentDate and investmentTerm."
         }
       },
-      "required": ["id", "name", "investmentDate", "investmentAmount", "interestRate", "paymentType"]
+      "required": ["id", "name", "investmentDate", "investmentTerm", "investmentAmount", "interestRate", "paymentType"]
     },
     "InvestmentTransaction": {
       "$schema": "http://json-schema.org/draft-07/schema#",

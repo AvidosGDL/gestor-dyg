@@ -17,17 +17,18 @@ import { Textarea } from '@/components/ui/textarea';
 import { useForm, type SubmitHandler, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { DollarSign, Loader2, Percent, PlusCircle, Trash2, Paperclip, Eye, Download, X, Repeat, CalendarClock } from 'lucide-react';
+import { DollarSign, Loader2, Percent, PlusCircle, Trash2, Paperclip, Eye, Download, X, Repeat, CalendarClock, Info } from 'lucide-react';
 import { useInvestors } from '@/contexts/investors-context';
 import { useToast } from '@/hooks/use-toast';
 import type { Investor, InvestmentTransaction, Attachment } from '@/lib/types';
 import { ScrollArea } from '../ui/scroll-area';
-import { format } from 'date-fns';
+import { format, addMonths, getDate } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Alert, AlertDescription } from '../ui/alert';
 
 
 const attachmentSchema = z.object({
@@ -51,26 +52,13 @@ const investorSchema = z.object({
   email: z.string().email('Correo no válido').optional().or(z.literal('')),
   phone: z.string().optional(),
   investmentDate: z.string().min(1, 'La fecha es requerida'),
+  investmentTerm: z.coerce.number().min(1, "El plazo es requerido"),
   investmentAmount: z.coerce.number().min(1, 'El monto debe ser mayor a 0'),
   interestRate: z.coerce.number().min(0, 'La tasa no puede ser negativa'),
   paymentMethod: z.string().min(1, 'El método de pago es requerido'),
   status: z.enum(['Activa', 'Liquidada']),
   transactions: z.array(transactionSchema).optional(),
   paymentType: z.enum(['mensual', 'pago_unico'], { required_error: 'Debes seleccionar un tipo de pago.' }),
-  monthlyPaymentDay: z.coerce.number().min(1).max(31).optional(),
-  liquidationDate: z.string().optional(),
-}).refine(data => {
-    if (data.paymentType === 'mensual') return !!data.monthlyPaymentDay;
-    return true;
-}, {
-    message: 'El día de pago es requerido para pagos mensuales.',
-    path: ['monthlyPaymentDay'],
-}).refine(data => {
-    if (data.paymentType === 'pago_unico') return !!data.liquidationDate;
-    return true;
-}, {
-    message: 'La fecha de liquidación es requerida para pago único.',
-    path: ['liquidationDate'],
 });
 
 
@@ -99,19 +87,35 @@ export default function EditInvestorDialog({
     resolver: zodResolver(investorSchema),
   });
 
-  const paymentType = form.watch('paymentType');
+  const watchedFields = form.watch(['paymentType', 'investmentDate', 'investmentTerm']);
+  const [paymentType, investmentDate, investmentTerm] = watchedFields;
   
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "transactions",
   });
+  
+  const summary = React.useMemo(() => {
+    if (!investmentDate || !investmentTerm) return null;
+    
+    const startDate = new Date(investmentDate + 'T00:00:00');
+    const endDate = addMonths(startDate, investmentTerm);
+
+    if (paymentType === 'mensual') {
+      return `Se generará un estado de cuenta los días ${getDate(startDate)} de cada mes. El contrato finaliza el ${format(endDate, 'dd/MM/yyyy', { locale: es })}.`
+    }
+    if (paymentType === 'pago_unico') {
+      return `Se realizará un pago único de capital e intereses el ${format(endDate, 'dd/MM/yyyy', { locale: es })}.`
+    }
+    return null;
+  }, [paymentType, investmentDate, investmentTerm]);
+
 
   useEffect(() => {
     if (isOpen) {
       form.reset({
         ...investor,
         investmentDate: investor.investmentDate ? investor.investmentDate.split('T')[0] : '',
-        liquidationDate: investor.liquidationDate ? investor.liquidationDate.split('T')[0] : '',
         transactions: investor.transactions || [],
       });
       setNewTransaction({ type: 'Pago de Interés', amount: '', description: '' });
@@ -185,8 +189,6 @@ export default function EditInvestorDialog({
       updateInvestor(investor.id, { 
           ...data, 
           transactions: data.transactions || [],
-          monthlyPaymentDay: data.paymentType === 'mensual' ? data.monthlyPaymentDay : undefined,
-          liquidationDate: data.paymentType === 'pago_unico' ? data.liquidationDate : undefined,
       });
       toast({
         title: 'Inversionista Actualizado',
@@ -257,10 +259,23 @@ export default function EditInvestorDialog({
                  {form.formState.errors.investmentDate && <p className="text-sm text-destructive">{form.formState.errors.investmentDate.message}</p>}
               </div>
               <div className="space-y-2">
-                  <Label htmlFor="paymentMethod">Método de Pago</Label>
-                  <Input id="paymentMethod" {...form.register('paymentMethod')} />
-                  {form.formState.errors.paymentMethod && <p className="text-sm text-destructive">{form.formState.errors.paymentMethod.message}</p>}
-              </div>
+                <Label htmlFor="investmentTerm">Plazo de Inversión</Label>
+                <Controller
+                  control={form.control}
+                  name="investmentTerm"
+                  render={({ field }) => (
+                     <Select onValueChange={(val) => field.onChange(Number(val))} defaultValue={String(field.value)}>
+                        <SelectTrigger id="investmentTerm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="6">6 meses</SelectItem>
+                            <SelectItem value="12">12 meses</SelectItem>
+                            <SelectItem value="24">24 meses</SelectItem>
+                        </SelectContent>
+                    </Select>
+                  )}
+                />
+                 {form.formState.errors.investmentTerm && <p className="text-sm text-destructive">{form.formState.errors.investmentTerm.message}</p>}
+            </div>
             </div>
             
             <div className="grid grid-cols-2 gap-4">
@@ -280,6 +295,11 @@ export default function EditInvestorDialog({
                   </div>
                   {form.formState.errors.interestRate && <p className="text-sm text-destructive">{form.formState.errors.interestRate.message}</p>}
                 </div>
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="paymentMethod">Método de Pago</Label>
+                <Input id="paymentMethod" {...form.register('paymentMethod')} />
+                {form.formState.errors.paymentMethod && <p className="text-sm text-destructive">{form.formState.errors.paymentMethod.message}</p>}
             </div>
 
             <div className="space-y-4 pt-4 border-t">
@@ -307,22 +327,14 @@ export default function EditInvestorDialog({
                     )}
                 />
                  {form.formState.errors.paymentType && <p className="text-sm text-destructive">{form.formState.errors.paymentType.message}</p>}
-
-
-                {paymentType === 'mensual' && (
-                    <div className="space-y-2">
-                        <Label htmlFor="monthlyPaymentDay">Día de pago mensual (1-31)</Label>
-                        <Input id="monthlyPaymentDay" type="number" min="1" max="31" {...form.register('monthlyPaymentDay')} />
-                        {form.formState.errors.monthlyPaymentDay && <p className="text-sm text-destructive">{form.formState.errors.monthlyPaymentDay.message}</p>}
-                    </div>
-                )}
-                {paymentType === 'pago_unico' && (
-                    <div className="space-y-2">
-                        <Label htmlFor="liquidationDate">Fecha de liquidación total</Label>
-                        <Input id="liquidationDate" type="date" {...form.register('liquidationDate')} />
-                        {form.formState.errors.liquidationDate && <p className="text-sm text-destructive">{form.formState.errors.liquidationDate.message}</p>}
-                    </div>
-                )}
+                 {summary && (
+                    <Alert>
+                        <Info className="h-4 w-4" />
+                        <AlertDescription>
+                            {summary}
+                        </AlertDescription>
+                    </Alert>
+                 )}
             </div>
 
             <div className="space-y-4 pt-4 border-t">
@@ -457,3 +469,5 @@ export default function EditInvestorDialog({
     </Dialog>
   );
 }
+
+    

@@ -17,38 +17,29 @@ import { Label } from '@/components/ui/label';
 import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { DollarSign, Loader2, Percent, Paperclip, X } from 'lucide-react';
+import { DollarSign, Loader2, Percent, Paperclip, X, Info } from 'lucide-react';
 import { useInvestors } from '@/contexts/investors-context';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import type { Attachment } from '@/lib/types';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { addMonths, format, getDate } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { Alert, AlertDescription } from '../ui/alert';
+
 
 const investorSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
   email: z.string().email('Correo no válido').optional().or(z.literal('')),
   phone: z.string().optional(),
   investmentDate: z.string().min(1, 'La fecha es requerida'),
+  investmentTerm: z.coerce.number().min(1, "El plazo es requerido"),
   investmentAmount: z.coerce.number().min(1, 'El monto debe ser mayor a 0'),
   interestRate: z.coerce.number().min(0, 'La tasa no puede ser negativa'),
   paymentMethod: z.string().min(1, 'El método de pago es requerido'),
   status: z.enum(['Activa', 'Liquidada']),
   paymentType: z.enum(['mensual', 'pago_unico'], { required_error: 'Debes seleccionar un tipo de pago.' }),
-  monthlyPaymentDay: z.coerce.number().min(1).max(31).optional(),
-  liquidationDate: z.string().optional(),
-}).refine(data => {
-    if (data.paymentType === 'mensual') return !!data.monthlyPaymentDay;
-    return true;
-}, {
-    message: 'El día de pago es requerido para pagos mensuales.',
-    path: ['monthlyPaymentDay'],
-}).refine(data => {
-    if (data.paymentType === 'pago_unico') return !!data.liquidationDate;
-    return true;
-}, {
-    message: 'La fecha de liquidación es requerida para pago único.',
-    path: ['liquidationDate'],
 });
 
 
@@ -59,6 +50,7 @@ const defaultValues: Partial<InvestorFormValues> = {
     email: '',
     phone: '',
     investmentDate: new Date().toISOString().split('T')[0],
+    investmentTerm: 12,
     investmentAmount: 0,
     interestRate: 0,
     paymentMethod: 'Transferencia',
@@ -92,7 +84,24 @@ export default function NewInvestorDialog({
     defaultValues,
   });
   
-  const paymentType = watch('paymentType');
+  const watchedFields = watch(['paymentType', 'investmentDate', 'investmentTerm']);
+  const [paymentType, investmentDate, investmentTerm] = watchedFields;
+
+  const summary = React.useMemo(() => {
+    if (!investmentDate || !investmentTerm) return null;
+    
+    const startDate = new Date(investmentDate + 'T00:00:00');
+    const endDate = addMonths(startDate, investmentTerm);
+
+    if (paymentType === 'mensual') {
+      return `Se generará un estado de cuenta los días ${getDate(startDate)} de cada mes. El contrato finaliza el ${format(endDate, 'dd/MM/yyyy', { locale: es })}.`
+    }
+    if (paymentType === 'pago_unico') {
+      return `Se realizará un pago único de capital e intereses el ${format(endDate, 'dd/MM/yyyy', { locale: es })}.`
+    }
+    return null;
+  }, [paymentType, investmentDate, investmentTerm]);
+
 
   useEffect(() => {
     if(!open) {
@@ -117,7 +126,6 @@ export default function NewInvestorDialog({
     try {
         if (attachedFiles.length > 0) {
             const storage = getStorage();
-            // We need an investor ID, but we don't have one yet. We'll use a temporary UUID for the path.
             const tempId = crypto.randomUUID();
             const uploadPromises = attachedFiles.map(async file => {
                 const fileRef = storageRef(storage, `investor_attachments/${tempId}/${Date.now()}_${file.name}`);
@@ -139,8 +147,6 @@ export default function NewInvestorDialog({
 
       addInvestor({
         ...data,
-        monthlyPaymentDay: data.paymentType === 'mensual' ? data.monthlyPaymentDay : undefined,
-        liquidationDate: data.paymentType === 'pago_unico' ? data.liquidationDate : undefined,
         transactions: [initialTransaction],
       });
 
@@ -193,20 +199,22 @@ export default function NewInvestorDialog({
                {errors.investmentDate && <p className="text-sm text-destructive">{errors.investmentDate.message}</p>}
             </div>
              <div className="space-y-2">
-              <Label htmlFor="status">Estado</Label>
-              <Controller
-                control={control}
-                name="status"
-                render={({ field }) => (
-                     <Select onValueChange={field.onChange} defaultValue={defaultValues.status}>
-                        <SelectTrigger id="status"><SelectValue /></SelectTrigger>
+                <Label htmlFor="investmentTerm">Plazo de Inversión</Label>
+                <Controller
+                  control={control}
+                  name="investmentTerm"
+                  render={({ field }) => (
+                     <Select onValueChange={(val) => field.onChange(Number(val))} defaultValue={String(field.value)}>
+                        <SelectTrigger id="investmentTerm"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="Activa">Activa</SelectItem>
-                            <SelectItem value="Liquidada">Liquidada</SelectItem>
+                            <SelectItem value="6">6 meses</SelectItem>
+                            <SelectItem value="12">12 meses</SelectItem>
+                            <SelectItem value="24">24 meses</SelectItem>
                         </SelectContent>
                     </Select>
-                )}
-              />
+                  )}
+                />
+                 {errors.investmentTerm && <p className="text-sm text-destructive">{errors.investmentTerm.message}</p>}
             </div>
           </div>
 
@@ -229,13 +237,32 @@ export default function NewInvestorDialog({
             </div>
           </div>
           
-          <div className="space-y-2">
-              <Label htmlFor="paymentMethod">Método de Pago</Label>
-              <Input id="paymentMethod" {...register('paymentMethod')} disabled={isSubmitting} />
-              {errors.paymentMethod && <p className="text-sm text-destructive">{errors.paymentMethod.message}</p>}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+                <Label htmlFor="paymentMethod">Método de Pago</Label>
+                <Input id="paymentMethod" {...register('paymentMethod')} disabled={isSubmitting} />
+                {errors.paymentMethod && <p className="text-sm text-destructive">{errors.paymentMethod.message}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="status">Estado</Label>
+              <Controller
+                control={control}
+                name="status"
+                render={({ field }) => (
+                     <Select onValueChange={field.onChange} defaultValue={defaultValues.status}>
+                        <SelectTrigger id="status"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Activa">Activa</SelectItem>
+                            <SelectItem value="Liquidada">Liquidada</SelectItem>
+                        </SelectContent>
+                    </Select>
+                )}
+              />
+            </div>
           </div>
 
             <div className="space-y-4 pt-4 border-t">
+                 <Label>Esquema de Pago de Intereses</Label>
                  <Controller
                     name="paymentType"
                     control={control}
@@ -257,22 +284,14 @@ export default function NewInvestorDialog({
                     )}
                 />
                  {errors.paymentType && <p className="text-sm text-destructive">{errors.paymentType.message}</p>}
-
-
-                {paymentType === 'mensual' && (
-                    <div className="space-y-2">
-                        <Label htmlFor="monthlyPaymentDay">Día de pago mensual (1-31)</Label>
-                        <Input id="monthlyPaymentDay" type="number" min="1" max="31" {...register('monthlyPaymentDay')} disabled={isSubmitting} />
-                        {errors.monthlyPaymentDay && <p className="text-sm text-destructive">{errors.monthlyPaymentDay.message}</p>}
-                    </div>
-                )}
-                {paymentType === 'pago_unico' && (
-                    <div className="space-y-2">
-                        <Label htmlFor="liquidationDate">Fecha de liquidación total</Label>
-                        <Input id="liquidationDate" type="date" {...register('liquidationDate')} disabled={isSubmitting} />
-                        {errors.liquidationDate && <p className="text-sm text-destructive">{errors.liquidationDate.message}</p>}
-                    </div>
-                )}
+                 {summary && (
+                    <Alert>
+                        <Info className="h-4 w-4" />
+                        <AlertDescription>
+                            {summary}
+                        </AlertDescription>
+                    </Alert>
+                 )}
             </div>
             
             <div className="space-y-2 pt-4 border-t">
@@ -308,3 +327,4 @@ export default function NewInvestorDialog({
 }
 
 
+    

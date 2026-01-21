@@ -6,22 +6,27 @@ import { useInvestors } from '@/contexts/investors-context';
 import { Investor } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Trash2, Edit, Phone, Mail, Calendar, DollarSign, Percent, Landmark, CalendarClock, Repeat } from 'lucide-react';
+import { Trash2, Edit, Phone, Mail, Calendar, DollarSign, Percent, Landmark, CalendarClock, Repeat, ClockIcon } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '../ui/badge';
 import EditInvestorDialog from './edit-investor-dialog';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, addMonths } from 'date-fns';
 
 function InvestorCard({ investor, onEdit }: { investor: Investor, onEdit: (investor: Investor) => void }) {
+  
+  const contractEndDate = investor.investmentDate && investor.investmentTerm
+    ? format(addMonths(parseISO(investor.investmentDate), investor.investmentTerm), 'dd/MM/yyyy')
+    : null;
+
   const getPaymentInfo = () => {
     if (investor.paymentType === 'mensual' && investor.monthlyPaymentDay) {
-        return `Día ${investor.monthlyPaymentDay} de cada mes`;
+        return `Pagos el día ${investor.monthlyPaymentDay} de cada mes`;
     }
     if (investor.paymentType === 'pago_unico' && investor.liquidationDate) {
-        return `Liquidación el ${format(parseISO(investor.liquidationDate), 'dd/MM/yyyy')}`;
+        return `Liquidación única: ${format(parseISO(investor.liquidationDate), 'dd/MM/yyyy')}`;
     }
-    return 'No definido';
+    return 'Esquema de pago no definido';
   }
 
   return (
@@ -50,6 +55,16 @@ function InvestorCard({ investor, onEdit }: { investor: Investor, onEdit: (inves
                     <Percent size={14} />
                     <span>{(investor.interestRate || 0)}% Interés</span>
                 </div>
+                 <div className="flex items-center gap-2">
+                    <ClockIcon size={14} />
+                    <span>{investor.investmentTerm} meses</span>
+                </div>
+                {contractEndDate && (
+                  <div className="flex items-center gap-2">
+                      <Calendar size={14} />
+                      <span>Fin: {contractEndDate}</span>
+                  </div>
+                )}
             </div>
              <div className="space-y-2 text-xs">
                 <Badge variant="secondary" className="flex items-center gap-2 w-fit">
@@ -111,3 +126,5 @@ export default function InvestorsView() {
     </>
   );
 }
+
+    
