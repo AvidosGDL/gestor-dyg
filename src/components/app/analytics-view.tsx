@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval, isWithinInterval, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { TrendingUp, CheckCircle2, Clock } from 'lucide-react';
+import { TrendingUp, CheckCircle2, Clock, CalendarCheck } from 'lucide-react';
 import { ChartContainer, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 
 type Period = 'day' | 'week' | 'month';
@@ -33,9 +33,13 @@ const formatDuration = (milliseconds: number) => {
 
 const barChartConfig = {
   tareasCompletadas: {
-    label: 'Tareas Completadas',
+    label: 'Completadas',
     color: 'hsl(var(--primary))',
   },
+  tareasATiempo: {
+    label: 'A Tiempo',
+    color: 'hsl(var(--chart-2))',
+  }
 } satisfies ChartConfig;
 
 const lineChartConfig = {
@@ -66,7 +70,7 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
   }, [tasks, user, taskFilter, loading]);
   
   const completedTasks = useMemo(() => {
-     return filteredTasksForView.filter(t => t.status === 'completado' && t.completionComment);
+     return filteredTasksForView.filter(t => t.status === 'completado');
   }, [filteredTasksForView]);
 
 
@@ -102,13 +106,16 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
       const periodInterval = getPeriodInterval(date);
 
       const tasksInPeriod = completedTasks.filter(task => {
-        // Assuming completion date is tracked; if not, we use another date field
-        // For this example, let's assume we need a 'completedAt' field.
-        // If not available, we can't accurately plot by completion date.
-        // Let's fallback to dueDate for demonstration if `completedAt` is not there.
-        const completionDate = new Date(task.dueDate); // Replace with `task.completedAt` when available
+        if (!task.updatedAt) return false;
+        const completionDate = new Date(task.updatedAt);
         return isWithinInterval(completionDate, periodInterval);
       });
+
+      const onTimeInPeriod = tasksInPeriod.filter(t => {
+        if (!t.dueDate) return true; // No due date is considered on-time
+        if (!t.updatedAt) return false;
+        return new Date(t.updatedAt).getTime() <= new Date(t.dueDate).getTime() + (24 * 60 * 60 * 1000 - 1); // End of day
+      }).length;
 
       const totalTime = tasksInPeriod.reduce((acc, task) => {
         const taskTime = (task.focusSessions || []).reduce((sessionAcc, session) => {
@@ -120,6 +127,7 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
       return {
         name: format(date, timeUnitFormat, { locale: es }),
         tareasCompletadas: tasksInPeriod.length,
+        tareasATiempo: onTimeInPeriod,
         tiempoEnfoque: totalTime / (1000 * 60), // in minutes
       };
     });
@@ -127,6 +135,9 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
   
   const totalTasksCompleted = useMemo(() => chartData.reduce((acc, data) => acc + data.tareasCompletadas, 0), [chartData]);
   const totalTimeFocusedMs = useMemo(() => chartData.reduce((acc, data) => acc + (data.tiempoEnfoque * 60 * 1000), 0), [chartData]);
+  const totalOnTimeTasks = useMemo(() => chartData.reduce((acc, data) => acc + data.tareasATiempo, 0), [chartData]);
+  const onTimePercentage = totalTasksCompleted > 0 ? Math.round((totalOnTimeTasks / totalTasksCompleted) * 100) : 0;
+
 
   return (
     <div className="h-full overflow-y-auto space-y-6 p-1">
@@ -139,7 +150,7 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
         </div>
       </div>
       
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Tareas Completadas</CardTitle>
@@ -148,6 +159,16 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
             <CardContent>
                 <div className="text-2xl font-bold">{totalTasksCompleted}</div>
                 <p className="text-xs text-muted-foreground">En el período seleccionado</p>
+            </CardContent>
+        </Card>
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Cumplimiento de Plazos</CardTitle>
+                <CalendarCheck className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold">{onTimePercentage}%</div>
+                <p className="text-xs text-muted-foreground">{totalOnTimeTasks} de {totalTasksCompleted} tareas a tiempo</p>
             </CardContent>
         </Card>
         <Card>
@@ -177,8 +198,8 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
       <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Tareas Completadas por {period === 'day' ? 'Día' : period === 'week' ? 'Semana' : 'Mes'}</CardTitle>
-            <CardDescription>Cantidad de tareas marcadas como completadas.</CardDescription>
+            <CardTitle>Tareas por {period === 'day' ? 'Día' : period === 'week' ? 'Semana' : 'Mes'}</CardTitle>
+            <CardDescription>Comparativo de tareas completadas vs. tareas entregadas a tiempo.</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={barChartConfig} className="h-[300px] w-full">
@@ -190,7 +211,9 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
                   content={<ChartTooltipContent />}
                   cursor={{ fill: 'hsl(var(--muted))' }}
                 />
-                <Bar dataKey="tareasCompletadas" name="Tareas" fill="var(--color-tareasCompletadas)" radius={[4, 4, 0, 0]} />
+                <Legend />
+                <Bar dataKey="tareasCompletadas" name="Completadas" fill="var(--color-tareasCompletadas)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="tareasATiempo" name="A Tiempo" fill="var(--color-tareasATiempo)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ChartContainer>
           </CardContent>
