@@ -1,9 +1,9 @@
-
 'use client';
 
 import React, { useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { useTasks } from '@/contexts/tasks-context';
+import { useHistory } from '@/contexts/history-context';
 import { useUser } from '@/firebase';
 import type { Task } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -51,23 +51,30 @@ const lineChartConfig = {
 
 
 export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
-  const { tasks, loading } = useTasks();
+  const { tasks, loading: tasksLoading } = useTasks();
+  const { historyTasks, loading: historyLoading } = useHistory();
   const { user } = useUser();
   const [period, setPeriod] = useState<Period>('week');
+  
+  const loading = tasksLoading || historyLoading;
+
+  const allTasks = useMemo(() => {
+    return [...tasks, ...historyTasks];
+  }, [tasks, historyTasks]);
 
   const filteredTasksForView = useMemo(() => {
     if (!user || loading) return [];
     
     if (taskFilter === 'me' || taskFilter === user.uid) {
-      return tasks.filter(t => (t.ownerId === user.uid && !t.delegateToId) || (t.delegateToId === user.uid));
+      return allTasks.filter(t => (t.ownerId === user.uid && !t.delegateToId) || (t.delegateToId === user.uid));
     } 
     
     if (taskFilter === 'all') {
-      return tasks.filter(t => t.ownerId === user.uid);
+      return allTasks.filter(t => t.ownerId === user.uid);
     }
     
-    return tasks.filter(t => (t.ownerId === taskFilter && !t.delegateToId) || (t.delegateToId === taskFilter));
-  }, [tasks, user, taskFilter, loading]);
+    return allTasks.filter(t => (t.ownerId === taskFilter && !t.delegateToId) || (t.delegateToId === taskFilter));
+  }, [allTasks, user, taskFilter, loading]);
   
   const completedTasks = useMemo(() => {
      return filteredTasksForView.filter(t => t.status === 'completado');
