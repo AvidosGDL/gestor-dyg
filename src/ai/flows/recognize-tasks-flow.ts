@@ -38,7 +38,7 @@ export async function recognizeTasksFromImage(
 
 const recognizeTasksPrompt = ai.definePrompt({
   name: 'recognizeTasksPrompt',
-  model: googleAI.model('gemini-1.5-flash'),
+  model: googleAI.model('gemini-2.5-flash'),
   input: { schema: RecognizeTasksInputSchema },
   output: { schema: RecognizeTasksOutputSchema },
   prompt: `You are an expert in recognizing handwritten text from an image. Analyze the provided image and extract a list of distinct tasks. Each item in the list should be a single task.

@@ -44,7 +44,7 @@ export async function recognizeInvestorsFromImage(
 
 const recognizeInvestorsPrompt = ai.definePrompt({
   name: 'recognizeInvestorsPrompt',
-  model: googleAI.model('gemini-1.5-flash'),
+  model: googleAI.model('gemini-2.5-flash'),
   input: { schema: RecognizeInvestorsInputSchema },
   output: { schema: RecognizeInvestorsOutputSchema },
   prompt: `You are an expert accounting assistant. Analyze the provided image of a spreadsheet and extract a list of distinct investors.
