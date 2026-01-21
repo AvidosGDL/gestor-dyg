@@ -1,6 +1,5 @@
 
 
-
 export type TaskStatus =
   | 'pendiente'
   | 'en-progreso'
@@ -183,6 +182,5 @@ export interface ProjectActivity {
   actualCost: number;
   progress: number;
   attachments?: Attachment[];
+  parentId: string | null;
 }
-
-    

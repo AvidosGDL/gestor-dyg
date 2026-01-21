@@ -398,6 +398,7 @@
         "startDate": { "type": "string", "format": "date" },
         "durationDays": { "type": "number" },
         "dependencyId": { "type": "string", "description": "The ID of the activity that this one depends on." },
+        "parentId": { "type": "string", "description": "The ID of the parent activity, if this is a sub-task." },
         "budgetedCost": { "type": "number" },
         "actualCost": { "type": "number" },
         "progress": { "type": "number", "description": "Completion percentage (0-100)." },
@@ -591,5 +592,3 @@
     "reasoning": "The Firestore structure is designed to manage tasks and user profiles for the TaskMaster Pro application, prioritizing security, scalability, and debuggability. It emphasizes Authorization Independence by avoiding hierarchical authorization dependencies.\\n\\n**Authorization Independence and QAPs:**\\n\\n*   **User Profiles:** User profile data is stored under `/users/{userId}/profile`.  Authorization rules can directly check if `request.auth.uid == userId`. Segregation ensures only the user can access their profile.\\n*   **Tasks:** Tasks are stored within a user's document in the `/users/{userId}/tasks/{taskId}` collection. This structure ensures that only the authenticated user can access and manipulate tasks under their ownership. The structure allows for secure listing of tasks, as the query will be always be scoped to the user's own tasks, satisfying QAPs (Rules are not Filters) requirements.\\n* **Chats**: A top-level `/chats` collection stores conversation metadata. Each chat document contains an array `memberIds`. Security rules ensure only users whose UID is in `memberIds` can read/write to the chat document and its `messages` subcollection. This enforces privacy for 1-on-1 and group chats.\\n\\nThis structure promotes clarity of intent and supports robust security rules without relying on complex `get()` calls. The path-based ownership model provides inherent security and facilitates simple, efficient rules."
   }
 }
-
-    

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { createContext, useContext, ReactNode, useMemo } from 'react';
@@ -186,5 +187,3 @@ export function useProjects() {
   }
   return context;
 }
-
-    

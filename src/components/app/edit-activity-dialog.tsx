@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -25,6 +26,7 @@ const activitySchema = z.object({
   budgetedCost: z.coerce.number().min(0),
   actualCost: z.coerce.number().min(0),
   progress: z.coerce.number().min(0).max(100),
+  parentId: z.string().nullable(),
 });
 
 type ActivityFormValues = z.infer<typeof activitySchema>;
@@ -35,9 +37,10 @@ interface EditActivityDialogProps {
   project: Project;
   activity: ProjectActivity | null;
   projectActivities: ProjectActivity[];
+  parentId: string | null;
 }
 
-export default function EditActivityDialog({ isOpen, onOpenChange, project, activity, projectActivities }: EditActivityDialogProps) {
+export default function EditActivityDialog({ isOpen, onOpenChange, project, activity, projectActivities, parentId }: EditActivityDialogProps) {
   const { addActivity, updateActivity } = useProjects();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -65,11 +68,12 @@ export default function EditActivityDialog({ isOpen, onOpenChange, project, acti
           budgetedCost: 0,
           actualCost: 0,
           progress: 0,
+          parentId: parentId,
         });
       }
       setAttachedFiles([]);
     }
-  }, [isOpen, activity, reset]);
+  }, [isOpen, activity, reset, parentId]);
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -96,8 +100,6 @@ export default function EditActivityDialog({ isOpen, onOpenChange, project, acti
         toast({ title: 'Actividad Actualizada' });
       } else {
         // Create new activity
-        // For new activities, we need to handle file uploads separately after creation
-        // This part is simplified: for now, new activities can't have attachments on creation directly
         addActivity(project.id, data);
         toast({ title: 'Actividad Creada' });
       }
@@ -114,11 +116,13 @@ export default function EditActivityDialog({ isOpen, onOpenChange, project, acti
     return <Paperclip className="h-5 w-5 text-muted-foreground" />;
   }
 
+  const dialogTitle = activity ? 'Editar Actividad' : parentId ? 'Nueva Subtarea' : 'Nueva Actividad';
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{activity ? 'Editar Actividad' : 'Nueva Actividad'}</DialogTitle>
+          <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>
             {activity ? 'Actualiza los detalles de la actividad.' : 'Define una nueva actividad para el proyecto.'}
           </DialogDescription>

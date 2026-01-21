@@ -1,17 +1,20 @@
 
+
 'use client';
 
 import React, { useState, useMemo } from 'react';
 import type { Project, ProjectActivity } from '@/lib/types';
 import { useProjects } from '@/contexts/projects-context';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Loader2, Edit, Trash2, GanttChartSquare, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, Edit, Trash2, GanttChartSquare, GitBranchPlus } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import EditActivityDialog from './edit-activity-dialog';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { addDays, format, differenceInDays, parseISO } from 'date-fns';
+import { cn } from '@/lib/utils';
+
 
 // Gantt Chart Component
 const GanttChart = ({ activities }: { activities: ProjectActivity[] }) => {
@@ -105,14 +108,23 @@ export default function ProjectDetailView({ project, onBack }: { project: Projec
   const { activities, loading } = getActivitiesForProject(project.id);
   const [editingActivity, setEditingActivity] = useState<ProjectActivity | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [subtaskParentId, setSubtaskParentId] = useState<string | null>(null);
 
   const handleEdit = (activity: ProjectActivity) => {
     setEditingActivity(activity);
+    setSubtaskParentId(activity.parentId);
     setIsDialogOpen(true);
   };
   
   const handleAddNew = () => {
     setEditingActivity(null);
+    setSubtaskParentId(null);
+    setIsDialogOpen(true);
+  };
+  
+  const handleAddSubtask = (parentId: string) => {
+    setEditingActivity(null);
+    setSubtaskParentId(parentId);
     setIsDialogOpen(true);
   };
 
@@ -120,6 +132,29 @@ export default function ProjectDetailView({ project, onBack }: { project: Projec
     const totalBudgeted = activities.reduce((sum, act) => sum + act.budgetedCost, 0);
     const totalActual = activities.reduce((sum, act) => sum + act.actualCost, 0);
     return { totalBudgeted, totalActual, deviation: totalActual - totalBudgeted };
+  }, [activities]);
+  
+  const hierarchicalActivities = useMemo(() => {
+    const activityMap = new Map(activities.map(a => [a.id, { ...a, children: [] as ProjectActivity[] }]));
+    const rootActivities: (ProjectActivity & { children: ProjectActivity[] })[] = [];
+
+    activities.forEach(act => {
+      if (act.parentId && activityMap.has(act.parentId)) {
+        activityMap.get(act.parentId)!.children.push(act as any);
+      } else {
+        rootActivities.push(activityMap.get(act.id)!);
+      }
+    });
+
+    const flattened: (ProjectActivity & { level: number })[] = [];
+    function flatten(activity: ProjectActivity & { children: ProjectActivity[] }, level: number) {
+      flattened.push({ ...activity, level });
+      activity.children.forEach(child => flatten(activityMap.get(child.id)!, level + 1));
+    }
+    
+    rootActivities.forEach(root => flatten(root, 0));
+    
+    return flattened;
   }, [activities]);
 
   return (
@@ -181,17 +216,27 @@ export default function ProjectDetailView({ project, onBack }: { project: Projec
                     </TableHeader>
                     <TableBody>
                         {loading && <TableRow><TableCell colSpan={6} className="text-center p-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>}
-                        {!loading && activities.map(act => {
+                        {!loading && hierarchicalActivities.map(act => {
                             const endDate = format(addDays(parseISO(act.startDate), act.durationDays), 'dd/MM/yyyy');
                             return (
                                 <TableRow key={act.id}>
-                                    <TableCell className="font-medium">{act.name}</TableCell>
+                                    <TableCell className={cn("font-medium", act.level > 0 && "pl-8")}>
+                                      <div className="flex items-center gap-2">
+                                        {act.level > 0 && <span className="text-muted-foreground">└─</span>}
+                                        {act.name}
+                                      </div>
+                                    </TableCell>
                                     <TableCell>{format(parseISO(act.startDate), 'dd/MM/yyyy')}</TableCell>
                                     <TableCell>{endDate}</TableCell>
                                     <TableCell><Badge variant={act.progress === 100 ? "default" : "secondary"}>{act.progress}%</Badge></TableCell>
                                     <TableCell>${act.actualCost.toLocaleString()}</TableCell>
                                     <TableCell className="text-right">
-                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(act)}><Edit className="h-4 w-4 text-muted-foreground" /></Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleAddSubtask(act.id)} title="Agregar Subtarea">
+                                            <GitBranchPlus className="h-4 w-4 text-muted-foreground" />
+                                        </Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(act)} title="Editar Actividad">
+                                            <Edit className="h-4 w-4 text-muted-foreground" />
+                                        </Button>
                                     </TableCell>
                                 </TableRow>
                             )
@@ -210,9 +255,8 @@ export default function ProjectDetailView({ project, onBack }: { project: Projec
         project={project}
         activity={editingActivity}
         projectActivities={activities}
+        parentId={subtaskParentId}
       />
     </>
   );
 }
-
-    
