@@ -16,7 +16,6 @@ function initializeAi() {
       flowStateStore: 'firebase',
       traceStore: 'firebase',
       enableTracingAndMetrics: true,
-      logLevel: 'debug',
     });
   }
   return aiInstance;
