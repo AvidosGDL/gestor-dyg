@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -21,7 +20,7 @@ interface SidebarNavProps {
 export default function SidebarNav({ view, setView }: SidebarNavProps) {
   const { user } = useUser();
   const isAuthorizedForInvestors = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2';
-  const isAuthorizedForBanks = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2';
+  const isAuthorizedForBanks = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2' || user?.uid === 'cAmV6Hn6zNhbu45WXo9LFRRd2k82' || user?.uid === '0QjliF8VEbgA7ZAfAvJvrv22pII3';
   const isAuthorizedForProjects = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2';
 
 
@@ -64,5 +63,3 @@ export default function SidebarNav({ view, setView }: SidebarNavProps) {
     </SidebarMenu>
   );
 }
-
-    

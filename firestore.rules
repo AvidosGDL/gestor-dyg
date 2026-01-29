@@ -78,7 +78,9 @@ service cloud.firestore {
     function isAuthorizedForBanks() {
       return isSignedIn() && (
         request.auth.uid == 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || // daniel@avidos.mx
-        request.auth.uid == 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2'    // roberto.d@gygproyectosfiscales.com
+        request.auth.uid == 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2' ||   // roberto.d@gygproyectosfiscales.com
+        request.auth.uid == 'cAmV6Hn6zNhbu45WXo9LFRRd2k82' ||   // tesoreria1@dygproyectosfiscales.com
+        request.auth.uid == '0QjliF8VEbgA7ZAfAvJvrv22pII3'     // direccion@dygproyectosfiscales.com
       );
     }
 
@@ -200,5 +202,3 @@ service cloud.firestore {
     }
   }
 }
-
-    
