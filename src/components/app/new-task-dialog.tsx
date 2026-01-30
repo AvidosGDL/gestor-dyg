@@ -310,7 +310,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Fecha Límite</FormLabel>
-                    <Popover>
+                    <Popover modal={false}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button

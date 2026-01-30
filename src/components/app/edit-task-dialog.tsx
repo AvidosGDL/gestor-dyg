@@ -480,7 +480,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Fecha Límite</FormLabel>
-                    <Popover>
+                    <Popover modal={false}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
