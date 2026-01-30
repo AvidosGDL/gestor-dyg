@@ -21,6 +21,7 @@ import { DollarSign, Loader2, Percent } from 'lucide-react';
 import { useProspects } from '@/contexts/prospects-context';
 import { useToast } from '@/hooks/use-toast';
 import { Slider } from '../ui/slider';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 const prospectSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
@@ -46,14 +47,7 @@ export default function NewProspectDialog({
   const { addProspect } = useProspects();
   const { toast } = useToast();
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    watch,
-    control,
-    formState: { errors, isSubmitting },
-  } = useForm<ProspectFormValues>({
+  const form = useForm<ProspectFormValues>({
     resolver: zodResolver(prospectSchema),
     defaultValues: {
       name: '',
@@ -66,11 +60,11 @@ export default function NewProspectDialog({
     }
   });
 
-  const watchProbability = watch('probability', 50);
+  const watchProbability = form.watch('probability', 50);
   
   useEffect(() => {
     if(!open) {
-      reset({
+      form.reset({
         name: '',
         email: '',
         phone: '',
@@ -80,7 +74,7 @@ export default function NewProspectDialog({
         probability: 50,
       })
     }
-  }, [open, reset]);
+  }, [open, form]);
 
   const onSubmit: SubmitHandler<ProspectFormValues> = async (data) => {
     try {
@@ -111,73 +105,141 @@ export default function NewProspectDialog({
             Registra una nueva oportunidad de negocio.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Nombre del Prospecto</Label>
-            <Input id="name" {...register('name')} disabled={isSubmitting} />
-            {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
-          </div>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nombre del Prospecto</FormLabel>
+                  <FormControl>
+                    <Input {...field} disabled={form.formState.isSubmitting} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-                <Label htmlFor="email">Correo Electrónico</Label>
-                <Input id="email" type="email" {...register('email')} disabled={isSubmitting} />
-                {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="phone">Teléfono</Label>
-                <Input id="phone" {...register('phone')} disabled={isSubmitting} />
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="businessDescription">Descripción del Negocio</Label>
-            <Textarea id="businessDescription" {...register('businessDescription')} disabled={isSubmitting} />
-            {errors.businessDescription && <p className="text-sm text-destructive">{errors.businessDescription.message}</p>}
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="value">Valor del Negocio ($)</Label>
-              <div className="relative">
-                <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="value"
-                  type="number"
-                  step="100"
-                  className="pl-9"
-                  {...register('value')}
-                  disabled={isSubmitting}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="probability">Probabilidad de Cierre - {watchProbability}%</Label>
-              <Slider
-                id="probability"
-                min={0} max={100} step={5}
-                defaultValue={[50]}
-                onValueChange={(value) => control.setValue('probability', value[0])}
-                disabled={isSubmitting}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Correo Electrónico</FormLabel>
+                    <FormControl>
+                      <Input type="email" {...field} disabled={form.formState.isSubmitting} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Teléfono</FormLabel>
+                    <FormControl>
+                      <Input {...field} disabled={form.formState.isSubmitting} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
             </div>
-          </div>
+          
+            <FormField
+              control={form.control}
+              name="businessDescription"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Descripción del Negocio</FormLabel>
+                  <FormControl>
+                    <Textarea {...field} disabled={form.formState.isSubmitting} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="value"
+                render={({ field: { onChange, value, ...restField } }) => (
+                  <FormItem>
+                    <FormLabel>Valor del Negocio ($)</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          type="text"
+                          className="pl-9"
+                          value={value.toLocaleString('en-US')}
+                          onChange={(e) => {
+                            const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                            const numericValue = rawValue === '' ? 0 : Number(rawValue);
+                            onChange(numericValue);
+                          }}
+                          onBlur={(e) => {
+                            const numericValue = Number(e.target.value.replace(/[^0-9]/g, ''));
+                            e.target.value = numericValue.toLocaleString('en-US');
+                          }}
+                          disabled={form.formState.isSubmitting}
+                          {...restField}
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="probability"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Probabilidad de Cierre - {watchProbability}%</FormLabel>
+                    <FormControl>
+                      <Slider
+                        min={0} max={100} step={5}
+                        defaultValue={[50]}
+                        onValueChange={(value) => field.onChange(value[0])}
+                        disabled={form.formState.isSubmitting}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="nextContactDate">Fecha Próximo Contacto (Opcional)</Label>
-            <Input id="nextContactDate" type="date" {...register('nextContactDate')} disabled={isSubmitting} />
-          </div>
+            <FormField
+              control={form.control}
+              name="nextContactDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fecha Próximo Contacto (Opcional)</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} value={field.value || ''} disabled={form.formState.isSubmitting} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Agregar Prospecto
-            </Button>
-          </DialogFooter>
-        </form>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Agregar Prospecto
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -29,6 +30,7 @@ import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Alert, AlertDescription } from '../ui/alert';
 import { cn } from '@/lib/utils';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 
 const transactionSchema = z.object({
@@ -227,120 +229,191 @@ export default function EditInvestorDialog({
             Actualiza la información y el calendario de pagos.
           </DialogDescription>
         </DialogHeader>
+        <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] pr-2 -mr-4">
         <ScrollArea className="h-[65vh] pr-4">
           <div className="space-y-4 p-1">
              <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                  <Label htmlFor="edit-name">Nombre del Inversionista</Label>
-                  <Input id="edit-name" {...form.register('name')} />
-                  {form.formState.errors.name && <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>}
-              </div>
-               <div className="space-y-2">
-                <Label htmlFor="status">Estado</Label>
-                <Controller
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                     <Select onValueChange={field.onChange} value={field.value}>
-                        <SelectTrigger id="status"><SelectValue /></SelectTrigger>
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre del Inversionista</FormLabel>
+                    <FormControl><Input {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+               <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Estado</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                        </FormControl>
                         <SelectContent>
                             <SelectItem value="Activa">Activa</SelectItem>
                             <SelectItem value="Liquidada">Liquidada</SelectItem>
                         </SelectContent>
                     </Select>
-                  )}
-                />
-              </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="edit-email">Correo Electrónico</Label>
-                    <Input id="edit-email" type="email" {...form.register('email')} />
-                    {form.formState.errors.email && <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="edit-phone">Teléfono</Label>
-                    <Input id="edit-phone" {...form.register('phone')} />
-                </div>
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Correo Electrónico</FormLabel>
+                      <FormControl><Input type="email" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Teléfono</FormLabel>
+                      <FormControl><Input {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
             </div>
             
              <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="investmentDate">Fecha de Inversión</Label>
-                <Input id="investmentDate" type="date" {...form.register('investmentDate')} />
-                 {form.formState.errors.investmentDate && <p className="text-sm text-destructive">{form.formState.errors.investmentDate.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="investmentTerm">Plazo de Inversión</Label>
-                <Controller
-                  control={form.control}
-                  name="investmentTerm"
-                  render={({ field }) => (
+              <FormField
+                control={form.control}
+                name="investmentDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Fecha de Inversión</FormLabel>
+                    <FormControl><Input type="date" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="investmentTerm"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Plazo de Inversión</FormLabel>
                      <Select onValueChange={(val) => field.onChange(Number(val))} defaultValue={String(field.value)}>
-                        <SelectTrigger id="investmentTerm"><SelectValue /></SelectTrigger>
+                        <FormControl>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                        </FormControl>
                         <SelectContent>
                             <SelectItem value="6">6 meses</SelectItem>
                             <SelectItem value="12">12 meses</SelectItem>
                             <SelectItem value="24">24 meses</SelectItem>
                         </SelectContent>
                     </Select>
-                  )}
-                />
-                 {form.formState.errors.investmentTerm && <p className="text-sm text-destructive">{form.formState.errors.investmentTerm.message}</p>}
-            </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
             
             <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="investmentAmount">Monto Invertido ($)</Label>
-                  <div className="relative">
-                    <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <Input id="investmentAmount" type="number" className="pl-9" {...form.register('investmentAmount')} />
-                  </div>
-                  {form.formState.errors.investmentAmount && <p className="text-sm text-destructive">{form.formState.errors.investmentAmount.message}</p>}
-                </div>
-                 <div className="space-y-2">
-                  <Label htmlFor="interestRate">Interés Pactado (%)</Label>
-                  <div className="relative">
-                    <Percent size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <Input id="interestRate" type="number" step="0.1" className="pl-9" {...form.register('interestRate')} />
-                  </div>
-                  {form.formState.errors.interestRate && <p className="text-sm text-destructive">{form.formState.errors.interestRate.message}</p>}
-                </div>
+                <FormField
+                  control={form.control}
+                  name="investmentAmount"
+                  render={({ field: { onChange, value, ...restField } }) => (
+                    <FormItem>
+                      <FormLabel>Monto Invertido ($)</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            type="text"
+                            className="pl-9"
+                            value={(value || 0).toLocaleString('en-US')}
+                            onChange={(e) => {
+                              const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                              const numericValue = rawValue === '' ? 0 : Number(rawValue);
+                              onChange(numericValue);
+                            }}
+                            onBlur={(e) => {
+                              const numericValue = Number(e.target.value.replace(/[^0-9]/g, ''));
+                              e.target.value = numericValue.toLocaleString('en-US');
+                            }}
+                            {...restField}
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                 <FormField
+                  control={form.control}
+                  name="interestRate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Interés Pactado (%)</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Percent size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                          <Input type="number" step="0.1" className="pl-9" {...field} />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
             </div>
-            <div className="space-y-2">
-                <Label htmlFor="paymentMethod">Método de Pago</Label>
-                <Input id="paymentMethod" {...form.register('paymentMethod')} />
-                {form.formState.errors.paymentMethod && <p className="text-sm text-destructive">{form.formState.errors.paymentMethod.message}</p>}
-            </div>
+            <FormField
+              control={form.control}
+              name="paymentMethod"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Método de Pago</FormLabel>
+                  <FormControl><Input {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="space-y-4 pt-4 border-t">
-                 <Label className="text-base font-semibold">Esquema de Pago</Label>
-                 <Controller
-                    name="paymentType"
+                 <FormLabel className="text-base font-semibold">Esquema de Pago</FormLabel>
+                 <FormField
                     control={form.control}
+                    name="paymentType"
                     render={({ field }) => (
-                    <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-4">
-                        <div>
-                        <RadioGroupItem value="mensual" id="edit-mensual" className="peer sr-only" />
-                        <Label htmlFor="edit-mensual" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
-                            <Repeat className="mb-3 h-6 w-6" />
-                            Pago mensual de interés
-                        </Label>
-                        </div>
-                        <div>
-                        <RadioGroupItem value="pago_unico" id="edit-pago_unico" className="peer sr-only" />
-                        <Label htmlFor="edit-pago_unico" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
-                           <CalendarClock className="mb-3 h-6 w-6" />
-                           Pago único al vencimiento
-                        </Label>
-                        </div>
-                    </RadioGroup>
+                      <FormItem>
+                      <FormControl>
+                        <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-4">
+                            <div>
+                            <RadioGroupItem value="mensual" id="edit-mensual" className="peer sr-only" />
+                            <Label htmlFor="edit-mensual" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
+                                <Repeat className="mb-3 h-6 w-6" />
+                                Pago mensual de interés
+                            </Label>
+                            </div>
+                            <div>
+                            <RadioGroupItem value="pago_unico" id="edit-pago_unico" className="peer sr-only" />
+                            <Label htmlFor="edit-pago_unico" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
+                              <CalendarClock className="mb-3 h-6 w-6" />
+                              Pago único al vencimiento
+                            </Label>
+                            </div>
+                        </RadioGroup>
+                      </FormControl>
+                      <FormMessage />
+                      </FormItem>
                     )}
                 />
-                 {form.formState.errors.paymentType && <p className="text-sm text-destructive">{form.formState.errors.paymentType.message}</p>}
                  {summary && (
                     <Alert>
                         <Info className="h-4 w-4" />
@@ -461,6 +534,7 @@ export default function EditInvestorDialog({
             </div>
           </DialogFooter>
         </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

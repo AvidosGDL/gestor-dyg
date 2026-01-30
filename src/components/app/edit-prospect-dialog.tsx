@@ -25,6 +25,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Slider } from '../ui/slider';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 const contactLogSchema = z.object({
   date: z.string(),
@@ -124,47 +125,90 @@ export default function EditProspectDialog({
             Actualiza la información y el historial de contacto.
           </DialogDescription>
         </DialogHeader>
+        <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] pr-2 -mr-4">
         <ScrollArea className="h-[60vh] pr-4">
           <div className="space-y-4">
-            <div className="space-y-2">
-                <Label htmlFor="edit-name">Nombre del Prospecto</Label>
-                <Input id="edit-name" {...form.register('name')} />
-                {form.formState.errors.name && <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>}
-            </div>
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nombre del Prospecto</FormLabel>
+                  <FormControl><Input {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="edit-email">Correo Electrónico</Label>
-                    <Input id="edit-email" type="email" {...form.register('email')} />
-                    {form.formState.errors.email && <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="edit-phone">Teléfono</Label>
-                    <Input id="edit-phone" {...form.register('phone')} />
-                </div>
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Correo Electrónico</FormLabel>
+                    <FormControl><Input type="email" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Teléfono</FormLabel>
+                    <FormControl><Input {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
             
-            <div className="space-y-2">
-                <Label htmlFor="edit-businessDescription">Descripción del Negocio</Label>
-                <Textarea id="edit-businessDescription" {...form.register('businessDescription')} />
-                {form.formState.errors.businessDescription && <p className="text-sm text-destructive">{form.formState.errors.businessDescription.message}</p>}
-            </div>
+            <FormField
+                control={form.control}
+                name="businessDescription"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Descripción del Negocio</FormLabel>
+                    <FormControl><Textarea {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             
              <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-value">Valor del Negocio ($)</Label>
-                <div className="relative">
-                  <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="edit-value"
-                    type="number"
-                    step="100"
-                    className="pl-9"
-                    {...form.register('value')}
-                  />
-                </div>
-              </div>
+              <FormField
+                control={form.control}
+                name="value"
+                render={({ field: { onChange, value, ...restField } }) => (
+                  <FormItem>
+                    <FormLabel>Valor del Negocio ($)</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          type="text"
+                          className="pl-9"
+                          value={(value || 0).toLocaleString('en-US')}
+                          onChange={(e) => {
+                            const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                            const numericValue = rawValue === '' ? 0 : Number(rawValue);
+                            onChange(numericValue);
+                          }}
+                          onBlur={(e) => {
+                            const numericValue = Number(e.target.value.replace(/[^0-9]/g, ''));
+                            e.target.value = numericValue.toLocaleString('en-US');
+                          }}
+                          {...restField}
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <div className="space-y-2">
                 <Label htmlFor="edit-probability">Probabilidad de Cierre - {watchProbability}%</Label>
                 <Slider
@@ -176,10 +220,19 @@ export default function EditProspectDialog({
               </div>
             </div>
 
-            <div className="space-y-2">
-                <Label htmlFor="edit-nextContactDate">Fecha Próximo Contacto (Opcional)</Label>
-                <Input id="edit-nextContactDate" type="date" {...form.register('nextContactDate')} />
-            </div>
+            <FormField
+              control={form.control}
+              name="nextContactDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fecha Próximo Contacto (Opcional)</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} value={field.value || ''}/>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             
             <div className="space-y-4 pt-4 border-t">
               <Label>Historial de Contacto</Label>
@@ -224,6 +277,7 @@ export default function EditProspectDialog({
             </Button>
           </DialogFooter>
         </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

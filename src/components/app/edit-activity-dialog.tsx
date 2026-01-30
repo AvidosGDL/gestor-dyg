@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, DollarSign, Percent, Paperclip, X, Eye, Download, Trash2, Video, Image as ImageIcon } from 'lucide-react';
 import { Slider } from '../ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 const activitySchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
@@ -46,21 +47,21 @@ export default function EditActivityDialog({ isOpen, onOpenChange, project, acti
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
 
-  const { register, handleSubmit, reset, control, watch, formState: { errors, isSubmitting } } = useForm<ActivityFormValues>({
+  const form = useForm<ActivityFormValues>({
     resolver: zodResolver(activitySchema),
   });
   
-  const watchProgress = watch('progress');
+  const watchProgress = form.watch('progress');
 
   useEffect(() => {
     if (isOpen) {
       if (activity) {
-        reset({
+        form.reset({
           ...activity,
           startDate: activity.startDate.split('T')[0],
         });
       } else {
-        reset({
+        form.reset({
           name: '',
           startDate: new Date().toISOString().split('T')[0],
           durationDays: 1,
@@ -73,7 +74,7 @@ export default function EditActivityDialog({ isOpen, onOpenChange, project, acti
       }
       setAttachedFiles([]);
     }
-  }, [isOpen, activity, reset, parentId]);
+  }, [isOpen, activity, form, parentId]);
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -127,61 +128,144 @@ export default function EditActivityDialog({ isOpen, onOpenChange, project, acti
             {activity ? 'Actualiza los detalles de la actividad.' : 'Define una nueva actividad para el proyecto.'}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-4 -mr-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Nombre de la Actividad</Label>
-            <Input id="name" {...register('name')} />
-            {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
-          </div>
+        <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-4 -mr-4">
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nombre de la Actividad</FormLabel>
+                <FormControl><Input {...field} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="startDate">Fecha de Inicio</Label>
-              <Input id="startDate" type="date" {...register('startDate')} />
-              {errors.startDate && <p className="text-sm text-destructive">{errors.startDate.message}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="durationDays">Duración (días)</Label>
-              <Input id="durationDays" type="number" {...register('durationDays')} />
-              {errors.durationDays && <p className="text-sm text-destructive">{errors.durationDays.message}</p>}
-            </div>
+            <FormField
+              control={form.control}
+              name="startDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fecha de Inicio</FormLabel>
+                  <FormControl><Input type="date" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="durationDays"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Duración (días)</FormLabel>
+                  <FormControl><Input type="number" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
           
-           <div className="space-y-2">
-            <Label htmlFor="dependencyId">Dependencia (Actividad Anterior)</Label>
-             <Controller
-                name="dependencyId"
-                control={control}
-                render={({ field }) => (
-                <Select
-                  onValueChange={(value) => field.onChange(value === 'none' ? null : value)}
-                  value={field.value || 'none'}
-                >
-                    <SelectTrigger><SelectValue placeholder="Ninguna"/></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="none">Ninguna</SelectItem>
-                        {projectActivities.filter(a => a.id !== activity?.id).map(a => (
-                            <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-             )} />
-          </div>
+           <FormField
+              control={form.control}
+              name="dependencyId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Dependencia (Actividad Anterior)</FormLabel>
+                  <Select
+                    onValueChange={(value) => field.onChange(value === 'none' ? null : value)}
+                    value={field.value || 'none'}
+                  >
+                      <FormControl>
+                        <SelectTrigger><SelectValue placeholder="Ninguna"/></SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                          <SelectItem value="none">Ninguna</SelectItem>
+                          {projectActivities.filter(a => a.id !== activity?.id).map(a => (
+                              <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                          ))}
+                      </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+            )} />
 
-          <div className="space-y-2">
-            <Label htmlFor="progress">Progreso de Avance - {watchProgress || 0}%</Label>
-            <Slider id="progress" min={0} max={100} step={5} defaultValue={[activity?.progress || 0]} onValueChange={(v) => control.setValue('progress', v[0])} />
-          </div>
+          <FormField
+            control={form.control}
+            name="progress"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Progreso de Avance - {watchProgress || 0}%</FormLabel>
+                <FormControl>
+                  <Slider min={0} max={100} step={5} defaultValue={[activity?.progress || 0]} onValueChange={(v) => field.onChange(v[0])} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
           
            <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="budgetedCost">Costo Presupuestado ($)</Label>
-              <div className="relative"><DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><Input id="budgetedCost" type="number" className="pl-9" {...register('budgetedCost')} /></div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="actualCost">Costo Real ($)</Label>
-              <div className="relative"><DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><Input id="actualCost" type="number" className="pl-9" {...register('actualCost')} /></div>
-            </div>
+            <FormField
+              control={form.control}
+              name="budgetedCost"
+              render={({ field: { onChange, value, ...restField } }) => (
+                <FormItem>
+                  <FormLabel>Costo Presupuestado ($)</FormLabel>
+                  <FormControl>
+                  <div className="relative">
+                    <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      className="pl-9"
+                      value={(value || 0).toLocaleString('en-US')}
+                      onChange={(e) => {
+                        const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                        const numericValue = rawValue === '' ? 0 : Number(rawValue);
+                        onChange(numericValue);
+                      }}
+                      onBlur={(e) => {
+                        const numericValue = Number(e.target.value.replace(/[^0-9]/g, ''));
+                        e.target.value = numericValue.toLocaleString('en-US');
+                      }}
+                      {...restField}
+                    />
+                  </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="actualCost"
+              render={({ field: { onChange, value, ...restField } }) => (
+                <FormItem>
+                  <FormLabel>Costo Real ($)</FormLabel>
+                  <FormControl>
+                  <div className="relative">
+                    <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      className="pl-9"
+                      value={(value || 0).toLocaleString('en-US')}
+                      onChange={(e) => {
+                        const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                        const numericValue = rawValue === '' ? 0 : Number(rawValue);
+                        onChange(numericValue);
+                      }}
+                      onBlur={(e) => {
+                        const numericValue = Number(e.target.value.replace(/[^0-9]/g, ''));
+                        e.target.value = numericValue.toLocaleString('en-US');
+                      }}
+                      {...restField}
+                    />
+                  </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
           
            <div className="space-y-2 pt-4 border-t">
@@ -214,10 +298,11 @@ export default function EditActivityDialog({ isOpen, onOpenChange, project, acti
           </div>
           
         </form>
+        </Form>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button type="submit" onClick={handleSubmit(onSubmit)} disabled={isSubmitting}>
-            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          <Button type="submit" onClick={form.handleSubmit(onSubmit)} disabled={form.formState.isSubmitting}>
+            {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Guardar
           </Button>
         </DialogFooter>

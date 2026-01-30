@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -20,6 +21,7 @@ import { useBanks } from '@/contexts/banks-context';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { BankAccount } from '@/lib/types';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 const bankAccountSchema = z.object({
   companyName: z.string().min(1, 'El nombre de la empresa es requerido'),
@@ -50,26 +52,21 @@ export default function EditBankDialog({
   const [logoPreview, setLogoPreview] = useState<string | null>(bankAccount.logoUrl);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<BankAccountFormValues>({
+  const form = useForm<BankAccountFormValues>({
     resolver: zodResolver(bankAccountSchema),
   });
 
 
   useEffect(() => {
     if(isOpen) {
-      reset({
+      form.reset({
         ...bankAccount,
         balanceDate: bankAccount.balanceDate.split('T')[0],
       });
       setLogoFile(null);
       setLogoPreview(bankAccount.logoUrl);
     }
-  }, [isOpen, bankAccount, reset]);
+  }, [isOpen, bankAccount, form]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -111,19 +108,36 @@ export default function EditBankDialog({
             Actualiza los datos de la cuenta. El saldo actual se recalcula con las transacciones.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           
-          <div className="space-y-2">
-            <Label htmlFor="edit-companyName">Nombre de la Empresa</Label>
-            <Input id="edit-companyName" {...register('companyName')} placeholder="Ej. Mi Empresa S.A. de C.V." disabled={isSubmitting} />
-            {errors.companyName && <p className="text-sm text-destructive">{errors.companyName.message}</p>}
-          </div>
+          <FormField
+            control={form.control}
+            name="companyName"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nombre de la Empresa</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="Ej. Mi Empresa S.A. de C.V." disabled={form.formState.isSubmitting} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-          <div className="space-y-2">
-            <Label htmlFor="edit-bankName">Nombre del Banco</Label>
-            <Input id="edit-bankName" {...register('bankName')} placeholder="Ej. BBVA México" disabled={isSubmitting} />
-            {errors.bankName && <p className="text-sm text-destructive">{errors.bankName.message}</p>}
-          </div>
+          <FormField
+            control={form.control}
+            name="bankName"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nombre del Banco</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="Ej. BBVA México" disabled={form.formState.isSubmitting} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
           
           <div className="space-y-2">
             <Label>Logo del Banco (Opcional)</Label>
@@ -148,44 +162,92 @@ export default function EditBankDialog({
           </div>
           
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-                <Label htmlFor="edit-accountNumber">Número de Cuenta</Label>
-                <Input id="edit-accountNumber" {...register('accountNumber')} disabled={isSubmitting} />
-                {errors.accountNumber && <p className="text-sm text-destructive">{errors.accountNumber.message}</p>}
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="edit-clabe">CLABE (18 dígitos, opcional)</Label>
-                <Input id="edit-clabe" {...register('clabe')} disabled={isSubmitting} />
-                 {errors.clabe && <p className="text-sm text-destructive">{errors.clabe.message}</p>}
-            </div>
+            <FormField
+              control={form.control}
+              name="accountNumber"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Número de Cuenta</FormLabel>
+                  <FormControl>
+                    <Input {...field} disabled={form.formState.isSubmitting} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="clabe"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>CLABE (18 dígitos, opcional)</FormLabel>
+                  <FormControl>
+                    <Input {...field} disabled={form.formState.isSubmitting} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
           
            <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-initialBalance">Saldo Inicial ($)</Label>
-              <div className="relative">
-                <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input id="edit-initialBalance" type="number" step="0.01" className="pl-9" {...register('initialBalance')} disabled={isSubmitting} />
-              </div>
-              {errors.initialBalance && <p className="text-sm text-destructive">{errors.initialBalance.message}</p>}
-            </div>
-             <div className="space-y-2">
-              <Label htmlFor="edit-balanceDate">Fecha del Saldo Inicial</Label>
-              <Input id="edit-balanceDate" type="date" {...register('balanceDate')} disabled={isSubmitting} />
-              {errors.balanceDate && <p className="text-sm text-destructive">{errors.balanceDate.message}</p>}
-            </div>
+            <FormField
+                control={form.control}
+                name="initialBalance"
+                render={({ field: { onChange, value, ...restField } }) => (
+                  <FormItem>
+                    <FormLabel>Saldo Inicial ($)</FormLabel>
+                    <FormControl>
+                    <div className="relative">
+                      <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                          type="text"
+                          className="pl-9"
+                          value={(value || 0).toLocaleString('en-US')}
+                          onChange={(e) => {
+                            const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                            const numericValue = rawValue === '' ? 0 : Number(rawValue);
+                            onChange(numericValue);
+                          }}
+                          onBlur={(e) => {
+                            const numericValue = Number(e.target.value.replace(/[^0-9]/g, ''));
+                            e.target.value = numericValue.toLocaleString('en-US');
+                          }}
+                          disabled={form.formState.isSubmitting}
+                          {...restField}
+                        />
+                    </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+             <FormField
+              control={form.control}
+              name="balanceDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fecha del Saldo Inicial</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} disabled={form.formState.isSubmitting} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
           
           <DialogFooter className="pt-4">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button type="submit" disabled={form.formState.isSubmitting}>
+              {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Guardar Cambios
             </Button>
           </DialogFooter>
         </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

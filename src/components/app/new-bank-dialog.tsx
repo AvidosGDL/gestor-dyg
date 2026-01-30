@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -20,6 +21,7 @@ import { DollarSign, Loader2, ImageUp } from 'lucide-react';
 import { useBanks } from '@/contexts/banks-context';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 const bankAccountSchema = z.object({
   companyName: z.string().min(1, 'El nombre de la empresa es requerido'),
@@ -57,12 +59,7 @@ export default function NewBankDialog({
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<BankAccountFormValues>({
+  const form = useForm<BankAccountFormValues>({
     resolver: zodResolver(bankAccountSchema),
     defaultValues,
   });
@@ -70,11 +67,11 @@ export default function NewBankDialog({
 
   useEffect(() => {
     if(!open) {
-      reset(defaultValues);
+      form.reset(defaultValues);
       setLogoFile(null);
       setLogoPreview(null);
     }
-  }, [open, reset]);
+  }, [open, form]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -116,81 +113,143 @@ export default function NewBankDialog({
             Registra una nueva cuenta para seguimiento de saldos y transacciones.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          
-          <div className="space-y-2">
-            <Label htmlFor="companyName">Nombre de la Empresa</Label>
-            <Input id="companyName" {...register('companyName')} placeholder="Ej. Mi Empresa S.A. de C.V." disabled={isSubmitting} />
-            {errors.companyName && <p className="text-sm text-destructive">{errors.companyName.message}</p>}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="bankName">Nombre del Banco</Label>
-            <Input id="bankName" {...register('bankName')} placeholder="Ej. BBVA México" disabled={isSubmitting} />
-            {errors.bankName && <p className="text-sm text-destructive">{errors.bankName.message}</p>}
-          </div>
-          
-          <div className="space-y-2">
-            <Label>Logo del Banco (Opcional)</Label>
-            <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16 rounded-md">
-                {logoPreview ? (
-                  <AvatarImage src={logoPreview} alt="Vista previa del logo" className="object-contain" />
-                ) : (
-                  <AvatarFallback className="rounded-md bg-muted">
-                    <ImageUp className="h-8 w-8 text-muted-foreground" />
-                  </AvatarFallback>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="companyName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nombre de la Empresa</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="Ej. Mi Empresa S.A. de C.V." disabled={form.formState.isSubmitting} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="bankName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nombre del Banco</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="Ej. BBVA México" disabled={form.formState.isSubmitting} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="space-y-2">
+              <Label>Logo del Banco (Opcional)</Label>
+              <div className="flex items-center gap-4">
+                <Avatar className="h-16 w-16 rounded-md">
+                  {logoPreview ? (
+                    <AvatarImage src={logoPreview} alt="Vista previa del logo" className="object-contain" />
+                  ) : (
+                    <AvatarFallback className="rounded-md bg-muted">
+                      <ImageUp className="h-8 w-8 text-muted-foreground" />
+                    </AvatarFallback>
+                  )}
+                </Avatar>
+                <div className="flex flex-col gap-2">
+                  <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
+                    Subir Imagen
+                  </Button>
+                  {logoFile && <Button type="button" variant="ghost" size="sm" onClick={() => { setLogoFile(null); setLogoPreview(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}>Quitar</Button>}
+                </div>
+                <input type="file" ref={fileInputRef} className="hidden" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange} />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="accountNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Número de Cuenta</FormLabel>
+                    <FormControl>
+                      <Input {...field} disabled={form.formState.isSubmitting} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-              </Avatar>
-              <div className="flex flex-col gap-2">
-                <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
-                  Subir Imagen
-                </Button>
-                {logoFile && <Button type="button" variant="ghost" size="sm" onClick={() => { setLogoFile(null); setLogoPreview(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}>Quitar</Button>}
-              </div>
-              <input type="file" ref={fileInputRef} className="hidden" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange} />
+              />
+              <FormField
+                control={form.control}
+                name="clabe"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>CLABE (18 dígitos, opcional)</FormLabel>
+                    <FormControl>
+                      <Input {...field} disabled={form.formState.isSubmitting} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-                <Label htmlFor="accountNumber">Número de Cuenta</Label>
-                <Input id="accountNumber" {...register('accountNumber')} disabled={isSubmitting} />
-                {errors.accountNumber && <p className="text-sm text-destructive">{errors.accountNumber.message}</p>}
+            
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="initialBalance"
+                render={({ field: { onChange, value, ...restField } }) => (
+                  <FormItem>
+                    <FormLabel>Saldo Inicial ($)</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          type="text"
+                          className="pl-9"
+                          value={(value || 0).toLocaleString('en-US')}
+                          onChange={(e) => {
+                            const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                            const numericValue = rawValue === '' ? 0 : Number(rawValue);
+                            onChange(numericValue);
+                          }}
+                          onBlur={(e) => {
+                            const numericValue = Number(e.target.value.replace(/[^0-9]/g, ''));
+                            e.target.value = numericValue.toLocaleString('en-US');
+                          }}
+                          disabled={form.formState.isSubmitting}
+                          {...restField}
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="balanceDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Fecha del Saldo</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} disabled={form.formState.isSubmitting} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
-            <div className="space-y-2">
-                <Label htmlFor="clabe">CLABE (18 dígitos, opcional)</Label>
-                <Input id="clabe" {...register('clabe')} disabled={isSubmitting} />
-                 {errors.clabe && <p className="text-sm text-destructive">{errors.clabe.message}</p>}
-            </div>
-          </div>
-          
-           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="initialBalance">Saldo Inicial ($)</Label>
-              <div className="relative">
-                <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input id="initialBalance" type="number" step="0.01" className="pl-9" {...register('initialBalance')} disabled={isSubmitting} />
-              </div>
-              {errors.initialBalance && <p className="text-sm text-destructive">{errors.initialBalance.message}</p>}
-            </div>
-             <div className="space-y-2">
-              <Label htmlFor="balanceDate">Fecha del Saldo</Label>
-              <Input id="balanceDate" type="date" {...register('balanceDate')} disabled={isSubmitting} />
-              {errors.balanceDate && <p className="text-sm text-destructive">{errors.balanceDate.message}</p>}
-            </div>
-          </div>
-          
-          <DialogFooter className="pt-4">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Agregar Cuenta
-            </Button>
-          </DialogFooter>
-        </form>
+            
+            <DialogFooter className="pt-4">
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Agregar Cuenta
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

@@ -27,6 +27,7 @@ import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'fire
 import { addMonths, format, getDate } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Alert, AlertDescription } from '../ui/alert';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 
 const investorSchema = z.object({
@@ -72,19 +73,12 @@ export default function NewInvestorDialog({
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
 
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    control,
-    watch,
-    formState: { errors, isSubmitting },
-  } = useForm<InvestorFormValues>({
+  const form = useForm<InvestorFormValues>({
     resolver: zodResolver(investorSchema),
     defaultValues,
   });
   
-  const watchedFields = watch(['paymentType', 'investmentDate', 'investmentTerm']);
+  const watchedFields = form.watch(['paymentType', 'investmentDate', 'investmentTerm']);
   const [paymentType, investmentDate, investmentTerm] = watchedFields;
 
   const summary = React.useMemo(() => {
@@ -105,10 +99,10 @@ export default function NewInvestorDialog({
 
   useEffect(() => {
     if(!open) {
-      reset(defaultValues);
+      form.reset(defaultValues);
       setAttachedFiles([]);
     }
-  }, [open, reset]);
+  }, [open, form]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -173,99 +167,167 @@ export default function NewInvestorDialog({
             Registra un nuevo ingreso de capital y define su esquema de pago.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] pr-4 -mr-4 overflow-y-auto">
-          <div className="space-y-2">
-            <Label htmlFor="name">Nombre del Inversionista</Label>
-            <Input id="name" {...register('name')} disabled={isSubmitting} />
-            {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
-          </div>
+        <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] pr-4 -mr-4 overflow-y-auto">
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nombre del Inversionista</FormLabel>
+                <FormControl><Input {...field} disabled={form.formState.isSubmitting} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-                <Label htmlFor="email">Correo Electrónico</Label>
-                <Input id="email" type="email" {...register('email')} disabled={isSubmitting} />
-                {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="phone">Teléfono</Label>
-                <Input id="phone" {...register('phone')} disabled={isSubmitting} />
-            </div>
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Correo Electrónico</FormLabel>
+                  <FormControl><Input type="email" {...field} disabled={form.formState.isSubmitting} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="phone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Teléfono</FormLabel>
+                  <FormControl><Input {...field} disabled={form.formState.isSubmitting} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
           
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="investmentDate">Fecha de Inversión</Label>
-              <Input id="investmentDate" type="date" {...register('investmentDate')} disabled={isSubmitting} />
-               {errors.investmentDate && <p className="text-sm text-destructive">{errors.investmentDate.message}</p>}
-            </div>
-             <div className="space-y-2">
-                <Label htmlFor="investmentTerm">Plazo de Inversión</Label>
-                <Controller
-                  control={control}
-                  name="investmentTerm"
-                  render={({ field }) => (
-                     <Select onValueChange={(val) => field.onChange(Number(val))} defaultValue={String(field.value)}>
-                        <SelectTrigger id="investmentTerm"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="6">6 meses</SelectItem>
-                            <SelectItem value="12">12 meses</SelectItem>
-                            <SelectItem value="24">24 meses</SelectItem>
-                        </SelectContent>
-                    </Select>
-                  )}
-                />
-                 {errors.investmentTerm && <p className="text-sm text-destructive">{errors.investmentTerm.message}</p>}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="investmentAmount">Monto Invertido ($)</Label>
-              <div className="relative">
-                <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input id="investmentAmount" type="number" className="pl-9" {...register('investmentAmount')} disabled={isSubmitting} />
-              </div>
-              {errors.investmentAmount && <p className="text-sm text-destructive">{errors.investmentAmount.message}</p>}
-            </div>
-             <div className="space-y-2">
-              <Label htmlFor="interestRate">Interés Pactado (%)</Label>
-              <div className="relative">
-                <Percent size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input id="interestRate" type="number" step="0.1" className="pl-9" {...register('interestRate')} disabled={isSubmitting} />
-              </div>
-              {errors.interestRate && <p className="text-sm text-destructive">{errors.interestRate.message}</p>}
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-                <Label htmlFor="paymentMethod">Método de Pago</Label>
-                <Input id="paymentMethod" {...register('paymentMethod')} disabled={isSubmitting} />
-                {errors.paymentMethod && <p className="text-sm text-destructive">{errors.paymentMethod.message}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="status">Estado</Label>
-              <Controller
-                control={control}
-                name="status"
+            <FormField
+              control={form.control}
+              name="investmentDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fecha de Inversión</FormLabel>
+                  <FormControl><Input type="date" {...field} disabled={form.formState.isSubmitting} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+                control={form.control}
+                name="investmentTerm"
                 render={({ field }) => (
-                     <Select onValueChange={field.onChange} defaultValue={defaultValues.status}>
-                        <SelectTrigger id="status"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="Activa">Activa</SelectItem>
-                            <SelectItem value="Liquidada">Liquidada</SelectItem>
-                        </SelectContent>
-                    </Select>
+                  <FormItem>
+                  <FormLabel>Plazo de Inversión</FormLabel>
+                   <Select onValueChange={(val) => field.onChange(Number(val))} defaultValue={String(field.value)}>
+                      <FormControl>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                          <SelectItem value="6">6 meses</SelectItem>
+                          <SelectItem value="12">12 meses</SelectItem>
+                          <SelectItem value="24">24 meses</SelectItem>
+                      </SelectContent>
+                  </Select>
+                  <FormMessage />
+                  </FormItem>
                 )}
               />
-            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="investmentAmount"
+              render={({ field: { onChange, value, ...restField } }) => (
+                <FormItem>
+                  <FormLabel>Monto Invertido ($)</FormLabel>
+                  <FormControl>
+                  <div className="relative">
+                    <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      className="pl-9"
+                      value={(value || 0).toLocaleString('en-US')}
+                      onChange={(e) => {
+                        const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                        const numericValue = rawValue === '' ? 0 : Number(rawValue);
+                        onChange(numericValue);
+                      }}
+                      onBlur={(e) => {
+                        const numericValue = Number(e.target.value.replace(/[^0-9]/g, ''));
+                        e.target.value = numericValue.toLocaleString('en-US');
+                      }}
+                      disabled={form.formState.isSubmitting}
+                      {...restField}
+                    />
+                  </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+                control={form.control}
+                name="interestRate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Interés Pactado (%)</FormLabel>
+                    <FormControl>
+                    <div className="relative">
+                      <Percent size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <Input type="number" step="0.1" className="pl-9" {...field} disabled={form.formState.isSubmitting} />
+                    </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+                control={form.control}
+                name="paymentMethod"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Método de Pago</FormLabel>
+                    <FormControl><Input {...field} disabled={form.formState.isSubmitting} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Estado</FormLabel>
+                   <Select onValueChange={field.onChange} defaultValue={defaultValues.status}>
+                      <FormControl>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                          <SelectItem value="Activa">Activa</SelectItem>
+                          <SelectItem value="Liquidada">Liquidada</SelectItem>
+                      </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
 
             <div className="space-y-4 pt-4 border-t">
                  <Label>Esquema de Pago de Intereses</Label>
                  <Controller
                     name="paymentType"
-                    control={control}
+                    control={form.control}
                     render={({ field }) => (
                     <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-4">
                         <div>
@@ -283,7 +345,7 @@ export default function NewInvestorDialog({
                     </RadioGroup>
                     )}
                 />
-                 {errors.paymentType && <p className="text-sm text-destructive">{errors.paymentType.message}</p>}
+                 {form.formState.errors.paymentType && <p className="text-sm text-destructive">{form.formState.errors.paymentType.message}</p>}
                  {summary && (
                     <Alert>
                         <Info className="h-4 w-4" />
@@ -296,7 +358,7 @@ export default function NewInvestorDialog({
             
             <div className="space-y-2 pt-4 border-t">
                 <Label>Comprobante de Inversión Inicial</Label>
-                <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isSubmitting}>
+                <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={form.formState.isSubmitting}>
                     <Paperclip className="mr-2 h-4 w-4"/>Adjuntar Archivo(s)
                 </Button>
                 <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileChange} />
@@ -315,12 +377,13 @@ export default function NewInvestorDialog({
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button type="submit" disabled={form.formState.isSubmitting}>
+              {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Agregar Inversionista
             </Button>
           </DialogFooter>
         </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
