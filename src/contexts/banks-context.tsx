@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, ReactNode, useMemo } from 'react';
@@ -24,10 +25,10 @@ interface BanksContextType {
   addBankAccount: (bankAccountData: BankAccountFormValues, logoFile: File | null) => Promise<void>;
   updateBankAccount: (id: string, bankAccountData: BankAccountFormValues, logoFile: File | null) => Promise<void>;
   deleteBankAccount: (id: string) => void;
-  addBankTransaction: (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source'>) => void;
+  addBankTransaction: (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source' | 'createdBy'>) => void;
   deleteBankTransaction: (bankAccountId: string, transaction: BankTransaction) => void;
-  batchAddBankTransactions: (bankAccountId: string, transactionsWithFiles: { data: Omit<BankTransaction, 'id' | 'attachments' | 'source'>, file: File }[]) => Promise<void>;
-  batchAddConciliatedTransactions: (bankAccountId: string, transactions: Omit<BankTransaction, 'id' | 'source' | 'attachments'>[]) => Promise<void>;
+  batchAddBankTransactions: (bankAccountId: string, transactionsWithFiles: { data: Omit<BankTransaction, 'id' | 'attachments' | 'source' | 'createdBy'>, file: File }[]) => Promise<void>;
+  batchAddConciliatedTransactions: (bankAccountId: string, transactions: Omit<BankTransaction, 'id' | 'source' | 'attachments' | 'createdBy'>[]) => Promise<void>;
   loading: boolean;
 }
 
@@ -152,7 +153,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
   };
 
 
-  const addBankTransaction = async (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source'>) => {
+  const addBankTransaction = async (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source' | 'createdBy'>) => {
     if (!firestore || !collectionPath) return;
 
     const bankAccountRef = doc(firestore, collectionPath, bankAccountId);
@@ -161,6 +162,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     const dataToSave: Omit<BankTransaction, 'id'> = {
         ...transactionData,
         source: 'manual',
+        createdBy: user?.displayName || user?.email || 'Desconocido',
     };
 
     try {
@@ -232,7 +234,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const batchAddBankTransactions = async (bankAccountId: string, transactionsWithFiles: { data: Omit<BankTransaction, 'id' | 'attachments' | 'source'>, file: File }[]) => {
+  const batchAddBankTransactions = async (bankAccountId: string, transactionsWithFiles: { data: Omit<BankTransaction, 'id' | 'attachments' | 'source' | 'createdBy'>, file: File }[]) => {
     if (!firestore || !collectionPath) return;
 
     const bankAccountRef = doc(firestore, collectionPath, bankAccountId);
@@ -271,7 +273,8 @@ export function BanksProvider({ children }: { children: ReactNode }) {
             const finalTransactionData: Omit<BankTransaction, 'id'> = {
                 ...data,
                 source: 'import_file',
-                attachments: [newAttachment]
+                attachments: [newAttachment],
+                createdBy: user?.displayName || user?.email || 'Desconocido',
             };
             
             batch.set(newTransactionRef, finalTransactionData);
@@ -300,7 +303,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const batchAddConciliatedTransactions = async (bankAccountId: string, transactions: Omit<BankTransaction, 'id' | 'source' | 'attachments'>[]) => {
+  const batchAddConciliatedTransactions = async (bankAccountId: string, transactions: Omit<BankTransaction, 'id' | 'source' | 'attachments' | 'createdBy'>[]) => {
     if (!firestore || !collectionPath) return;
 
     const bankAccountRef = doc(firestore, collectionPath, bankAccountId);
@@ -326,6 +329,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
             const finalTransactionData: Omit<BankTransaction, 'id'> = {
                 ...txData,
                 source: 'conciliado_pdf',
+                createdBy: user?.displayName || user?.email || 'Desconocido',
             };
             batch.set(newTransactionRef, finalTransactionData);
         });

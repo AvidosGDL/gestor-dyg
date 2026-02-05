@@ -1,5 +1,4 @@
 
-
 export type TaskStatus =
   | 'pendiente'
   | 'en-progreso'
@@ -164,6 +163,7 @@ export interface BankTransaction {
   type: 'ingreso' | 'egreso';
   source: 'manual' | 'import_csv' | 'conciliado_pdf' | 'import_file';
   attachments?: Attachment[];
+  createdBy?: string;
 }
 
 export interface Project {

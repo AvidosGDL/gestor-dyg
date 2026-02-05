@@ -6,7 +6,7 @@ import { useBanks } from '@/contexts/banks-context';
 import type { BankAccount, BankTransaction } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2 } from 'lucide-react';
+import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
@@ -76,13 +76,14 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                             <TableHead>Descripción</TableHead>
                             <TableHead>Tipo</TableHead>
                             <TableHead className="text-right">Monto</TableHead>
+                            <TableHead>Usuario</TableHead>
                             <TableHead className="text-right">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {transactionsLoading && (
                             <TableRow>
-                                <TableCell colSpan={5} className="text-center p-8">
+                                <TableCell colSpan={6} className="text-center p-8">
                                     <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                                 </TableCell>
                             </TableRow>
@@ -97,6 +98,12 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                                     </span>
                                 </TableCell>
                                 <TableCell className="text-right font-mono">${tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                <TableCell>
+                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                        <User size={12} />
+                                        <span className="truncate max-w-[100px]">{tx.createdBy || 'Desconocido'}</span>
+                                    </div>
+                                </TableCell>
                                 <TableCell className="text-right">
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
@@ -127,7 +134,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                         ))}
                          {!transactionsLoading && (!transactions || transactions.length === 0) && (
                             <TableRow>
-                                <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
+                                <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
                                     No hay transacciones registradas.
                                 </TableCell>
                             </TableRow>
