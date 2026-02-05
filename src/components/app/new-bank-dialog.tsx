@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -26,8 +25,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 const bankAccountSchema = z.object({
   companyName: z.string().min(1, 'El nombre de la empresa es requerido'),
   bankName: z.string().min(1, 'El nombre del banco es requerido'),
-  accountNumber: z.string().min(1, 'El número de cuenta es requerido'),
+  accountNumber: z.string().optional().or(z.literal('')),
   clabe: z.string().length(18, 'La CLABE debe tener 18 dígitos').optional().or(z.literal('')),
+  cardNumber: z.string().length(16, 'La tarjeta debe tener 16 dígitos').optional().or(z.literal('')),
   initialBalance: z.coerce.number(),
   balanceDate: z.string().min(1, 'La fecha del saldo es requerida'),
 });
@@ -40,6 +40,7 @@ const defaultValues: Partial<BankAccountFormValues> = {
     bankName: '',
     accountNumber: '',
     clabe: '',
+    cardNumber: '',
     initialBalance: 0,
     balanceDate: new Date().toISOString().split('T')[0],
 };
@@ -163,15 +164,28 @@ export default function NewBankDialog({
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <FormField
                 control={form.control}
                 name="accountNumber"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Número de Cuenta</FormLabel>
+                    <FormLabel>Número de Cuenta (Opcional)</FormLabel>
                     <FormControl>
                       <Input {...field} disabled={form.formState.isSubmitting} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="cardNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Número de Tarjeta (16 dígitos, opcional)</FormLabel>
+                    <FormControl>
+                      <Input {...field} maxLength={16} disabled={form.formState.isSubmitting} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -184,7 +198,7 @@ export default function NewBankDialog({
                   <FormItem>
                     <FormLabel>CLABE (18 dígitos, opcional)</FormLabel>
                     <FormControl>
-                      <Input {...field} disabled={form.formState.isSubmitting} />
+                      <Input {...field} maxLength={18} disabled={form.formState.isSubmitting} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

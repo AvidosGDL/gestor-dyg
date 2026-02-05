@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -31,6 +32,9 @@ import {
 function BankAccountCard({ bankAccount, onSelect, onEdit, onDelete }: { bankAccount: BankAccount, onSelect: (id: string) => void, onEdit: (account: BankAccount) => void, onDelete: (id: string) => void }) {
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
 
+  const identifier = bankAccount.accountNumber || bankAccount.cardNumber || bankAccount.clabe || '';
+  const displayIdentifier = identifier ? `...${identifier.slice(-4)}` : 'Sin número';
+
   return (
     <Card className="flex flex-col">
       <CardHeader className="flex flex-row items-start justify-between">
@@ -38,7 +42,7 @@ function BankAccountCard({ bankAccount, onSelect, onEdit, onDelete }: { bankAcco
           <CardTitle>{bankAccount.companyName}</CardTitle>
           <CardDescription className="flex items-center gap-2 pt-1">
               {bankAccount.logoUrl ? <img src={bankAccount.logoUrl} alt={bankAccount.bankName} className="h-5 w-5 object-contain" /> : <Landmark size={14} />}
-              {bankAccount.bankName} | Terminación: ...{bankAccount.accountNumber.slice(-4)}
+              {bankAccount.bankName} | Term: {displayIdentifier}
           </CardDescription>
         </div>
          <DropdownMenu>

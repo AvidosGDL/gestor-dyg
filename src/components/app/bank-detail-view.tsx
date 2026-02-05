@@ -30,6 +30,9 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
   const transactionsQuery = useMemoFirebase(() => query(transactionsRef, orderBy('date', 'desc')), [transactionsRef]);
   const { data: transactions, loading: transactionsLoading } = useCollection<BankTransaction>(transactionsQuery);
 
+  const identifier = bankAccount.accountNumber || bankAccount.cardNumber || bankAccount.clabe || '';
+  const displayIdentifier = identifier ? `...${identifier.slice(-4)}` : 'Sin número';
+
   return (
     <>
       <div className="h-full flex flex-col p-2 space-y-4">
@@ -39,7 +42,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
           </Button>
           <div>
             <h2 className="text-xl font-bold">{bankAccount.companyName}</h2>
-            <p className="text-sm text-muted-foreground">{bankAccount.bankName} | Terminación: ...{bankAccount.accountNumber.slice(-4)}</p>
+            <p className="text-sm text-muted-foreground">{bankAccount.bankName} | Terminación: {displayIdentifier}</p>
           </div>
         </div>
 

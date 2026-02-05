@@ -337,14 +337,15 @@
         "id": { "type": "string", "description": "Unique identifier for the BankAccount." },
         "companyName": { "type": "string", "description": "Name of the company or entity that owns the account." },
         "bankName": { "type": "string", "description": "Name of the bank (e.g., BBVA, Santander)." },
-        "accountNumber": { "type": "string", "description": "The bank account number." },
-        "clabe": { "type": "string", "description": "The 18-digit CLABE number." },
+        "accountNumber": { "type": "string", "description": "The bank account number (optional)." },
+        "clabe": { "type": "string", "description": "The 18-digit CLABE number (optional)." },
+        "cardNumber": { "type": "string", "description": "The 16-digit card number (optional)." },
         "logoUrl": { "type": "string", "format": "uri", "description": "URL of the bank's logo." },
         "initialBalance": { "type": "number", "description": "The initial balance amount at a specific date." },
         "balanceDate": { "type": "string", "format": "date", "description": "The date of the initial balance." },
         "currentBalance": { "type": "number", "description": "The current balance, calculated automatically." }
       },
-      "required": ["id", "companyName", "bankName", "accountNumber", "initialBalance", "balanceDate"]
+      "required": ["id", "companyName", "bankName", "initialBalance", "balanceDate"]
     },
     "BankTransaction": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -589,6 +590,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed to manage tasks and user profiles for the TaskMaster Pro application, prioritizing security, scalability, and debuggability. It emphasizes Authorization Independence by avoiding hierarchical authorization dependencies.\\n\\n**Authorization Independence and QAPs:**\\n\\n*   **User Profiles:** User profile data is stored under `/users/{userId}/profile`.  Authorization rules can directly check if `request.auth.uid == userId`. Segregation ensures only the user can access their profile.\\n*   **Tasks:** Tasks are stored within a user's document in the `/users/{userId}/tasks/{taskId}` collection. This structure ensures that only the authenticated user can access and manipulate tasks under their ownership. The structure allows for secure listing of tasks, as the query will be always be scoped to the user's own tasks, satisfying QAPs (Rules are not Filters) requirements.\\n* **Chats**: A top-level `/chats` collection stores conversation metadata. Each chat document contains an array `memberIds`. Security rules ensure only users whose UID is in `memberIds` can read/write to the chat document and its `messages` subcollection. This enforces privacy for 1-on-1 and group chats.\\n\\nThis structure promotes clarity of intent and supports robust security rules without relying on complex `get()` calls. The path-based ownership model provides inherent security and facilitates simple, efficient rules."
+    "reasoning": "The Firestore structure is designed to manage tasks and user profiles for the TaskMaster Pro application, prioritizing security, scalability, and debuggability. It emphasizes Authorization Independence by avoiding hierarchical authorization dependencies."
   }
 }

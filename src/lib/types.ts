@@ -147,8 +147,9 @@ export interface BankAccount {
   id: string;
   companyName: string;
   bankName: string;
-  accountNumber: string;
-  clabe: string;
+  accountNumber?: string;
+  clabe?: string;
+  cardNumber?: string;
   logoUrl: string;
   initialBalance: number;
   balanceDate: string; // ISO Date
