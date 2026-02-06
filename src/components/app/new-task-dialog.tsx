@@ -254,7 +254,6 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                           }}
                           onBlur={(e) => {
                             const numericValue = Number(e.target.value.replace(/[^0-9]/g, ''));
-                             // Re-format on blur to ensure consistency
                             e.target.value = numericValue.toLocaleString('en-US');
                           }}
                           {...restField}
@@ -332,7 +331,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                         <Calendar
                           mode="single"
                           selected={field.value ? new Date(field.value) : undefined}
-                          onSelect={(date) => field.onChange(date?.toISOString())}
+                          onSelect={(date) => field.onChange(date?.toISOString().split('T')[0])}
                           disabled={(date) => date < new Date("1900-01-01")}
                           initialFocus
                         />
