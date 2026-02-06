@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
@@ -500,7 +499,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                           </Button>
                         </FormControl>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
+                      <PopoverContent className="w-auto p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
                         <Calendar
                           mode="single"
                           selected={field.value ? new Date(field.value) : undefined}
