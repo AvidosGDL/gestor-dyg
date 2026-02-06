@@ -307,36 +307,33 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                 name="dueDate"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Fecha Límite</FormLabel>
-                    <Popover modal={false}>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "w-full pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(new Date(field.value), "dd/MM/yyyy")
-                            ) : (
-                              <span>Elige una fecha</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
-                        <Calendar
-                          mode="single"
-                          selected={field.value ? new Date(field.value) : undefined}
-                          onSelect={(date) => field.onChange(date?.toISOString().split('T')[0])}
-                          disabled={(date) => date < new Date("1900-01-01")}
-                          initialFocus
+                    <FormLabel>Fecha Límite (aaaa-mm-dd)</FormLabel>
+                    <div className="flex gap-2">
+                      <FormControl>
+                        <Input
+                          type="date"
+                          {...field}
+                          className="flex-1"
+                          placeholder="aaaa-mm-dd"
                         />
-                      </PopoverContent>
-                    </Popover>
+                      </FormControl>
+                      <Popover modal={false}>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="icon" className="shrink-0">
+                            <CalendarIcon className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="end" onOpenAutoFocus={(e) => e.preventDefault()}>
+                          <Calendar
+                            mode="single"
+                            selected={field.value ? new Date(field.value) : undefined}
+                            onSelect={(date) => field.onChange(date?.toISOString().split('T')[0])}
+                            disabled={(date) => date < new Date("1900-01-01")}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -385,7 +382,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                         </FormControl>
                         <SelectContent>
                             <SelectItem value="pendiente">Pendiente</SelectItem>
-                            <SelectItem value="en-progreso">En Progreso</SelectItem>
+                            <SelectItem value="en-progreso">En Pregreso</SelectItem>
                             <SelectItem value="cierre">Cierre</SelectItem>
                             <SelectItem value="completado">Completado</SelectItem>
                         </SelectContent>
