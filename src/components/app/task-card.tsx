@@ -159,7 +159,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
         taskId: task.id,
         taskTitle: task.title,
         delegatorName: delegatorName,
-        taskUrl: `${window.location.origin}/?task=${task.id}`,
+        taskUrl: `https://gestor.fiscalflow.mx/?task=${task.id}`,
         delegateId: task.delegateToId
       };
       

@@ -76,7 +76,7 @@ export default function NewMemberDialog({
         email: data.email,
         inviterId: user.uid,
         inviterName: user.displayName || 'un administrador',
-        registrationUrl: `${window.location.origin}/login`,
+        registrationUrl: `https://gestor.fiscalflow.mx/login`,
         createdAt: serverTimestamp(),
       };
       
