@@ -218,8 +218,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         if (updatedData.hasOwnProperty(key) && updatedData[key] !== existingTask[key]) {
             changes.push({
                 field: key,
-                from: existingTask[key],
-                to: updatedData[key],
+                from: existingTask[key] || null,
+                to: updatedData[key] === undefined ? null : updatedData[key],
             });
         }
     });
@@ -230,7 +230,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       changes: changes
     } : null;
 
-    const finalData: Partial<Task> = { 
+    const finalData: any = { 
         ...updatedData,
         attachments: [...(existingTask.attachments || []), ...newAttachments],
         editHistory: [...(existingTask.editHistory || []), ...(newEditLogEntry ? [newEditLogEntry] : [])],
@@ -240,6 +240,12 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       finalData.updatedAt = new Date().toISOString();
     }
 
+    // CRITICAL FIX: Sanitización para evitar valores 'undefined' que Firestore rechaza
+    Object.keys(finalData).forEach(key => {
+      if (finalData[key] === undefined) {
+        delete finalData[key];
+      }
+    });
 
     let shouldSendEmail = false;
 
@@ -270,8 +276,28 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
     try {
         await updateDoc(docRef, finalData);
+    } catch (error: any) {
+        console.error("Error al actualizar Firestore:", error);
+        toast({
+            variant: "destructive",
+            title: "Error al actualizar tarea",
+            description: error.message || "No se pudo guardar la tarea en la base de datos.",
+        });
+        
+        if (error.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+                path: docRef.path,
+                operation: 'update',
+                requestResourceData: finalData,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        }
+        return; // Detener flujo si falla Firestore
+    }
 
-        if (shouldSendEmail) {
+    // Solo intentar enviar notificación si Firestore se actualizó correctamente
+    if (shouldSendEmail) {
+        try {
             const taskWithUpdates = { ...existingTask, ...finalData };
             const emailResult = await sendDelegationEmail(firestore, user, taskWithUpdates, id);
 
@@ -283,22 +309,13 @@ export function TasksProvider({ children }: { children: ReactNode }) {
             } else {
                  throw emailResult.error;
             }
-        }
-    } catch (error: any) {
-        if (error.code && error.message) { // Firebase Callable error
-            console.error('[updateTask] Error calling sendEmailTask:', error);
+        } catch (emailError: any) {
+            console.error('[updateTask] Error calling sendEmailTask:', emailError);
             toast({
                 variant: "destructive",
                 title: "Error al notificar",
-                description: "La tarea se actualizó, pero no se pudo enviar el correo de notificación. " + error.message,
+                description: "La tarea se guardó, pero no se pudo enviar el correo de notificación. " + emailError.message,
             });
-        } else { // Firestore permission error
-            const permissionError = new FirestorePermissionError({
-                path: docRef.path,
-                operation: 'update',
-                requestResourceData: finalData,
-            });
-            errorEmitter.emit('permission-error', permissionError);
         }
     }
   };
@@ -310,7 +327,13 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
     updates.forEach(update => {
         const docRef = doc(firestore, tasksCollectionRef.path, update.id);
-        batch.update(docRef, update.changes);
+        const sanitizedChanges = { ...update.changes };
+        Object.keys(sanitizedChanges).forEach(key => {
+          if ((sanitizedChanges as any)[key] === undefined) {
+            delete (sanitizedChanges as any)[key];
+          }
+        });
+        batch.update(docRef, sanitizedChanges);
     });
 
     batch.commit().catch(async (serverError) => {
