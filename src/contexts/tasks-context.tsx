@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { ReactNode } from 'react';
@@ -59,7 +58,8 @@ async function sendDelegationEmail(firestore: any, user: User, task: Partial<Tas
         taskId: taskId,
         taskTitle: task.title,
         delegatorName: delegatorName,
-        taskUrl: `${window.location.origin}/?task=${taskId}`
+        taskUrl: `${window.location.origin}/?task=${taskId}`,
+        delegateId: task.delegateToId
     };
 
     try {

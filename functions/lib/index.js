@@ -77,13 +77,52 @@ async function sendEmail(params) {
     }
 }
 // ================================
+// WHATSAPP HELPERS
+// ================================
+function normalizeToWhatsAppJid(phone) {
+    if (!phone)
+        return null;
+    const digits = phone.replace(/\D/g, '');
+    if (digits.startsWith('521') && digits.length === 13) {
+        return `${digits}@s.whatsapp.net`;
+    }
+    if (digits.startsWith('52') && digits.length === 12) {
+        return `521${digits.slice(2)}@s.whatsapp.net`;
+    }
+    if (digits.length === 10) {
+        return `521${digits}@s.whatsapp.net`;
+    }
+    return null;
+}
+async function sendWhatsAppMessage(to, text) {
+    const url = 'https://baileys-worker-701554958520.us-central1.run.app/v1/channels/PRUEBAS-GENERALES/messages/send';
+    try {
+        console.log('[WA] sending to', to);
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to, text }),
+        });
+        if (!response.ok) {
+            const body = await response.text();
+            console.error('[WA] failed', { status: response.status, body });
+        }
+        else {
+            console.log('[WA] success');
+        }
+    }
+    catch (error) {
+        console.error('[WA] error sending message', error);
+    }
+}
+// ================================
 // FUNCIÓN: TAREA DELEGADA
 // ================================
 exports.sendEmailTask = (0, https_1.onCall)({ region: 'us-central1', secrets: [RESEND_API_KEY_SM] }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Requiere login.');
     }
-    const { to, taskTitle, delegateName, taskUrl, delegatorName } = request.data;
+    const { to, taskTitle, delegateName, taskUrl, delegatorName, delegateId } = request.data;
     if (!to || !taskTitle || !delegateName) {
         throw new https_1.HttpsError('invalid-argument', 'Datos incompletos (to, taskTitle, delegateName).');
     }
@@ -95,7 +134,26 @@ exports.sendEmailTask = (0, https_1.onCall)({ region: 'us-central1', secrets: [R
     <p><strong>${taskTitle}</strong></p>
     ${taskUrl ? `<p>Detalles: <a href="${taskUrl}">${taskUrl}</a></p>` : ''}
   `;
-    return sendEmail({ to, subject, html });
+    const emailResult = await sendEmail({ to, subject, html });
+    // WhatsApp Integration
+    try {
+        let phone = null;
+        if (delegateId) {
+            const userDoc = await admin.firestore().collection('users').doc(delegateId).get();
+            if (userDoc.exists) {
+                phone = userDoc.data()?.phone || null;
+            }
+        }
+        const jid = normalizeToWhatsAppJid(phone);
+        if (jid) {
+            const whatsAppText = `*Se te ha delegado una nueva tarea*\n\nHola ${delegateName},\n\n${delegatorName || 'Un administrador'} te ha delegado la tarea:\n*${taskTitle}*\n\n${taskUrl ? `Detalles: ${taskUrl}` : ''}`;
+            await sendWhatsAppMessage(jid, whatsAppText);
+        }
+    }
+    catch (waError) {
+        console.error('[WA] error in integration', waError);
+    }
+    return emailResult;
 });
 // ================================
 // FUNCIÓN: INVITACIÓN
