@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -46,6 +47,9 @@ export default function PomodoroTimer({ activeTask }: PomodoroTimerProps) {
         const newSession: FocusSession = {
           startTime: sessionStartTime.toISOString(),
           endTime: endTime.toISOString(),
+          recordType: 'real-time',
+          recordedAt: new Date().toISOString(),
+          recordedBy: user?.displayName || user?.email || 'Desconocido',
         };
         const updatedSessions = [...(activeTask.focusSessions || []), newSession];
         // Pass user and newAttachments correctly

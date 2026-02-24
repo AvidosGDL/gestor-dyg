@@ -24,7 +24,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useTasks } from '@/contexts/tasks-context';
-import { DollarSign, Users, Paperclip, X, Timer, Play, Square, History, Clock, Calendar as CalendarIcon, Eye, Download, Loader2, ArrowRight } from 'lucide-react';
+import { DollarSign, Users, Paperclip, X, Timer, Play, Square, History, Clock, Calendar as CalendarIcon, Eye, Download, Loader2, ArrowRight, PlusCircle, UserCircle } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Task, TaskStatus, FocusSession, TeamMember, Attachment, EditLogEntry, UserProfile } from '@/lib/types';
@@ -65,12 +65,6 @@ const taskSchema = z.object({
 });
 
 type TaskFormValues = z.infer<typeof taskSchema>;
-
-interface EditTaskDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  task: Task;
-}
 
 const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
@@ -142,6 +136,12 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [ownerProfile, setOwnerProfile] = useState<UserProfile | null>(null);
 
+  // Manual Session State
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const [manualDate, setManualDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [manualStartTime, setManualStartTime] = useState('09:00');
+  const [manualEndTime, setManualEndTime] = useState('10:00');
+
   const myTeamCollectionPath = useMemo(() => {
     return user ? `users/${user.uid}/teamMembers` : null;
   }, [user]);
@@ -210,6 +210,9 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
       const newSession: FocusSession = {
         startTime: sessionStart.toISOString(),
         endTime: endTime.toISOString(),
+        recordType: 'real-time',
+        recordedAt: new Date().toISOString(),
+        recordedBy: user?.displayName || user?.email || 'Desconocido',
       };
       
       const updatedSessions = [...(task.focusSessions || []), newSession];
@@ -231,6 +234,37 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
     }
   };
 
+  const handleAddManualSession = () => {
+    const startIso = new Date(`${manualDate}T${manualStartTime}:00`).toISOString();
+    const endIso = new Date(`${manualDate}T${manualEndTime}:00`).toISOString();
+
+    if (new Date(startIso) >= new Date(endIso)) {
+      toast({
+        variant: "destructive",
+        title: "Error de tiempo",
+        description: "La hora de fin debe ser posterior a la de inicio.",
+      });
+      return;
+    }
+
+    const newSession: FocusSession = {
+      startTime: startIso,
+      endTime: endIso,
+      recordType: 'manual',
+      recordedAt: new Date().toISOString(),
+      recordedBy: user?.displayName || user?.email || 'Desconocido',
+    };
+
+    const updatedSessions = [...(task.focusSessions || []), newSession];
+    updateTask(task.id, { focusSessions: updatedSessions, updatedAt: new Date().toISOString() }, user, []);
+
+    toast({
+      title: "Registro manual añadido",
+      description: "Se ha registrado el tiempo de trabajo correctamente.",
+    });
+    setShowManualEntry(false);
+  };
+
 
   useEffect(() => {
     if (task && open) {
@@ -246,6 +280,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
         setIsTracking(false);
         setSessionStart(null);
         setElapsedTime(0);
+        setShowManualEntry(false);
     }
   }, [task, open, form]);
 
@@ -554,7 +589,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                         </FormControl>
                         <SelectContent>
                             <SelectItem value="pendiente">Pendiente</SelectItem>
-                            <SelectItem value="en-progreso">En Progreso</SelectItem>
+                            <SelectItem value="en-progreso">En Pregreso</SelectItem>
                             <SelectItem value="cierre">Cierre</SelectItem>
                             <SelectItem value="completado">Completado</SelectItem>
                         </SelectContent>
@@ -563,20 +598,49 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                 )}
               />
 
-             {task.focusSessions && task.focusSessions.length > 0 && (
-                <div className="space-y-4 pt-4 border-t">
+             <div className="space-y-4 pt-4 border-t">
+                <div className="flex items-center justify-between">
                     <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
                         <Clock className="h-4 w-4" />
                         Sesiones de Enfoque
                     </h4>
-                    <ScrollArea className="max-h-[150px] pr-4">
-                        <div className="space-y-3">
-                        {task.focusSessions.slice().reverse().map((session, index) => {
-                            const start = new Date(session.startTime);
-                            const end = new Date(session.endTime);
-                            const duration = end.getTime() - start.getTime();
-                            return (
-                            <div key={index} className="flex justify-between items-center text-xs p-2 bg-muted/50 rounded-md">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setShowManualEntry(!showManualEntry)}>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        {showManualEntry ? 'Cancelar' : 'Registro Manual'}
+                    </Button>
+                </div>
+
+                {showManualEntry && (
+                    <div className="p-4 bg-muted/30 rounded-lg border border-dashed space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                                <Label className="text-xs">Fecha</Label>
+                                <Input type="date" value={manualDate} onChange={(e) => setManualDate(e.target.value)} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-xs">Hora Inicio</Label>
+                                <Input type="time" value={manualStartTime} onChange={(e) => setManualStartTime(e.target.value)} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-xs">Hora Fin</Label>
+                                <Input type="time" value={manualEndTime} onChange={(e) => setManualEndTime(e.target.value)} />
+                            </div>
+                        </div>
+                        <Button type="button" size="sm" className="w-full" onClick={handleAddManualSession}>
+                            Guardar Registro Manual
+                        </Button>
+                    </div>
+                )}
+
+                <ScrollArea className="max-h-[200px] pr-4">
+                    <div className="space-y-3">
+                    {task.focusSessions && task.focusSessions.slice().reverse().map((session, index) => {
+                        const start = new Date(session.startTime);
+                        const end = new Date(session.endTime);
+                        const duration = end.getTime() - start.getTime();
+                        return (
+                        <div key={index} className="flex flex-col gap-1 p-2 bg-muted/50 rounded-md border border-border">
+                            <div className="flex justify-between items-center text-xs">
                                 <div>
                                 <p className="font-medium text-foreground">
                                     {format(start, "dd/MM/yyyy", { locale: es })}
@@ -585,14 +649,28 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                                     {start.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                                 </p>
                                 </div>
-                                <Badge variant="secondary">{formatDuration(duration)}</Badge>
+                                <div className="flex flex-col items-end gap-1">
+                                    <Badge variant={session.recordType === 'manual' ? 'outline' : 'secondary'}>
+                                        {session.recordType === 'manual' ? 'Manual' : 'En Vivo'}
+                                    </Badge>
+                                    <Badge variant="ghost" className="font-bold">{formatDuration(duration)}</Badge>
+                                </div>
                             </div>
-                            );
-                        })}
+                            {session.recordedAt && (
+                                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground pt-1 border-t border-muted-foreground/10">
+                                    <UserCircle size={10} />
+                                    <span>Registrado por {session.recordedBy || 'Sistema'} el {format(new Date(session.recordedAt), 'dd/MM/yy HH:mm')}</span>
+                                </div>
+                            )}
                         </div>
-                    </ScrollArea>
-                </div>
-            )}
+                        );
+                    })}
+                    {(!task.focusSessions || task.focusSessions.length === 0) && (
+                        <p className="text-center text-xs text-muted-foreground py-4 italic">No hay sesiones registradas.</p>
+                    )}
+                    </div>
+                </ScrollArea>
+            </div>
             
             <div className="space-y-4 pt-4 border-t">
               <FormField

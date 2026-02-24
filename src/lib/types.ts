@@ -1,4 +1,3 @@
-
 export type TaskStatus =
   | 'pendiente'
   | 'en-progreso'
@@ -10,6 +9,9 @@ export type DelegationStatus = 'pending' | 'accepted' | 'rejected' | null;
 export interface FocusSession {
   startTime: string; // ISO 8601 string
   endTime: string;   // ISO 8601 string
+  recordType?: 'manual' | 'real-time';
+  recordedAt?: string; // ISO 8601 string
+  recordedBy?: string;
 }
 
 export interface Attachment {
