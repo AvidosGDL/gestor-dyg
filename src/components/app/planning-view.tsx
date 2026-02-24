@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -107,15 +106,12 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
     return [...filteredTasks]
       .filter((t) => t.status !== 'completado')
       .sort((a, b) => {
-        // Sort by value (potential) descending
         if (b.value !== a.value) return b.value - a.value;
 
-        // Then by priority
         const priorityVal = { high: 3, medium: 2, low: 1 };
         if (priorityVal[b.priority] !== priorityVal[a.priority])
           return priorityVal[b.priority] - priorityVal[a.priority];
         
-        // Then by due date
         if (!a.dueDate) return 1;
         if (!b.dueDate) return -1;
         return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
@@ -150,6 +146,11 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
       setIsPrioritizing(false);
     }
   };
+
+  const liveTask = useMemo(() => {
+    if (!taskToEdit) return null;
+    return tasks.find(t => t.id === taskToEdit.id) || taskToEdit;
+  }, [tasks, taskToEdit]);
 
   return (
     <>
@@ -224,11 +225,11 @@ export default function PlanningView({ activeTaskForPomodoro, setActiveTaskForPo
         <PipelineSummary tasks={filteredTasks} />
       </div>
     </div>
-     {taskToEdit && (
+     {liveTask && (
         <EditTaskDialog
           open={isEditDialogOpen}
           onOpenChange={handleCloseDialog}
-          task={taskToEdit}
+          task={liveTask}
         />
       )}
     </>

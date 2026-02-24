@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
@@ -137,7 +136,6 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [ownerProfile, setOwnerProfile] = useState<UserProfile | null>(null);
 
-  // Manual Session State
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualDate, setManualDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [manualStartTime, setManualStartTime] = useState('09:00');
@@ -204,9 +202,8 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
 
   const handleToggleTracking = () => {
     if (isTracking) {
-      // Detener
       const endTime = new Date();
-      if (!sessionStart) return; // Should not happen
+      if (!sessionStart) return;
       
       const newSession: FocusSession = {
         startTime: sessionStart.toISOString(),
@@ -229,7 +226,6 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
       setSessionStart(null);
       setElapsedTime(0);
     } else {
-      // Iniciar
       setIsTracking(true);
       setSessionStart(new Date());
     }
@@ -283,7 +279,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
         setElapsedTime(0);
         setShowManualEntry(false);
     }
-  }, [task, open, form]);
+  }, [task.id, open]); // Solo resetear si cambia el ID o se abre
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -562,7 +558,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                         <SelectContent>
                             <SelectItem value="none">Nadie / Tarea personal</SelectItem>
                              {ownerProfile && (
-                              <SelectItem value={`${ownerProfile.email}|${ownerProfile.id}`}>
+                              <SelectItem value={`${ownerProfile.email}|${ownerProfile.uid}`}>
                                 {ownerProfile.name} (Jefe de Equipo)
                               </SelectItem>
                             )}

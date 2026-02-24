@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -16,7 +14,6 @@ import { addDays, format, differenceInDays, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 
-// Gantt Chart Component
 const GanttChart = ({ activities }: { activities: ProjectActivity[] }) => {
   const chartData = useMemo(() => {
     if (activities.length === 0) return [];
@@ -24,7 +21,6 @@ const GanttChart = ({ activities }: { activities: ProjectActivity[] }) => {
     const sortedActivities = [...activities].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
     const projectStartDate = parseISO(sortedActivities[0].startDate);
     
-    // Calculate critical path
     const activitiesMap = new Map(activities.map(a => [a.id, a]));
     const adj: Record<string, string[]> = {};
     const inDegree: Record<string, number> = {};
@@ -57,15 +53,13 @@ const GanttChart = ({ activities }: { activities: ProjectActivity[] }) => {
         });
     }
     
-    const projectEndDate = Math.max(...Object.values(earlyStart).map((start, i) => start + activities[i].durationDays));
+    const projectEndDate = Math.max(...Object.values(earlyStart).map((start, i) => start + activities[i].durationDays), 0);
 
-    const lateFinish: Record<string, number> = {};
-    activities.forEach(a => lateFinish[a.id] = projectEndDate);
-    
-    // This is a simplified critical path logic
     const criticalPathIds = new Set<string>();
-    let lastTask = activities.reduce((prev, curr) => (earlyStart[prev.id] + prev.durationDays > earlyStart[curr.id] + curr.durationDays) ? prev : curr);
-    criticalPathIds.add(lastTask.id);
+    if (activities.length > 0) {
+        let lastTask = activities.reduce((prev, curr) => (earlyStart[prev.id] + prev.durationDays > earlyStart[curr.id] + curr.durationDays) ? prev : curr);
+        criticalPathIds.add(lastTask.id);
+    }
 
 
     return sortedActivities.map(activity => {
@@ -104,7 +98,7 @@ const GanttChart = ({ activities }: { activities: ProjectActivity[] }) => {
 };
 
 export default function ProjectDetailView({ project, onBack }: { project: Project; onBack: () => void }) {
-  const { getActivitiesForProject, deleteProject } = useProjects();
+  const { getActivitiesForProject } = useProjects();
   const { activities, loading } = getActivitiesForProject(project.id);
   const [editingActivity, setEditingActivity] = useState<ProjectActivity | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -156,6 +150,11 @@ export default function ProjectDetailView({ project, onBack }: { project: Projec
     
     return flattened;
   }, [activities]);
+
+  const liveActivity = useMemo(() => {
+    if (!editingActivity) return null;
+    return activities.find(a => a.id === editingActivity.id) || editingActivity;
+  }, [activities, editingActivity]);
 
   return (
     <>
@@ -249,14 +248,16 @@ export default function ProjectDetailView({ project, onBack }: { project: Projec
         </Card>
       </div>
 
-      <EditActivityDialog 
-        isOpen={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        project={project}
-        activity={editingActivity}
-        projectActivities={activities}
-        parentId={subtaskParentId}
-      />
+      {isDialogOpen && (
+        <EditActivityDialog 
+          isOpen={isDialogOpen}
+          onOpenChange={setIsDialogOpen}
+          project={project}
+          activity={liveActivity}
+          projectActivities={activities}
+          parentId={subtaskParentId}
+        />
+      )}
     </>
   );
 }

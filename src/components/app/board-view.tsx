@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -89,14 +88,11 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
   const [searchTerm, setSearchTerm] = useState('');
   const [activeStatusFilter, setActiveStatusFilter] = useState<TaskStatus | 'all'>('all');
 
-
   const handleEditTask = (task: Task) => {
-    // Logic to mark notification as read
     if (user && user.uid === task.ownerId) {
       const lastOwnerView = task.lastOwnerUpdateTimestamp ? new Date(task.lastOwnerUpdateTimestamp).getTime() : 0;
       const lastUpdate = task.updatedAt ? new Date(task.updatedAt).getTime() : 0;
       if (lastUpdate > lastOwnerView) {
-        // We only pass the timestamp to avoid triggering other side-effects in updateTask
         updateTask(task.id, { lastOwnerUpdateTimestamp: new Date().toISOString() }, user, []);
       }
     }
@@ -122,22 +118,18 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
 
     let tasksToShow = tasks;
 
-    // 1. Filtro por persona (el filtro principal)
     if (taskFilter === 'me' || taskFilter === user.uid) {
         tasksToShow = tasks.filter(t => (t.ownerId === user.uid && !t.delegateToId) || (t.delegateToId === user.uid));
     } else if (taskFilter === 'all') {
         tasksToShow = tasks.filter(t => t.ownerId === user.uid);
     } else {
-        // Muestra las tareas que el miembro seleccionado ha creado para sí mismo O las que le han sido delegadas a él.
         tasksToShow = tasks.filter(t => (t.ownerId === taskFilter && !t.delegateToId) || (t.delegateToId === taskFilter));
     }
 
-    // 2. Filtro por estado
     if (activeStatusFilter !== 'all') {
         tasksToShow = tasksToShow.filter(t => t.status === activeStatusFilter);
     }
 
-    // 3. Filtro por término de búsqueda
     if (searchTerm.trim() !== '') {
         tasksToShow = tasksToShow.filter(t => t.title.toLowerCase().includes(searchTerm.toLowerCase()));
     }
@@ -147,7 +139,6 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
 
   const delegatedToMe = useMemo(() => {
     if(!user) return [];
-    // Notificaciones de tareas delegadas pendientes de aceptar/rechazar por el usuario actual.
     return tasks.filter(t => t.delegateToId === user.uid && t.delegationStatus === 'pending')
   }, [tasks, user]);
   
@@ -156,30 +147,23 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
     return tasks
       .filter((task) => task.ownerId === user.uid && task.delegateToId)
       .map((task) => {
-        // Ignorar si la notificación ya fue descartada.
         if (task.notificationDismissed) return null;
 
-        // Caso 1: Tarea rechazada
         if (task.delegationStatus === 'rejected') {
           return { task, type: 'rejected', message: `La tarea fue rechazada por la persona a la que se delegó.` };
         }
 
-        // Caso 2: Tarea completada por el delegado
         if (task.status === 'completado') {
           return { task, type: 'completed', message: `La tarea delegada ha sido completada.` };
         }
 
-        // --- Nuevos Casos ---
         const lastOwnerView = task.lastOwnerUpdateTimestamp ? new Date(task.lastOwnerUpdateTimestamp).getTime() : 0;
         const lastUpdate = task.updatedAt ? new Date(task.updatedAt).getTime() : 0;
 
-        // Si la última actualización es más reciente que la última vez que el owner la vio.
         if (lastUpdate > lastOwnerView) {
-            // Notificación por cambio de estado
             if (task.status === 'en-progreso' || task.status === 'cierre') {
                  return { task, type: 'status_change', message: `El estado de la tarea cambió a: ${task.status}.` };
             }
-            // Notificación por nuevo comentario o adjunto (asumiendo que `updatedAt` se actualiza)
             const hasNewComment = (task.completionComment?.length || 0) > 0;
             const hasNewAttachment = (task.attachments?.length || 0) > 0;
             if (hasNewComment || hasNewAttachment) {
@@ -199,7 +183,6 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
     } else if (task.status === 'completado') {
         updateTask(task.id, { notificationDismissed: true }, user);
     } else {
-        // Para otros tipos de notificaciones, actualizamos el timestamp para "marcar como leída"
         updateTask(task.id, { lastOwnerUpdateTimestamp: new Date().toISOString() }, user);
     }
   };
@@ -241,6 +224,10 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
     return columns.filter(col => col.id === activeStatusFilter);
   }, [activeStatusFilter]);
 
+  const liveTask = useMemo(() => {
+    if (!taskToEdit) return null;
+    return tasks.find(t => t.id === taskToEdit.id) || taskToEdit;
+  }, [tasks, taskToEdit]);
 
   return (
     <>
@@ -332,11 +319,11 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
       </div>
-      {taskToEdit && (
+      {liveTask && (
         <EditTaskDialog
           open={isEditDialogOpen}
           onOpenChange={handleCloseDialog}
-          task={taskToEdit}
+          task={liveTask}
         />
       )}
     </>

@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -74,7 +72,7 @@ export default function EditActivityDialog({ isOpen, onOpenChange, project, acti
       }
       setAttachedFiles([]);
     }
-  }, [isOpen, activity, form, parentId]);
+  }, [isOpen, activity?.id, parentId]); // Solo resetear si cambia el ID o se abre
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -96,11 +94,9 @@ export default function EditActivityDialog({ isOpen, onOpenChange, project, acti
   const onSubmit: SubmitHandler<ActivityFormValues> = async (data) => {
     try {
       if (activity) {
-        // Update existing activity
         await updateActivity(project.id, activity.id, data, attachedFiles);
         toast({ title: 'Actividad Actualizada' });
       } else {
-        // Create new activity
         addActivity(project.id, data);
         toast({ title: 'Actividad Creada' });
       }
