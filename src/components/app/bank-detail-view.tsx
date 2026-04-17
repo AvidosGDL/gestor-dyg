@@ -5,7 +5,7 @@ import { useBanks } from '@/contexts/banks-context';
 import type { BankAccount, BankTransaction } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale } from 'lucide-react';
+import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
@@ -16,6 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import ImportBankTransactionsDialog from './import-bank-transactions-dialog';
 import ConciliateStatementDialog from './conciliate-statement-dialog';
 import ReconcileBalanceDialog from './reconcile-balance-dialog';
+import EditBankDialog from './edit-bank-dialog';
 
 
 export default function BankDetailView({ bankAccount, onBack }: { bankAccount: BankAccount, onBack: () => void }) {
@@ -25,6 +26,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isConciliateOpen, setIsConciliateOpen] = useState(false);
   const [isReconcileBalanceOpen, setIsReconcileBalanceOpen] = useState(false);
+  const [isEditBankOpen, setIsEditBankOpen] = useState(false);
 
   const transactionsPath = useMemo(() => `banks/${bankAccount.id}/transactions`, [bankAccount.id]);
   const transactionsRef = useMemoFirebase(() => collection(firestore, transactionsPath), [firestore, transactionsPath]);
@@ -63,8 +65,11 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Info size={14} /> Saldo Inicial
+              <CardTitle className="text-sm font-medium text-muted-foreground flex justify-between items-center">
+                <div className="flex items-center gap-2"><Info size={14} /> Saldo Inicial</div>
+                <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" onClick={() => setIsEditBankOpen(true)}>
+                   <Edit size={14} /> Editar
+                </Button>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -201,6 +206,11 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
        <ReconcileBalanceDialog
         isOpen={isReconcileBalanceOpen}
         onOpenChange={setIsReconcileBalanceOpen}
+        bankAccount={bankAccount}
+       />
+       <EditBankDialog
+        isOpen={isEditBankOpen}
+        onOpenChange={setIsEditBankOpen}
         bankAccount={bankAccount}
        />
     </>
