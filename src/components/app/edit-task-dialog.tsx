@@ -41,7 +41,6 @@ import { collection, doc, getDoc } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Calendar } from '../ui/calendar';
 
-
 const fileSchema = z.object({
   name: z.string(),
   type: z.string(),
@@ -113,22 +112,19 @@ const formatFieldValue = (field: string, value: any) => {
     return value;
 };
 
-
-export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDialogProps) {
+export default function EditTaskDialog({ open, onOpenChange, task }: { open: boolean, onOpenChange: (open: boolean) => void, task: Task }) {
   const { updateTask } = useTasks();
   const { user } = useUser();
   const firestore = useFirestore();
+  const { toast } = useToast();
 
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskSchema),
   });
 
-  const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const watchedStatus = form.watch('status');
-
   const [isTracking, setIsTracking] = useState(false);
   const [sessionStart, setSessionStart] = useState<Date | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -150,7 +146,6 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
   }, [myTeamCollectionPath, firestore]);
   const { data: members } = useCollection<TeamMember>(myTeamCollectionRef);
 
-
   useEffect(() => {
     async function fetchProfiles() {
       if (firestore && user) {
@@ -163,13 +158,10 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
             const ownerDocRef = doc(firestore, 'users', profile.ownerId);
             const ownerDocSnap = await getDoc(ownerDocRef);
             if (ownerDocSnap.exists()) {
-              setOwnerProfile({ ...ownerDocSnap.data() as UserProfile, id: ownerDocSnap.id });
+              setOwnerProfile({ ...ownerDocSnap.data() as UserProfile, uid: ownerDocSnap.id });
             }
           }
         }
-      } else {
-        setUserProfile(null);
-        setOwnerProfile(null);
       }
     }
     if (open) {
@@ -177,16 +169,12 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
     }
   }, [firestore, user, open]);
 
-
   const totalTime = useMemo(() => {
     if (!task.focusSessions) return 0;
     return task.focusSessions.reduce((acc, session) => {
         const start = new Date(session.startTime).getTime();
         const end = new Date(session.endTime).getTime();
-        if (isNaN(start) || isNaN(end)) {
-            return acc;
-        }
-        return acc + (end - start);
+        return isNaN(start) || isNaN(end) ? acc : acc + (end - start);
     }, 0);
   }, [task.focusSessions]);
 
@@ -214,10 +202,9 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
       };
       
       const updatedSessions = [...(task.focusSessions || []), newSession];
-      updateTask(task.id, { focusSessions: updatedSessions, updatedAt: new Date().toISOString() }, user, []);
+      updateTask(task.id, { focusSessions: updatedSessions }, user);
       
       const durationMs = endTime.getTime() - sessionStart.getTime();
-
       toast({
         title: "Sesión guardada",
         description: `Se ha añadido ${formatDuration(durationMs)} a la tarea.`,
@@ -253,7 +240,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
     };
 
     const updatedSessions = [...(task.focusSessions || []), newSession];
-    updateTask(task.id, { focusSessions: updatedSessions, updatedAt: new Date().toISOString() }, user, []);
+    updateTask(task.id, { focusSessions: updatedSessions }, user);
 
     toast({
       title: "Registro manual añadido",
@@ -261,7 +248,6 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
     });
     setShowManualEntry(false);
   };
-
 
   useEffect(() => {
     if (task && open) {
@@ -279,7 +265,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
         setElapsedTime(0);
         setShowManualEntry(false);
     }
-  }, [task.id, open]); // Solo resetear si cambia el ID o se abre
+  }, [task.id, open, form]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -299,7 +285,6 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
     link.click();
     document.body.removeChild(link);
   };
-
 
   const onSubmit = async (data: TaskFormValues) => {
     setIsUploading(true);
@@ -331,18 +316,13 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
       };
 
       updateTask(task.id, finalData, user, newAttachments);
-      toast({
-          title: "Tarea actualizada",
-          description: `"${data.title}" ha sido modificada.`,
-      });
       onOpenChange(false);
-
     } catch (error) {
-        console.error("Error al subir archivos o actualizar tarea:", error);
+        console.error("Error al actualizar tarea:", error);
         toast({
             variant: "destructive",
             title: "Error",
-            description: "No se pudieron subir los archivos. Por favor, inténtalo de nuevo.",
+            description: "No se pudo actualizar la tarea.",
         });
     } finally {
       setIsUploading(false);
@@ -358,11 +338,9 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
           <div className="flex justify-between items-start">
             <div>
               <DialogTitle>Editar Tarea</DialogTitle>
-              <DialogDescription>
-                Modifica los detalles de la tarea.
-              </DialogDescription>
+              <DialogDescription>Modifica los detalles de la tarea.</DialogDescription>
             </div>
-            <div className="flex items-center gap-4 text-right">
+            <div className="flex items-center gap-4">
               <div className="flex flex-col items-center">
                  <Button variant={isTracking ? "destructive" : "outline"} size="sm" onClick={handleToggleTracking}>
                   {isTracking ? <Square className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
@@ -376,7 +354,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                   <History className="h-5 w-5"/>
                   <div>
                     <div className="font-bold">{formatTime(Math.floor(totalTime / 1000))}</div>
-                    <div className="text-xs">Total Acumulado</div>
+                    <div className="text-xs text-[10px]">Total Acumulado</div>
                   </div>
               </div>
             </div>
@@ -390,13 +368,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Tarea</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Ej. Revisar el diseño del landing page"
-                      rows={2}
-                      {...field}
-                    />
-                  </FormControl>
+                  <FormControl><Textarea placeholder="Ej. Revisar el diseño" rows={2} {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -424,11 +396,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                   <FormItem>
                     <FormLabel>Progreso (%) - {field.value}%</FormLabel>
                     <FormControl>
-                      <Slider
-                        min={0} max={100} step={5}
-                        defaultValue={[field.value]}
-                        onValueChange={(value) => field.onChange(value[0])}
-                      />
+                      <Slider min={0} max={100} step={5} defaultValue={[field.value]} onValueChange={(value) => field.onChange(value[0])} />
                     </FormControl>
                   </FormItem>
                 )}
@@ -440,23 +408,17 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                 name="value"
                 render={({ field: { onChange, value, ...restField } }) => (
                   <FormItem>
-                    <FormLabel>Potencial del Negocio ($)</FormLabel>
+                    <FormLabel>Potencial ($)</FormLabel>
                     <FormControl>
                       <div className="relative">
                         <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                         <Input
                           type="text"
-                          placeholder="Valor en USD"
                           className="pl-9"
                           value={value ? value.toLocaleString('en-US') : '0'}
                           onChange={(e) => {
                             const rawValue = e.target.value.replace(/[^0-9]/g, '');
-                            const numericValue = rawValue === '' ? 0 : Number(rawValue);
-                            onChange(numericValue);
-                          }}
-                          onBlur={(e) => {
-                            const numericValue = Number(e.target.value.replace(/[^0-9]/g, ''));
-                            e.target.value = numericValue.toLocaleString('en-US');
+                            onChange(rawValue === '' ? 0 : Number(rawValue));
                           }}
                           disabled={!isOwner}
                           {...restField}
@@ -471,13 +433,9 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                 name="probability"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Probabilidad de Éxito - {field.value}%</FormLabel>
+                    <FormLabel>Probabilidad - {field.value}%</FormLabel>
                     <FormControl>
-                      <Slider
-                        min={0} max={100} step={5}
-                        defaultValue={[field.value]}
-                        onValueChange={(value) => field.onChange(value[0])}
-                      />
+                      <Slider min={0} max={100} step={5} defaultValue={[field.value]} onValueChange={(value) => field.onChange(value[0])} />
                     </FormControl>
                   </FormItem>
                 )}
@@ -491,11 +449,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                   <FormItem>
                     <FormLabel>Prioridad</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!isOwner}>
-                        <FormControl>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Selecciona una prioridad" />
-                        </SelectTrigger>
-                        </FormControl>
+                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                         <SelectContent>
                             <SelectItem value="low">Baja</SelectItem>
                             <SelectItem value="medium">Media</SelectItem>
@@ -510,35 +464,16 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                 name="dueDate"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Fecha Límite (aaaa-mm-dd)</FormLabel>
+                    <FormLabel>Fecha Límite</FormLabel>
                     <div className="flex gap-2">
-                      <FormControl>
-                        <Input
-                          type="date"
-                          {...field}
-                          className="flex-1"
-                          placeholder="aaaa-mm-dd"
-                          disabled={!isOwner}
-                        />
-                      </FormControl>
+                      <FormControl><Input type="date" {...field} className="flex-1" disabled={!isOwner} /></FormControl>
                       <Popover modal={false}>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" size="icon" className="shrink-0" disabled={!isOwner}>
-                            <CalendarIcon className="h-4 w-4" />
-                          </Button>
-                        </PopoverTrigger>
+                        <PopoverTrigger asChild><Button variant="outline" size="icon" disabled={!isOwner}><CalendarIcon className="h-4 w-4" /></Button></PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="end" onOpenAutoFocus={(e) => e.preventDefault()}>
-                          <Calendar
-                            mode="single"
-                            selected={field.value ? new Date(field.value) : undefined}
-                            onSelect={(date) => field.onChange(date?.toISOString().split('T')[0])}
-                            disabled={(date) => date < new Date("1900-01-01")}
-                            initialFocus
-                          />
+                          <Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={(date) => field.onChange(date?.toISOString().split('T')[0])} initialFocus />
                         </PopoverContent>
                       </Popover>
                     </div>
-                    <FormMessage />
                   </FormItem>
                 )}
               />
@@ -550,23 +485,11 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                 <FormItem>
                   <FormLabel>Delegar A</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value || 'none'} disabled={!isOwner}>
-                        <FormControl>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar miembro del equipo..."/>
-                        </SelectTrigger>
-                        </FormControl>
+                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                         <SelectContent>
                             <SelectItem value="none">Nadie / Tarea personal</SelectItem>
-                             {ownerProfile && (
-                              <SelectItem value={`${ownerProfile.email}|${ownerProfile.uid}`}>
-                                {ownerProfile.name} (Jefe de Equipo)
-                              </SelectItem>
-                            )}
-                            {members?.map(member => (
-                              <SelectItem key={member.id} value={`${member.email}|${member.uid}`}>
-                                {member.name} ({member.email})
-                              </SelectItem>
-                            ))}
+                             {ownerProfile && <SelectItem value={`${ownerProfile.email}|${ownerProfile.uid}`}>{ownerProfile.name} (Jefe)</SelectItem>}
+                            {members?.map(member => <SelectItem key={member.id} value={`${member.email}|${member.uid}`}>{member.name} ({member.email})</SelectItem>)}
                         </SelectContent>
                     </Select>
                 </FormItem>
@@ -579,14 +502,10 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                   <FormItem>
                     <FormLabel>Estado</FormLabel>
                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Selecciona un estado" />
-                        </SelectTrigger>
-                        </FormControl>
+                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                         <SelectContent>
                             <SelectItem value="pendiente">Pendiente</SelectItem>
-                            <SelectItem value="en-progreso">En Pregreso</SelectItem>
+                            <SelectItem value="en-progreso">En Progreso</SelectItem>
                             <SelectItem value="cierre">Cierre</SelectItem>
                             <SelectItem value="completado">Completado</SelectItem>
                         </SelectContent>
@@ -597,35 +516,18 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
 
              <div className="space-y-4 pt-4 border-t">
                 <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
-                        <Clock className="h-4 w-4" />
-                        Sesiones de Enfoque
-                    </h4>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setShowManualEntry(!showManualEntry)}>
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        {showManualEntry ? 'Cancelar' : 'Registro Manual'}
-                    </Button>
+                    <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4" /> Sesiones de Enfoque</h4>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setShowManualEntry(!showManualEntry)}><PlusCircle className="mr-2 h-4 w-4" /> {showManualEntry ? 'Cancelar' : 'Registro Manual'}</Button>
                 </div>
 
                 {showManualEntry && (
                     <div className="p-4 bg-muted/30 rounded-lg border border-dashed space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="space-y-2">
-                                <Label className="text-xs">Fecha</Label>
-                                <Input type="date" value={manualDate} onChange={(e) => setManualDate(e.target.value)} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-xs">Hora Inicio</Label>
-                                <Input type="time" value={manualStartTime} onChange={(e) => setManualStartTime(e.target.value)} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-xs">Hora Fin</Label>
-                                <Input type="time" value={manualEndTime} onChange={(e) => setManualEndTime(e.target.value)} />
-                            </div>
+                            <div className="space-y-2"><Label className="text-xs">Fecha</Label><Input type="date" value={manualDate} onChange={(e) => setManualDate(e.target.value)} /></div>
+                            <div className="space-y-2"><Label className="text-xs">Inicio</Label><Input type="time" value={manualStartTime} onChange={(e) => setManualStartTime(e.target.value)} /></div>
+                            <div className="space-y-2"><Label className="text-xs">Fin</Label><Input type="time" value={manualEndTime} onChange={(e) => setManualEndTime(e.target.value)} /></div>
                         </div>
-                        <Button type="button" size="sm" className="w-full" onClick={handleAddManualSession}>
-                            Guardar Registro Manual
-                        </Button>
+                        <Button type="button" size="sm" className="w-full" onClick={handleAddManualSession}>Guardar Registro Manual</Button>
                     </div>
                 )}
 
@@ -634,37 +536,17 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                     {task.focusSessions && task.focusSessions.slice().reverse().map((session, index) => {
                         const start = new Date(session.startTime);
                         const end = new Date(session.endTime);
-                        const duration = end.getTime() - start.getTime();
                         return (
                         <div key={index} className="flex flex-col gap-1 p-2 bg-muted/50 rounded-md border border-border">
                             <div className="flex justify-between items-center text-xs">
-                                <div>
-                                <p className="font-medium text-foreground">
-                                    {format(start, "dd/MM/yyyy", { locale: es })}
-                                </p>
-                                <p className="text-muted-foreground">
-                                    {start.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                                </p>
-                                </div>
-                                <div className="flex flex-col items-end gap-1">
-                                    <Badge variant={session.recordType === 'manual' ? 'outline' : 'secondary'}>
-                                        {session.recordType === 'manual' ? 'Manual' : 'En Vivo'}
-                                    </Badge>
-                                    <Badge variant="ghost" className="font-bold">{formatDuration(duration)}</Badge>
-                                </div>
+                                <div><p className="font-medium text-foreground">{format(start, "dd/MM/yyyy", { locale: es })}</p><p className="text-muted-foreground">{start.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</p></div>
+                                <div className="flex flex-col items-end gap-1"><Badge variant={session.recordType === 'manual' ? 'outline' : 'secondary'}>{session.recordType === 'manual' ? 'Manual' : 'En Vivo'}</Badge><Badge variant="ghost" className="font-bold">{formatDuration(end.getTime() - start.getTime())}</Badge></div>
                             </div>
-                            {session.recordedAt && (
-                                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground pt-1 border-t border-muted-foreground/10">
-                                    <UserCircle size={10} />
-                                    <span>Registrado por {session.recordedBy || 'Sistema'} el {format(new Date(session.recordedAt), 'dd/MM/yy HH:mm')}</span>
-                                </div>
-                            )}
+                            {session.recordedAt && <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground pt-1 border-t border-muted-foreground/10"><UserCircle size={10} /><span>Registrado por {session.recordedBy || 'Sistema'} el {format(new Date(session.recordedAt), 'dd/MM/yy HH:mm')}</span></div>}
                         </div>
                         );
                     })}
-                    {(!task.focusSessions || task.focusSessions.length === 0) && (
-                        <p className="text-center text-xs text-muted-foreground py-4 italic">No hay sesiones registradas.</p>
-                    )}
+                    {(!task.focusSessions || task.focusSessions.length === 0) && <p className="text-center text-xs text-muted-foreground py-4 italic">No hay sesiones registradas.</p>}
                     </div>
                 </ScrollArea>
             </div>
@@ -676,9 +558,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Comentarios / Cierre</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Añade un comentario sobre el avance o la finalización de la tarea..." {...field} />
-                    </FormControl>
+                    <FormControl><Textarea placeholder="Añade un comentario..." {...field} /></FormControl>
                   </FormItem>
                 )}
               />
@@ -686,42 +566,16 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
                 <FormLabel>Adjuntar Archivos</FormLabel>
                 <FormControl>
                    <div>
-                      <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
-                         {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Paperclip className="mr-2 h-4 w-4" />}
-                         Seleccionar Archivos
-                      </Button>
-                      <Input 
-                        type="file"
-                        ref={fileInputRef}
-                        multiple
-                        className="hidden"
-                        onChange={handleFileChange}
-                        accept=".pdf,.doc,.docx,.xls,.xlsx,image/*,.zip,.rar"
-                        disabled={isUploading}
-                      />
+                      <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>{isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Paperclip className="mr-2 h-4 w-4" />} Seleccionar Archivos</Button>
+                      <Input type="file" ref={fileInputRef} multiple className="hidden" onChange={handleFileChange} accept=".pdf,.doc,.docx,.xls,.xlsx,image/*,.zip,.rar" disabled={isUploading} />
                    </div>
                 </FormControl>
                 <div className="mt-4 space-y-2">
                   {task.attachments?.map((file, index) => (
-                    <div key={`existing-${index}`} className="flex items-center justify-between p-2 bg-muted/50 rounded-md text-sm">
-                      <span className="truncate flex-1 mr-2">{file.name}</span>
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(file.url, '_blank')}>
-                            <Eye size={14} />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownload(file.url, file.name)}>
-                            <Download size={14} />
-                        </Button>
-                      </div>
-                    </div>
+                    <div key={`existing-${index}`} className="flex items-center justify-between p-2 bg-muted/50 rounded-md text-sm"><span className="truncate flex-1 mr-2">{file.name}</span><div className="flex items-center gap-1"><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(file.url, '_blank')}><Eye size={14} /></Button><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownload(file.url, file.name)}><Download size={14} /></Button></div></div>
                   ))}
                   {attachedFiles.map((file, index) => (
-                    <div key={`new-${index}`} className="flex items-center justify-between p-2 bg-muted rounded-md text-sm">
-                      <span className="truncate">{file.name}</span>
-                      <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeFile(index)}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <div key={`new-${index}`} className="flex items-center justify-between p-2 bg-muted rounded-md text-sm"><span className="truncate">{file.name}</span><Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeFile(index)}><X className="h-4 w-4" /></Button></div>
                   ))}
                 </div>
               </FormItem>
@@ -729,25 +583,14 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
             
             {task.editHistory && task.editHistory.length > 0 && (
                 <div className="space-y-4 pt-4 border-t">
-                    <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
-                        <History className="h-4 w-4" />
-                        Historial de Cambios
-                    </h4>
+                    <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2"><History className="h-4 w-4" /> Historial de Cambios</h4>
                     <ScrollArea className="max-h-[150px] pr-4">
                         <div className="space-y-3">
-                        {task.editHistory.slice().reverse().map((log: EditLogEntry, index: number) => (
+                        {task.editHistory.slice().reverse().map((log, index) => (
                             <div key={index} className="text-xs p-2 bg-muted/50 rounded-md">
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="font-bold text-foreground">{log.user}</span>
-                                    <span className="text-muted-foreground">{formatDistanceToNow(new Date(log.date), { addSuffix: true, locale: es })}</span>
-                                </div>
+                                <div className="flex justify-between items-center mb-2"><span className="font-bold text-foreground">{log.user}</span><span className="text-muted-foreground">{formatDistanceToNow(new Date(log.date), { addSuffix: true, locale: es })}</span></div>
                                 {log.changes && log.changes.map((change, cIndex) => (
-                                    <li key={cIndex} className="text-muted-foreground">
-                                        <span className="font-semibold text-foreground/80">{getFieldName(change.field)}: </span>
-                                        <span className="text-destructive line-through">{formatFieldValue(change.field, change.from)}</span>
-                                        <ArrowRight className="inline-block mx-1 h-3 w-3" />
-                                        <span className="text-emerald-600">{formatFieldValue(change.field, change.to)}</span>
-                                    </li>
+                                    <li key={cIndex} className="text-muted-foreground list-none"><span className="font-semibold text-foreground/80">{getFieldName(change.field)}: </span><span className="text-destructive line-through">{formatFieldValue(change.field, change.from)}</span><ArrowRight className="inline-block mx-1 h-3 w-3" /><span className="text-emerald-600">{formatFieldValue(change.field, change.to)}</span></li>
                                 ))}
                             </div>
                         ))}
@@ -757,13 +600,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: EditTaskDia
             )}
           </form>
         </Form>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button type="submit" onClick={form.handleSubmit(onSubmit)} disabled={isUploading}>
-            {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Guardar Cambios
-          </Button>
-        </DialogFooter>
+        <DialogFooter><Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button><Button type="submit" onClick={form.handleSubmit(onSubmit)} disabled={isUploading}>{isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Guardar Cambios</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
