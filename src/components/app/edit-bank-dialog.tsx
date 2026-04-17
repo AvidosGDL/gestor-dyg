@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -65,7 +64,7 @@ export default function EditBankDialog({
         accountNumber: bankAccount.accountNumber || '',
         clabe: bankAccount.clabe || '',
         cardNumber: bankAccount.cardNumber || '',
-        balanceDate: bankAccount.balanceDate.split('T')[0],
+        balanceDate: bankAccount.balanceDate ? bankAccount.balanceDate.split('T')[0] : '',
       });
       setLogoFile(null);
       setLogoPreview(bankAccount.logoUrl);
@@ -109,7 +108,7 @@ export default function EditBankDialog({
         <DialogHeader>
           <DialogTitle>Editar Cuenta Bancaria</DialogTitle>
           <DialogDescription>
-            Actualiza los datos de la cuenta. El saldo actual se recalcula con las transacciones.
+            Actualiza los datos de la cuenta. El saldo actual se recalcula si ajustas el saldo inicial.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -220,15 +219,15 @@ export default function EditBankDialog({
                       <Input
                           type="text"
                           className="pl-9"
-                          value={(value || 0).toLocaleString('en-US')}
+                          value={(Number(value) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           onChange={(e) => {
-                            const rawValue = e.target.value.replace(/[^0-9]/g, '');
-                            const numericValue = rawValue === '' ? 0 : Number(rawValue);
-                            onChange(numericValue);
+                            const rawValue = e.target.value.replace(/[^0-9.]/g, '');
+                            onChange(rawValue === '' ? 0 : parseFloat(rawValue));
                           }}
                           onBlur={(e) => {
-                            const numericValue = Number(e.target.value.replace(/[^0-9]/g, ''));
-                            e.target.value = numericValue.toLocaleString('en-US');
+                            const rawValue = e.target.value.replace(/[^0-9.]/g, '');
+                            const numericValue = rawValue === '' ? 0 : parseFloat(rawValue);
+                            e.target.value = numericValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                           }}
                           disabled={form.formState.isSubmitting}
                           {...restField}

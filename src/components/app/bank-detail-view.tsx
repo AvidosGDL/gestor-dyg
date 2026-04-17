@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -6,7 +5,7 @@ import { useBanks } from '@/contexts/banks-context';
 import type { BankAccount, BankTransaction } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User } from 'lucide-react';
+import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
@@ -46,14 +45,27 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
           </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Saldo Actual</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-4xl font-bold">${bankAccount.currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Saldo Actual</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-4xl font-bold">${(bankAccount.currentBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Info size={14} /> Saldo Inicial
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold">${(bankAccount.initialBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-xs text-muted-foreground mt-1">Registrado el {bankAccount.balanceDate ? format(new Date(bankAccount.balanceDate), 'dd/MM/yyyy') : 'N/A'}</p>
+            </CardContent>
+          </Card>
+        </div>
 
         <Card className="flex-1 flex flex-col">
             <CardHeader className="flex flex-row items-center justify-between">
@@ -100,7 +112,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                                         {tx.type === 'ingreso' ? 'Ingreso' : 'Egreso'}
                                     </span>
                                 </TableCell>
-                                <TableCell className="text-right font-mono">${tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                <TableCell className="text-right font-mono">${(tx.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                                 <TableCell>
                                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                         <User size={12} />

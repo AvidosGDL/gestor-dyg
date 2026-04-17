@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -95,7 +94,7 @@ function BankAccountCard({ bankAccount, onSelect, onEdit, onDelete }: { bankAcco
       <CardContent className="flex-1 flex flex-col justify-between">
         <div>
             <p className="text-xs text-muted-foreground">Saldo Actual</p>
-            <p className="text-2xl font-bold">${(bankAccount.currentBalance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+            <p className="text-2xl font-bold">${(Number(bankAccount.currentBalance) || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
         </div>
         <Button variant="outline" className="w-full mt-4" onClick={() => onSelect(bankAccount.id)}>
           Ver Transacciones

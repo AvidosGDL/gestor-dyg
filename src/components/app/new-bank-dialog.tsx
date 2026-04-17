@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -111,7 +110,7 @@ export default function NewBankDialog({
         <DialogHeader>
           <DialogTitle>Agregar Nueva Cuenta Bancaria</DialogTitle>
           <DialogDescription>
-            Registra una nueva cuenta para seguimiento de saldos y transacciones.
+            Registra una nueva cuenta definiendo su saldo inicial y fecha para el seguimiento.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -219,15 +218,15 @@ export default function NewBankDialog({
                         <Input
                           type="text"
                           className="pl-9"
-                          value={(value || 0).toLocaleString('en-US')}
+                          value={(Number(value) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           onChange={(e) => {
-                            const rawValue = e.target.value.replace(/[^0-9]/g, '');
-                            const numericValue = rawValue === '' ? 0 : Number(rawValue);
-                            onChange(numericValue);
+                            const rawValue = e.target.value.replace(/[^0-9.]/g, '');
+                            onChange(rawValue === '' ? 0 : parseFloat(rawValue));
                           }}
                           onBlur={(e) => {
-                            const numericValue = Number(e.target.value.replace(/[^0-9]/g, ''));
-                            e.target.value = numericValue.toLocaleString('en-US');
+                            const rawValue = e.target.value.replace(/[^0-9.]/g, '');
+                            const numericValue = rawValue === '' ? 0 : parseFloat(rawValue);
+                            e.target.value = numericValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                           }}
                           disabled={form.formState.isSubmitting}
                           {...restField}

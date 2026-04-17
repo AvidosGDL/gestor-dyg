@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, ReactNode, useMemo } from 'react';
@@ -84,7 +83,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
         companyName: bankAccountData.companyName,
         clabe: bankAccountData.clabe || '',
         logoUrl: logoUrl,
-        currentBalance: bankAccountData.initialBalance
+        currentBalance: Number(bankAccountData.initialBalance || 0)
     };
 
     try {
@@ -104,32 +103,40 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     if (!banksCollectionRef || !firestore) return;
     const docRef = doc(firestore, banksCollectionRef.path, id);
 
-    const dataToUpdate: Partial<BankAccount> = { ...bankAccountData };
-
-    if (logoFile) {
-        try {
-            const storage = getStorage();
-            const logoRef = storageRef(storage, `bank_logos/${Date.now()}_${logoFile.name}`);
-            const snapshot = await uploadBytes(logoRef, logoFile);
-            dataToUpdate.logoUrl = await getDownloadURL(snapshot.ref);
-        } catch (error) {
-            console.error("Error al subir nuevo logo:", error);
-            toast({
-                variant: 'destructive',
-                title: 'Error de Carga',
-                description: 'No se pudo subir el nuevo logo del banco.'
-            });
-            throw error;
-        }
-    }
-
     try {
+        const bankAccountSnap = await getDoc(docRef);
+        if (!bankAccountSnap.exists()) throw new Error("La cuenta no existe");
+        
+        const oldData = bankAccountSnap.data() as BankAccount;
+        const dataToUpdate: Partial<BankAccount> = { ...bankAccountData };
+
+        // Ajustar el saldo actual si el saldo inicial cambió
+        const initialBalanceDiff = Number(bankAccountData.initialBalance || 0) - Number(oldData.initialBalance || 0);
+        dataToUpdate.currentBalance = Number(oldData.currentBalance || 0) + initialBalanceDiff;
+
+        if (logoFile) {
+            try {
+                const storage = getStorage();
+                const logoRef = storageRef(storage, `bank_logos/${Date.now()}_${logoFile.name}`);
+                const snapshot = await uploadBytes(logoRef, logoFile);
+                dataToUpdate.logoUrl = await getDownloadURL(snapshot.ref);
+            } catch (error) {
+                console.error("Error al subir nuevo logo:", error);
+                toast({
+                    variant: 'destructive',
+                    title: 'Error de Carga',
+                    description: 'No se pudo subir el nuevo logo del banco.'
+                });
+                throw error;
+            }
+        }
+
         await updateDoc(docRef, dataToUpdate);
     } catch(serverError) {
         const permissionError = new FirestorePermissionError({
             path: docRef.path,
             operation: 'update',
-            requestResourceData: dataToUpdate,
+            requestResourceData: bankAccountData,
         });
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
@@ -139,8 +146,6 @@ export function BanksProvider({ children }: { children: ReactNode }) {
   const deleteBankAccount = (id: string) => {
     if (!firestore || !collectionPath) return;
     const docRef = doc(firestore, collectionPath, id);
-    // Note: Deleting a document does not delete its subcollections.
-    // A Cloud Function would be needed to delete all transactions.
     deleteDoc(docRef).then(() => {
         toast({ title: 'Cuenta eliminada', description: `La cuenta ha sido eliminada.` });
     }).catch(async (serverError) => {
@@ -173,8 +178,8 @@ export function BanksProvider({ children }: { children: ReactNode }) {
         const currentAccountData = bankAccountSnap.data() as BankAccount;
         
         const newBalance = transactionData.type === 'ingreso'
-            ? currentAccountData.currentBalance + transactionData.amount
-            : currentAccountData.currentBalance - transactionData.amount;
+            ? Number(currentAccountData.currentBalance) + Number(transactionData.amount)
+            : Number(currentAccountData.currentBalance) - Number(transactionData.amount);
 
         const batch = writeBatch(firestore);
         
@@ -209,10 +214,9 @@ export function BanksProvider({ children }: { children: ReactNode }) {
         }
         const currentAccountData = bankAccountSnap.data() as BankAccount;
         
-        // Reverse the transaction to calculate the previous balance
         const newBalance = transaction.type === 'ingreso'
-            ? currentAccountData.currentBalance - transaction.amount
-            : currentAccountData.currentBalance + transaction.amount;
+            ? Number(currentAccountData.currentBalance) - Number(transaction.amount)
+            : Number(currentAccountData.currentBalance) + Number(transaction.amount);
 
         const batch = writeBatch(firestore);
         
@@ -249,9 +253,9 @@ export function BanksProvider({ children }: { children: ReactNode }) {
 
         let balanceChange = 0;
         transactionsWithFiles.forEach(({ data }) => {
-            balanceChange += data.type === 'ingreso' ? data.amount : -data.amount;
+            balanceChange += data.type === 'ingreso' ? Number(data.amount) : -Number(data.amount);
         });
-        const newBalance = currentAccountData.currentBalance + balanceChange;
+        const newBalance = Number(currentAccountData.currentBalance) + balanceChange;
 
         const batch = writeBatch(firestore);
         const transactionsCollectionRef = collection(firestore, `${collectionPath}/${bankAccountId}/transactions`);
@@ -294,12 +298,6 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     } catch (error: any) {
         console.error("Error en la importación batch:", error);
         toast({ variant: 'destructive', title: 'Error de Importación', description: error.message });
-        const permissionError = new FirestorePermissionError({
-            path: `banks/${bankAccountId}/transactions`,
-            operation: 'create',
-            requestResourceData: { info: "Batch import operation." },
-        });
-        errorEmitter.emit('permission-error', permissionError);
     }
   };
 
@@ -317,9 +315,9 @@ export function BanksProvider({ children }: { children: ReactNode }) {
 
         let balanceChange = 0;
         transactions.forEach(tx => {
-            balanceChange += tx.type === 'ingreso' ? tx.amount : -tx.amount;
+            balanceChange += tx.type === 'ingreso' ? Number(tx.amount) : -Number(tx.amount);
         });
-        const newBalance = currentAccountData.currentBalance + balanceChange;
+        const newBalance = Number(currentAccountData.currentBalance) + balanceChange;
 
         const batch = writeBatch(firestore);
         const transactionsCollectionRef = collection(firestore, `${collectionPath}/${bankAccountId}/transactions`);
@@ -340,12 +338,6 @@ export function BanksProvider({ children }: { children: ReactNode }) {
 
     } catch (error: any) {
         console.error("Error en la importación por conciliación:", error);
-        const permissionError = new FirestorePermissionError({
-            path: `banks/${bankAccountId}/transactions`,
-            operation: 'create',
-            requestResourceData: { info: "Conciliation import operation." },
-        });
-        errorEmitter.emit('permission-error', permissionError);
         throw error;
     }
   };
