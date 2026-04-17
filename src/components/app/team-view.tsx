@@ -19,13 +19,11 @@ import {
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Edit, Loader2, ImageUp, Wand2, LogIn, Send, Crown } from 'lucide-react';
+import { Trash2, Edit, Loader2, ImageUp, Crown } from 'lucide-react';
 import { type TeamMember, type UserProfile } from '@/lib/types';
-import { useCollection, useUser, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
-import { collection, deleteDoc, doc, updateDoc, writeBatch, getDocs, query, where, collectionGroup, getDoc } from 'firebase/firestore';
+import { useCollection, useUser, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, deleteDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { signInWithCustomToken } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import {
@@ -44,7 +42,6 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { cn } from '@/lib/utils';
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '../ui/alert-dialog';
-import { Textarea } from '../ui/textarea';
 
 
 const AVATAR_OPTIONS = 7;
@@ -61,15 +58,6 @@ const memberSchema = z.object({
 });
 
 type MemberFormValues = z.infer<typeof memberSchema>;
-
-const testEmailSchema = z.object({
-    to: z.string().email('El correo electrónico del destinatario no es válido.'),
-    subject: z.string().min(1, 'El asunto es requerido.'),
-    message: z.string().min(1, 'El mensaje es requerido.'),
-});
-
-type TestEmailFormValues = z.infer<typeof testEmailSchema>;
-
 
 function EditMemberDialog({
   member,
@@ -279,12 +267,8 @@ function EditMemberDialog({
 
 export default function TeamView() {
   const { user, isUserLoading } = useUser();
-  const auth = useAuth();
   const firestore = useFirestore();
   const { toast } = useToast();
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [impersonationEmail, setImpersonationEmail] = useState('');
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [bosses, setBosses] = useState<UserProfile[]>([]);
 
   useEffect(() => {
@@ -294,7 +278,6 @@ export default function TeamView() {
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
           const profile = userDocSnap.data() as UserProfile;
-          setUserProfile(profile);
           
           const bossIds = profile.ownerIds || (profile.ownerId ? [profile.ownerId] : []);
           if (bossIds.length > 0) {
@@ -303,7 +286,7 @@ export default function TeamView() {
                 const ownerDocRef = doc(firestore, 'users', id);
                 const ownerDocSnap = await getDoc(ownerDocRef);
                 if (ownerDocSnap.exists()) {
-                    bossData.push(ownerDocSnap.data() as UserProfile);
+                    bossData.push({ ...ownerDocSnap.data() as UserProfile, uid: ownerDocSnap.id });
                 }
             }
             setBosses(bossData);
@@ -327,15 +310,6 @@ export default function TeamView() {
 
   const [isEditMemberDialogOpen, setIsEditMemberDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
-  
-  const {
-    register: registerTestEmail,
-    handleSubmit: handleSubmitTestEmail,
-    formState: { errors: testEmailErrors, isSubmitting: isSendingTestEmail },
-    reset: resetTestEmailForm,
-  } = useForm<TestEmailFormValues>({
-      resolver: zodResolver(testEmailSchema),
-  });
 
   const editMember = (member: TeamMember) => {
     setSelectedMember(member);
@@ -378,43 +352,19 @@ export default function TeamView() {
     });
   };
 
-  const onSendTestEmail: SubmitHandler<TestEmailFormValues> = async (data) => {
-    toast({ title: 'Enviando correo de prueba...', description: `A: ${data.to}` });
-    try {
-      const functions = getFunctions();
-      const sendTestEmailFn = httpsCallable(functions, 'sendTestEmail');
-      await sendTestEmailFn(data);
-      toast({
-        title: '¡Correo Enviado!',
-        description: 'El correo de prueba se ha enviado correctamente.',
-      });
-      resetTestEmailForm();
-    } catch (error: any) {
-      console.error('Error enviando correo de prueba:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error al enviar correo',
-        description: error.message || 'Ocurrió un error inesperado.',
-      });
-    }
-  };
-
   const isLoading = isUserLoading || myTeamLoading;
-  const isAdmin = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
-  const isTeamLeader = myTeamMembers && myTeamMembers.length > 0;
-
 
   return (
     <>
       <div className="h-full space-y-4">
         {bosses.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {bosses.map((boss, idx) => (
-                    <Card key={idx}>
+                {bosses.map((boss) => (
+                    <Card key={boss.uid}>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <Crown className="text-amber-500"/>
-                                Jefe de Equipo {bosses.length > 1 ? `#${idx + 1}` : ''}
+                                Jefe de Equipo
                             </CardTitle>
                         </CardHeader>
                         <CardContent>

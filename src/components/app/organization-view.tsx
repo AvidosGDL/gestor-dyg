@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, doc, writeBatch, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, writeBatch } from 'firebase/firestore';
 import type { UserProfile, TeamMember } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,9 +10,10 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Search, Loader2, UserPlus, Trash2, ShieldCheck, Star } from 'lucide-react';
+import { Search, Loader2, Star } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 
 export default function OrganizationView() {
   const { user } = useUser();
@@ -90,7 +91,7 @@ export default function OrganizationView() {
     
     return ids.map(id => {
         const boss = allUsers?.find(b => b.uid === id);
-        return <Badge key={id} variant="secondary" className="mr-1">{boss?.name || 'Desconocido'}</Badge>;
+        return <Badge key={`${u.uid}-boss-${id}`} variant="secondary" className="mr-1">{boss?.name || 'Desconocido'}</Badge>;
     });
   }
 
@@ -126,7 +127,7 @@ export default function OrganizationView() {
               </TableHeader>
               <TableBody>
                 {filteredUsers.map(u => (
-                  <TableRow key={u.uid}>
+                  <TableRow key={u.uid || (u as any).id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
@@ -196,7 +197,7 @@ function AssignBossDialog({ user, allUsers, onClose, onSave, isProcessing }: any
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-1">
                 {possibleBosses.map((boss: any) => (
                     <div 
-                        key={boss.uid} 
+                        key={boss.uid || boss.id} 
                         className={cn(
                             "flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors",
                             currentBossIds.includes(boss.uid) ? "border-primary bg-primary/5" : "hover:bg-muted"
