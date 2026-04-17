@@ -150,12 +150,11 @@ export default function NewBankTransactionDialog({
                         className="pl-9"
                         value={value}
                         onChange={(e) => {
-                          const rawValue = e.target.value.replace(/[^0-9.]/g, '');
-                          const numericValue = rawValue === '' ? 0 : parseFloat(rawValue);
-                          onChange(numericValue);
+                          const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
+                          onChange(rawValue === '' ? 0 : parseFloat(rawValue));
                         }}
                         onBlur={(e) => {
-                          const rawValue = e.target.value.replace(/[^0-9.]/g, '');
+                          const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
                           const numericValue = rawValue === '' ? 0 : parseFloat(rawValue);
                           e.target.value = numericValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
                         }}
