@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import React, { useEffect } from 'react';
@@ -27,7 +25,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 const transactionSchema = z.object({
   date: z.string().min(1, 'La fecha es requerida'),
   description: z.string().min(1, 'La descripción es requerida'),
-  amount: z.coerce.number().min(0.01, 'El monto debe ser mayor a 0'),
+  amount: z.coerce.number().min(0.01, 'El monto debe ser mayor a 0').max(999999999999.99),
   type: z.enum(['ingreso', 'egreso'], { required_error: 'Debes seleccionar un tipo de transacción.' }),
 });
 
@@ -150,7 +148,7 @@ export default function NewBankTransactionDialog({
                       <Input
                         type="text"
                         className="pl-9"
-                        value={(value || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                        value={value}
                         onChange={(e) => {
                           const rawValue = e.target.value.replace(/[^0-9.]/g, '');
                           const numericValue = rawValue === '' ? 0 : parseFloat(rawValue);

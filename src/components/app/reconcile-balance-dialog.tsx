@@ -23,7 +23,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 
 const reconcileSchema = z.object({
   date: z.string().min(1, 'La fecha es requerida'),
-  balance: z.coerce.number().min(-9999999999.99).max(9999999999.99),
+  balance: z.coerce.number().min(-999999999999.99).max(999999999999.99),
 });
 
 type ReconcileFormValues = z.infer<typeof reconcileSchema>;
@@ -112,7 +112,7 @@ export default function ReconcileBalanceDialog({
                       <Input
                         type="text"
                         className="pl-9"
-                        value={(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        value={value}
                         onChange={(e) => {
                           const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
                           onChange(rawValue === '' ? 0 : parseFloat(rawValue));
