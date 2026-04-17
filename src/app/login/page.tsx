@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
@@ -7,6 +6,7 @@ import Image from 'next/image';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   updateProfile,
   onAuthStateChanged,
   type User,
@@ -128,9 +128,11 @@ const createProfileAndFinalizeInvitation = async (user: User, firestore: any, si
 function LoginForm() {
     const auth = useAuth();
     const { toast } = useToast();
-    const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginValues>({
+    const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<LoginValues>({
       resolver: zodResolver(loginSchema)
     });
+
+    const emailValue = watch('email');
   
     const onLogin: SubmitHandler<LoginValues> = async (data) => {
       try {
@@ -145,6 +147,30 @@ function LoginForm() {
       }
     };
 
+    const handleForgotPassword = async () => {
+      if (!emailValue) {
+        toast({
+          variant: 'destructive',
+          title: 'Correo requerido',
+          description: 'Por favor, ingresa tu correo electrónico para enviarte el enlace de recuperación.',
+        });
+        return;
+      }
+      try {
+        await sendPasswordResetEmail(auth, emailValue);
+        toast({
+          title: 'Correo enviado',
+          description: `Se ha enviado un enlace de recuperación a ${emailValue}. Revisa tu bandeja de entrada.`,
+        });
+      } catch (error: any) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: error.message || 'No se pudo enviar el correo de recuperación.',
+        });
+      }
+    };
+
     return (
       <form onSubmit={handleSubmit(onLogin)} className="space-y-4">
         <div className="space-y-2">
@@ -153,7 +179,16 @@ function LoginForm() {
           {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="login-password">Contraseña</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="login-password">Contraseña</Label>
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              className="text-xs text-primary hover:underline font-medium"
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
+          </div>
           <Input id="login-password" type="password" {...register('password')} disabled={isSubmitting} />
           {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
         </div>
@@ -372,5 +407,3 @@ function AuthPage() {
 export default function LoginPage() {
     return <AuthPage />;
 }
-
-    
