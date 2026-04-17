@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useMemo, useState, useRef } from 'react';
@@ -30,7 +29,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { Task, TeamMember, UserProfile } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, getDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, query, where, getDocs } from 'firebase/firestore';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -80,7 +79,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [ownerProfile, setOwnerProfile] = useState<UserProfile & { id: string } | null>(null);
+  const [bossProfiles, setBossProfiles] = useState<(UserProfile & { id: string })[]>([]);
 
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskSchema),
@@ -104,17 +103,23 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
         if (userDocSnap.exists()) {
           const profile = userDocSnap.data() as UserProfile;
           setUserProfile(profile);
-          if (profile.ownerId) {
-            const ownerDocRef = doc(firestore, 'users', profile.ownerId);
-            const ownerDocSnap = await getDoc(ownerDocRef);
-            if (ownerDocSnap.exists()) {
-              setOwnerProfile({ ...ownerDocSnap.data() as UserProfile, id: ownerDocSnap.id });
+          
+          const bossIds = profile.ownerIds || (profile.ownerId ? [profile.ownerId] : []);
+          if (bossIds.length > 0) {
+            const profiles: (UserProfile & { id: string })[] = [];
+            for (const id of bossIds) {
+                const ownerDocRef = doc(firestore, 'users', id);
+                const ownerDocSnap = await getDoc(ownerDocRef);
+                if (ownerDocSnap.exists()) {
+                    profiles.push({ ...ownerDocSnap.data() as UserProfile, id: ownerDocSnap.id });
+                }
             }
+            setBossProfiles(profiles);
           }
         }
       } else {
         setUserProfile(null);
-        setOwnerProfile(null);
+        setBossProfiles([]);
       }
     }
     if (open) {
@@ -248,12 +253,12 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                           className="pl-9"
                           value={value.toLocaleString('en-US')}
                           onChange={(e) => {
-                            const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                            const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
                             const numericValue = rawValue === '' ? 0 : Number(rawValue);
                             onChange(numericValue);
                           }}
                           onBlur={(e) => {
-                            const numericValue = Number(e.target.value.replace(/[^0-9]/g, ''));
+                            const numericValue = Number(e.target.value.replace(/[^0-9.-]/g, ''));
                             e.target.value = numericValue.toLocaleString('en-US');
                           }}
                           {...restField}
@@ -353,11 +358,11 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                         </FormControl>
                         <SelectContent>
                             <SelectItem value="none">Nadie / Tarea personal</SelectItem>
-                            {ownerProfile && (
-                              <SelectItem value={`${ownerProfile.email}|${ownerProfile.id}`}>
-                                {ownerProfile.name} (Jefe de Equipo)
+                            {bossProfiles.map(boss => (
+                              <SelectItem key={boss.id} value={`${boss.email}|${boss.id}`}>
+                                {boss.name} (Jefe de Equipo)
                               </SelectItem>
-                            )}
+                            ))}
                             {members?.map(member => (
                               <SelectItem key={member.id} value={`${member.email}|${member.uid}`}>
                                 {member.name} ({member.email})

@@ -285,7 +285,7 @@ export default function TeamView() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [impersonationEmail, setImpersonationEmail] = useState('');
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [ownerProfile, setOwnerProfile] = useState<UserProfile | null>(null);
+  const [bosses, setBosses] = useState<UserProfile[]>([]);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -295,12 +295,18 @@ export default function TeamView() {
         if (userDocSnap.exists()) {
           const profile = userDocSnap.data() as UserProfile;
           setUserProfile(profile);
-          if (profile.ownerId) {
-            const ownerDocRef = doc(firestore, 'users', profile.ownerId);
-            const ownerDocSnap = await getDoc(ownerDocRef);
-            if (ownerDocSnap.exists()) {
-              setOwnerProfile(ownerDocSnap.data() as UserProfile);
+          
+          const bossIds = profile.ownerIds || (profile.ownerId ? [profile.ownerId] : []);
+          if (bossIds.length > 0) {
+            const bossData: UserProfile[] = [];
+            for (const id of bossIds) {
+                const ownerDocRef = doc(firestore, 'users', id);
+                const ownerDocSnap = await getDoc(ownerDocRef);
+                if (ownerDocSnap.exists()) {
+                    bossData.push(ownerDocSnap.data() as UserProfile);
+                }
             }
+            setBosses(bossData);
           }
         }
       }
@@ -308,21 +314,7 @@ export default function TeamView() {
     fetchProfile();
   }, [user, firestore]);
   
-  const teamOwnerId = useMemo(() => {
-    return userProfile?.ownerId || user?.uid;
-  }, [userProfile, user]);
 
-  const collectionPath = useMemo(() => {
-    return teamOwnerId ? `users/${teamOwnerId}/teamMembers` : null;
-  }, [teamOwnerId]);
-
-  const membersCollectionRef = useMemoFirebase(() => {
-    return collectionPath ? collection(firestore, collectionPath) : null;
-  }, [collectionPath, firestore]);
-  
-  const { data: teamMembersData, loading: membersLoading } = useCollection<TeamMember>(membersCollectionRef);
-  
-  // New state for the current user's direct reports
   const myTeamCollectionPath = useMemo(() => {
     return user ? `users/${user.uid}/teamMembers` : null;
   }, [user]);
@@ -332,13 +324,6 @@ export default function TeamView() {
   }, [myTeamCollectionPath, firestore]);
 
   const { data: myTeamMembers, loading: myTeamLoading } = useCollection<TeamMember>(myTeamCollectionRef);
-
-
-  const peers = useMemo(() => {
-    if (!teamMembersData || !user) return [];
-    return teamMembersData.filter(m => m.uid !== user.uid);
-  }, [teamMembersData, user]);
-
 
   const [isEditMemberDialogOpen, setIsEditMemberDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
@@ -393,127 +378,6 @@ export default function TeamView() {
     });
   };
 
-  const handleMigration = async () => {
-    if (!firestore || !user) return;
-    setIsProcessing(true);
-    toast({ title: 'Iniciando migración global...', description: 'Corrigiendo `delegateToId` en todas las tareas.' });
-
-    try {
-        const allUsersRef = collection(firestore, "users");
-        const allUsersSnap = await getDocs(allUsersRef);
-        const emailToUidMap = new Map<string, string>();
-        allUsersSnap.forEach(doc => {
-            const userData = doc.data();
-            if (userData.email) {
-                emailToUidMap.set(userData.email, doc.id);
-            }
-        });
-        
-        const tasksToFixQuery = query(
-            collection(firestore, "tasks"), 
-            where('delegateToEmail', '!=', null),
-            where('delegateToId', '==', null)
-        );
-        
-        const tasksSnap = await getDocs(tasksToFixQuery);
-        
-        const batch = writeBatch(firestore);
-        let updatedCount = 0;
-
-        tasksSnap.forEach(taskDoc => {
-            const task = taskDoc.data() as any;
-            if (task.delegateToEmail) {
-                const correctUid = emailToUidMap.get(task.delegateToEmail);
-                if (correctUid) {
-                    const taskRef = doc(firestore, "tasks", taskDoc.id);
-                    batch.update(taskRef, { delegateToId: correctUid });
-                    updatedCount++;
-                }
-            }
-        });
-
-
-        if (updatedCount > 0) {
-            await batch.commit();
-            toast({ title: '¡Migración Global Completada!', description: `${updatedCount} tareas han sido actualizadas en toda la plataforma.` });
-        } else {
-            toast({ title: 'Migración Global Finalizada', description: 'No se encontraron tareas delegadas para actualizar.' });
-        }
-
-    } catch (error: any) {
-        console.error("Error durante la migración global: ", error);
-        toast({
-            variant: "destructive",
-            title: 'Error en la Migración Global',
-            description: error.message || 'Ocurrió un error inesperado.'
-        });
-    } finally {
-        setIsProcessing(false);
-    }
-};
-
-  const handleSyncUids = async () => {
-    setIsProcessing(true);
-    toast({ title: 'Sincronizando UIDs para todos los equipos...', description: 'Este proceso puede tardar unos momentos.' });
-
-    try {
-        const functions = getFunctions();
-        const syncUidsFn = httpsCallable(functions, 'syncAllTeamMemberUIDs');
-        const result: any = await syncUidsFn();
-
-        const { updatedCount } = result.data;
-        
-        if (updatedCount > 0) {
-            toast({ title: '¡Sincronización Global Completada!', description: `${updatedCount} miembros del equipo han sido actualizados en toda la plataforma.` });
-        } else {
-            toast({ title: 'Sincronización Finalizada', description: 'Todos los UIDs en todos los equipos ya estaban correctos.' });
-        }
-    } catch (error: any) {
-        console.error("Error durante la sincronización global de UIDs: ", error);
-        toast({
-            variant: "destructive",
-            title: 'Error en la Sincronización Global',
-            description: error.message || 'Ocurrió un error inesperado.'
-        });
-    } finally {
-        setIsProcessing(false);
-    }
-  };
-
-
-  const handleImpersonate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!impersonationEmail.trim() || !auth) return;
-
-    setIsProcessing(true);
-    toast({ title: 'Iniciando suplantación...', description: `Solicitando acceso como ${impersonationEmail}`});
-
-    try {
-        const functions = getFunctions();
-        const createImpersonationToken = httpsCallable(functions, 'createImpersonationToken');
-        const result: any = await createImpersonationToken({ email: impersonationEmail });
-        
-        const { token } = result.data;
-
-        await signInWithCustomToken(auth, token);
-        
-        toast({ title: '¡Éxito!', description: 'Has iniciado sesión como otro usuario. Recargando...' });
-        
-        localStorage.setItem('impersonator_uid', user!.uid);
-        window.location.href = '/';
-
-    } catch (error: any) {
-        console.error('Error al suplantar:', error);
-        toast({
-            variant: 'destructive',
-            title: 'Error de Suplantación',
-            description: error.message || 'No se pudo completar la operación.',
-        });
-    } finally {
-        setIsProcessing(false);
-    }
-  }
-
   const onSendTestEmail: SubmitHandler<TestEmailFormValues> = async (data) => {
     toast({ title: 'Enviando correo de prueba...', description: `A: ${data.to}` });
     try {
@@ -534,480 +398,143 @@ export default function TeamView() {
       });
     }
   };
-  
-  const handleMigrateOwnerIds = async () => {
-    setIsProcessing(true);
-    toast({ title: 'Iniciando migración de dueños...', description: 'Esto asignará un jefe a todos los miembros de equipo existentes.' });
 
-    try {
-        const functions = getFunctions();
-        const migrateOwnerIdsFn = httpsCallable(functions, 'migrateOwnerIds');
-        const result: any = await migrateOwnerIdsFn();
-        
-        const { updatedCount, notFoundCount, notFoundMembers } = result.data as any;
-        
-        let description = `${updatedCount} miembros de equipo han sido actualizados con su respectivo jefe.`;
-        if (notFoundCount > 0) {
-            description += ` Se omitieron ${notFoundCount} miembros "fantasma" (sin perfil).`;
-            console.warn("Miembros fantasma encontrados y omitidos:", notFoundMembers);
-        }
-
-        toast({ title: '¡Migración Completada!', description });
-
-    } catch (error: any) {
-        console.error("Error durante la migración de ownerId: ", error);
-        toast({
-            variant: "destructive",
-            title: 'Error en la Migración',
-            description: error.message || 'Ocurrió un error inesperado.'
-        });
-    } finally {
-        setIsProcessing(false);
-    }
-  }
-
-
-  const isLoading = isUserLoading || membersLoading || myTeamLoading;
+  const isLoading = isUserLoading || myTeamLoading;
   const isAdmin = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
-  const isOwner = userProfile && !userProfile.ownerId;
+  const isTeamLeader = myTeamMembers && myTeamMembers.length > 0;
 
 
   return (
     <>
       <div className="h-full space-y-4">
-        {isAdmin && (
-            <Card>
-                 <CardHeader>
-                    <CardTitle>Panel de Administrador</CardTitle>
-                    <CardDescription>Herramientas especiales para la gestión, diagnóstico y reparación de datos.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-4 p-4 border rounded-lg">
-                     <h4 className="font-semibold">Suplantación de Usuario</h4>
-                     <form onSubmit={handleImpersonate} className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                        <div className="w-full sm:w-auto flex-grow">
-                          <Label htmlFor="impersonate-email" className="sr-only">Correo electrónico</Label>
-                          <Input
-                            id="impersonate-email" 
-                            type="email"
-                            placeholder="Email del usuario a suplantar"
-                            value={impersonationEmail}
-                            onChange={(e) => setImpersonationEmail(e.target.value)}
-                            disabled={isProcessing}
-                          />
-                        </div>
-                        <Button type="submit" disabled={isProcessing || !impersonationEmail}>
-                           {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
-                           Iniciar Sesión Como
-                        </Button>
-                     </form>
-                     <p className="text-xs text-muted-foreground mt-2">
-                        Inicia sesión como cualquier usuario del sistema para verificar su funcionalidad.
-                     </p>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div>
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button disabled={isProcessing} variant="secondary" className="w-full justify-start">
-                                    <Wand2 className="mr-2 h-4 w-4" />
-                                    Sincronizar Jefes (Migración)
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Confirmar Migración de Jefes de Equipo?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        Esta acción recorrerá todos los equipos y asignará un jefe (`ownerId`) a cada miembro que no lo tenga. Es un paso crucial para que los miembros antiguos puedan delegar tareas a sus jefes.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleMigrateOwnerIds} disabled={isProcessing}>Sí, iniciar migración</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                        <p className="text-xs text-muted-foreground mt-2">
-                           Actualiza todos los miembros de equipo existentes para asignarles su jefe.
-                        </p>
-                    </div>
-                    <div>
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button disabled={isProcessing} className="w-full justify-start">
-                                    <Wand2 className="mr-2 h-4 w-4" />
-                                    Sincronizar UIDs del Equipo (Global)
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Confirmar Sincronización Global de UIDs?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        Esta acción escaneará TODOS los equipos de TODOS los usuarios en la plataforma. Verificará que el UID de cada miembro sea el correcto y lo corregirá si es necesario. Esto es fundamental para la integridad de los datos en toda la aplicación.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleSyncUids} disabled={isProcessing}>Sí, sincronizar todo</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                        <p className="text-xs text-muted-foreground mt-2">
-                           Repara los UIDs incorrectos de los miembros de todos los equipos.
-                        </p>
-                    </div>
-                     <div>
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button disabled={isProcessing} variant="secondary" className="w-full justify-start">
-                                    <Wand2 className="mr-2 h-4 w-4" />
-                                    Migrar Delegaciones (Global)
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Confirmar Migración de Datos Global?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        Esta acción buscará en TODAS las tareas de la plataforma aquellas que tengan un correo de delegación pero no un UID. Intentará asignar el UID correcto basado en el correo. Ejecútala después de sincronizar los UIDs para asegurar que la información es correcta.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleMigration} disabled={isProcessing}>Sí, iniciar migración global</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                        <p className="text-xs text-muted-foreground mt-2">
-                           Corrige todas las tareas delegadas antiguas que no tienen el UID asignado.
-                        </p>
-                    </div>
-                  </div>
-                   <div className="space-y-4 p-4 border rounded-lg">
-                     <h4 className="font-semibold">Enviar Correo de Prueba</h4>
-                     <form onSubmit={handleSubmitTestEmail(onSendTestEmail)} className="space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                             <div className="space-y-2">
-                                <Label htmlFor="test-email-to">Destinatario</Label>
-                                <Input id="test-email-to" type="email" placeholder="destinatario@ejemplo.com" {...registerTestEmail("to")} />
-                                {testEmailErrors.to && <p className="text-sm text-destructive">{testEmailErrors.to.message}</p>}
+        {bosses.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {bosses.map((boss, idx) => (
+                    <Card key={idx}>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Crown className="text-amber-500"/>
+                                Jefe de Equipo {bosses.length > 1 ? `#${idx + 1}` : ''}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex items-center gap-4">
+                                <Avatar className="h-16 w-16">
+                                    <AvatarImage src={boss.avatarUrl} alt={boss.name} />
+                                    <AvatarFallback>{boss.name?.charAt(0).toUpperCase()}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <p className="text-lg font-bold">{boss.name}</p>
+                                    <p className="text-muted-foreground">{boss.email}</p>
+                                    <Badge variant="secondary" className="mt-1">{boss.role}</Badge>
+                                </div>
                             </div>
-                             <div className="space-y-2">
-                                <Label htmlFor="test-email-subject">Asunto</Label>
-                                <Input id="test-email-subject" placeholder="Asunto del correo" {...registerTestEmail("subject")} />
-                                {testEmailErrors.subject && <p className="text-sm text-destructive">{testEmailErrors.subject.message}</p>}
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="test-email-message">Mensaje</Label>
-                            <Textarea id="test-email-message" placeholder="Escribe tu mensaje aquí..." {...registerTestEmail("message")} />
-                            {testEmailErrors.message && <p className="text-sm text-destructive">{testEmailErrors.message.message}</p>}
-                        </div>
-                        <Button type="submit" disabled={isSendingTestEmail}>
-                           {isSendingTestEmail ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                           Enviar Correo de Prueba
-                        </Button>
-                     </form>
-                  </div>
-                </CardContent>
-            </Card>
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
         )}
         
-        {isOwner ? (
-             <Card>
-                <CardHeader>
-                    <CardTitle>Miembros de mi Equipo</CardTitle>
-                    <CardDescription>
-                        Aquí puedes ver y administrar los miembros de tu equipo.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                            <TableHead>Miembro</TableHead>
-                            <TableHead>Rol</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead className="text-right">Acciones</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading && (
-                            <TableRow>
-                                <TableCell colSpan={4} className="text-center">
-                                <div className="flex justify-center items-center p-4">
-                                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                                </div>
-                                </TableCell>
-                            </TableRow>
-                            )}
-                            {!isLoading &&
-                            myTeamMembers &&
-                            myTeamMembers.map((member) => (
-                                <TableRow key={member.uid || member.id}>
-                                <TableCell>
-                                    <div className="flex items-center gap-3">
-                                    <Avatar>
-                                        <AvatarImage
-                                        src={member.avatarUrl}
-                                        alt={member.name}
-                                        />
-                                        <AvatarFallback>
-                                        {member.name.charAt(0).toUpperCase()}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                    <div>
-                                        <p className="font-medium">{member.name}</p>
-                                        <p className="text-sm text-muted-foreground">
-                                        {member.email}
-                                        </p>
-                                    </div>
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <Badge variant="secondary">{member.role}</Badge>
-                                </TableCell>
-                                <TableCell>
-                                    <Badge variant="outline">Activo</Badge>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={(e) => { e.stopPropagation(); editMember(member); }}
-                                    >
-                                        <Edit className="h-4 w-4 text-muted-foreground" />
-                                    </Button>
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="ghost" size="icon">
-                                            <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                Esta acción no se puede deshacer. Se eliminará permanentemente al miembro <span className="font-bold">{member.name}</span> del equipo. Las tareas delegadas no se verán afectadas pero no se podrán re-delegar a este usuario.
-                                            </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => deleteMember(member.id)} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </TableCell>
-                                </TableRow>
-                            ))}
-                            {!isLoading && (!myTeamMembers || myTeamMembers.length === 0) && (
-                            <TableRow>
-                                <TableCell
-                                colSpan={4}
-                                className="text-center py-10 text-muted-foreground"
-                                >
-                                No has invitado a nadie a tu equipo todavía.
-                                </TableCell>
-                            </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
-        ) : (
-          <>
-            {ownerProfile && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Crown className="text-amber-500"/>
-                            Jefe de Equipo
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex items-center gap-4">
-                            <Avatar className="h-16 w-16">
-                                <AvatarImage src={ownerProfile.avatarUrl} alt={ownerProfile.name} />
-                                <AvatarFallback>{ownerProfile.name?.charAt(0).toUpperCase()}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                                <p className="text-lg font-bold">{ownerProfile.name}</p>
-                                <p className="text-muted-foreground">{ownerProfile.email}</p>
-                                <Badge variant="secondary" className="mt-1">{ownerProfile.role}</Badge>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-            
-            {myTeamMembers && myTeamMembers.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Miembros de mi Equipo</CardTitle>
-                  <CardDescription>
-                    Personas que tú gestionas.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                   <Table>
-                        <TableHeader>
-                            <TableRow>
-                            <TableHead>Miembro</TableHead>
-                            <TableHead>Rol</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead className="text-right">Acciones</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading && (
-                            <TableRow>
-                                <TableCell colSpan={4} className="text-center">
-                                <div className="flex justify-center items-center p-4">
-                                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                                </div>
-                                </TableCell>
-                            </TableRow>
-                            )}
-                            {!isLoading &&
-                            myTeamMembers.map((member) => (
-                                <TableRow key={member.uid || member.id}>
-                                <TableCell>
-                                    <div className="flex items-center gap-3">
-                                    <Avatar>
-                                        <AvatarImage
-                                        src={member.avatarUrl}
-                                        alt={member.name}
-                                        />
-                                        <AvatarFallback>
-                                        {member.name.charAt(0).toUpperCase()}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                    <div>
-                                        <p className="font-medium">{member.name}</p>
-                                        <p className="text-sm text-muted-foreground">
-                                        {member.email}
-                                        </p>
-                                    </div>
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <Badge variant="secondary">{member.role}</Badge>
-                                </TableCell>
-                                <TableCell>
-                                    <Badge variant="outline">Activo</Badge>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={(e) => { e.stopPropagation(); editMember(member); }}
-                                    >
-                                        <Edit className="h-4 w-4 text-muted-foreground" />
-                                    </Button>
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="ghost" size="icon">
-                                            <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                Esta acción no se puede deshacer. Se eliminará permanentemente al miembro <span className="font-bold">{member.name}</span> del equipo.
-                                            </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => deleteMember(member.id)} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-              </Card>
-            )}
-
-            <Card>
+        <Card>
             <CardHeader>
-                <CardTitle>Compañeros de Equipo</CardTitle>
+                <CardTitle>Miembros de mi Equipo</CardTitle>
                 <CardDescription>
-                    Estos son los otros miembros de tu equipo.
+                    Aquí puedes ver y administrar los miembros que tú gestionas directamente.
                 </CardDescription>
             </CardHeader>
             <CardContent>
                 <Table>
-                <TableHeader>
-                    <TableRow>
-                    <TableHead>Miembro</TableHead>
-                    <TableHead>Rol</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {isLoading && (
-                    <TableRow>
-                        <TableCell colSpan={4} className="text-center">
-                        <div className="flex justify-center items-center p-4">
-                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                        </div>
-                        </TableCell>
-                    </TableRow>
-                    )}
-                    {!isLoading &&
-                    peers &&
-                    peers.map((member) => (
-                        <TableRow key={member.uid || member.id}>
-                        <TableCell>
-                            <div className="flex items-center gap-3">
-                            <Avatar>
-                                <AvatarImage
-                                src={member.avatarUrl}
-                                alt={member.name}
-                                />
-                                <AvatarFallback>
-                                {member.name.charAt(0).toUpperCase()}
-                                </AvatarFallback>
-                            </Avatar>
-                            <div>
-                                <p className="font-medium">{member.name}</p>
-                                <p className="text-sm text-muted-foreground">
-                                {member.email}
-                                </p>
-                            </div>
-                            </div>
-                        </TableCell>
-                        <TableCell>
-                            <Badge variant="secondary">{member.role}</Badge>
-                        </TableCell>
-                        <TableCell>
-                            <Badge variant="outline">Activo</Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                           <span className="text-xs text-muted-foreground">Solo el jefe puede editar</span>
-                        </TableCell>
+                    <TableHeader>
+                        <TableRow>
+                        <TableHead>Miembro</TableHead>
+                        <TableHead>Rol</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead className="text-right">Acciones</TableHead>
                         </TableRow>
-                    ))}
-                    {!isLoading && (!peers || peers.length === 0) && (
-                    <TableRow>
-                        <TableCell
-                        colSpan={4}
-                        className="text-center py-10 text-muted-foreground"
-                        >
-                        No hay otros miembros en el equipo todavía.
-                        </TableCell>
-                    </TableRow>
-                    )}
-                </TableBody>
+                    </TableHeader>
+                    <TableBody>
+                        {isLoading && (
+                        <TableRow>
+                            <TableCell colSpan={4} className="text-center">
+                            <div className="flex justify-center items-center p-4">
+                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                            </div>
+                            </TableCell>
+                        </TableRow>
+                        )}
+                        {!isLoading &&
+                        myTeamMembers &&
+                        myTeamMembers.map((member) => (
+                            <TableRow key={member.uid || member.id}>
+                            <TableCell>
+                                <div className="flex items-center gap-3">
+                                <Avatar>
+                                    <AvatarImage
+                                    src={member.avatarUrl}
+                                    alt={member.name}
+                                    />
+                                    <AvatarFallback>
+                                    {member.name.charAt(0).toUpperCase()}
+                                    </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <p className="font-medium">{member.name}</p>
+                                    <p className="text-sm text-muted-foreground">
+                                    {member.email}
+                                    </p>
+                                </div>
+                                </div>
+                            </TableCell>
+                            <TableCell>
+                                <Badge variant="secondary">{member.role}</Badge>
+                            </TableCell>
+                            <TableCell>
+                                <Badge variant="outline">Activo</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={(e) => { e.stopPropagation(); editMember(member); }}
+                                >
+                                    <Edit className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="icon">
+                                        <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                        <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            Esta acción no se puede deshacer. Se eliminará permanentemente al miembro <span className="font-bold">{member.name}</span> del equipo.
+                                        </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => deleteMember(member.id)} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </TableCell>
+                            </TableRow>
+                        ))}
+                        {!isLoading && (!myTeamMembers || myTeamMembers.length === 0) && (
+                        <TableRow>
+                            <TableCell
+                            colSpan={4}
+                            className="text-center py-10 text-muted-foreground"
+                            >
+                            No has invitado a nadie a tu equipo todavía.
+                            </TableCell>
+                        </TableRow>
+                        )}
+                    </TableBody>
                 </Table>
             </CardContent>
-            </Card>
-          </>
-        )}
+        </Card>
       </div>
       <EditMemberDialog
         isOpen={isEditMemberDialogOpen}

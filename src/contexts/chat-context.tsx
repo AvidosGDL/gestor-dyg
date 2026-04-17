@@ -112,7 +112,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const { user } = useUser();
   const [processedConversations, setProcessedConversations] = useState<Chat[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [ownerProfile, setOwnerProfile] = useState<UserProfile | null>(null);
+  const [bossProfiles, setBossProfiles] = useState<UserProfile[]>([]);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -122,25 +122,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         if (userDocSnap.exists()) {
           const profile = userDocSnap.data() as UserProfile;
           setUserProfile(profile);
-          if (profile.ownerId) {
-            const ownerDocRef = doc(firestore, 'users', profile.ownerId);
-            const ownerDocSnap = await getDoc(ownerDocRef);
-            if (ownerDocSnap.exists()) {
-              setOwnerProfile(ownerDocSnap.data() as UserProfile);
+          
+          const bossIds = profile.ownerIds || (profile.ownerId ? [profile.ownerId] : []);
+          if (bossIds.length > 0) {
+            const profiles: UserProfile[] = [];
+            for (const id of bossIds) {
+                const ownerDocRef = doc(firestore, 'users', id);
+                const ownerDocSnap = await getDoc(ownerDocRef);
+                if (ownerDocSnap.exists()) {
+                    profiles.push(ownerDocSnap.data() as UserProfile);
+                }
             }
+            setBossProfiles(profiles);
           } else {
-            // The user is the owner
-            setOwnerProfile(profile);
+             setBossProfiles([]);
           }
         }
       }
     };
     fetchProfile();
   }, [user, firestore]);
-
-  const teamOwnerId = useMemo(() => {
-    return userProfile?.ownerId || user?.uid;
-  }, [userProfile, user]);
 
   const chatsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -154,46 +155,61 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const { data: rawConversations, loading: chatsLoading } = useCollection<Chat>(chatsQuery);
   
-  const teamMembersCollectionPath = useMemo(() => {
-    return teamOwnerId ? `users/${teamOwnerId}/teamMembers` : null;
-  }, [teamOwnerId]);
+  // Logic to fetch members for each team the user belongs to
+  const [allTeamMembers, setAllTeamMembers] = useState<TeamMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
 
-  const teamMembersCollectionRef = useMemoFirebase(() => {
-      return teamMembersCollectionPath ? collection(firestore, teamMembersCollectionPath) : null;
-  }, [teamMembersCollectionPath, firestore]);
-
-  const { data: teamMembersData, loading: membersLoading } = useCollection<TeamMember>(teamMembersCollectionRef);
-
-  const teamMembers = useMemo(() => {
-    // Use a Map to ensure each user is added only once, using their UID as the key.
-    const membersMap = new Map<string, TeamMember>();
-
-    // Add members from the subcollection first.
-    if (teamMembersData) {
-      teamMembersData.forEach(member => {
-        if (member.uid) { // Ensure member has a UID
-          membersMap.set(member.uid, member);
+  useEffect(() => {
+    async function fetchAllMembers() {
+        if (!firestore || !userProfile) return;
+        setMembersLoading(true);
+        const membersMap = new Map<string, TeamMember>();
+        
+        const ownerIds = userProfile.ownerIds || (userProfile.ownerId ? [userProfile.ownerId] : []);
+        
+        // If user is boss themselves
+        if (ownerIds.length === 0) {
+            ownerIds.push(userProfile.uid);
         }
-      });
-    }
 
-    // Add the owner profile if it exists and isn't already in the map.
-    if (ownerProfile && ownerProfile.uid && !membersMap.has(ownerProfile.uid)) {
-      membersMap.set(ownerProfile.uid, {
-        id: ownerProfile.uid,
-        uid: ownerProfile.uid,
-        name: ownerProfile.name,
-        email: ownerProfile.email,
-        role: `${ownerProfile.role || 'Jefe de Equipo'}`,
-        avatarUrl: ownerProfile.avatarUrl,
-        phone: ownerProfile.phone,
-        authType: 'email', // Assuming email, adjust if necessary
-      });
+        try {
+            for (const bossId of ownerIds) {
+                const colRef = collection(firestore, `users/${bossId}/teamMembers`);
+                const snap = await getDocs(colRef);
+                snap.forEach(d => {
+                    const data = d.data() as TeamMember;
+                    if (data.uid && data.uid !== userProfile.uid) {
+                        membersMap.set(data.uid, data);
+                    }
+                });
+                
+                // Add the boss as well
+                if (bossId !== userProfile.uid) {
+                    const bossDoc = await getDoc(doc(firestore, 'users', bossId));
+                    if (bossDoc.exists()) {
+                        const bData = bossDoc.data() as UserProfile;
+                        membersMap.set(bossId, {
+                            id: bossId,
+                            uid: bossId,
+                            name: bData.name,
+                            email: bData.email,
+                            role: bData.role || 'Jefe de Equipo',
+                            avatarUrl: bData.avatarUrl,
+                            authType: 'email'
+                        });
+                    }
+                }
+            }
+            setAllTeamMembers(Array.from(membersMap.values()));
+        } catch (e) {
+            console.error("Error fetching multi-team members:", e);
+        } finally {
+            setMembersLoading(false);
+        }
     }
-    
-    // Convert the map back to an array.
-    return Array.from(membersMap.values());
-  }, [teamMembersData, ownerProfile]);
+    fetchAllMembers();
+  }, [firestore, userProfile]);
+
   
   useEffect(() => {
     if (!rawConversations || !firestore) {
@@ -390,13 +406,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const contextValue = useMemo(() => ({
     conversations: processedConversations,
-    teamMembers: teamMembers || [],
+    teamMembers: allTeamMembers,
     loading: chatsLoading || membersLoading,
     getMessagesForConversation,
     sendMessage,
     getOrCreateConversation,
     unreadCount,
-  }), [processedConversations, teamMembers, chatsLoading, membersLoading, unreadCount, getMessagesForConversation, sendMessage, getOrCreateConversation ]);
+  }), [processedConversations, allTeamMembers, chatsLoading, membersLoading, unreadCount, getMessagesForConversation, sendMessage, getOrCreateConversation ]);
 
   return (
     <ChatContext.Provider value={contextValue}>{children}</ChatContext.Provider>

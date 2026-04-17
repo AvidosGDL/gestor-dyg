@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Layout, Calendar, Users, FileUp, Handshake, LineChart, Archive, Landmark, KanbanSquare } from 'lucide-react';
+import { Layout, Calendar, Users, FileUp, Handshake, LineChart, Archive, Landmark, KanbanSquare, Network } from 'lucide-react';
 import type { View } from '@/app/page';
 import { cn } from '@/lib/utils';
 import {
@@ -19,9 +19,10 @@ interface SidebarNavProps {
 
 export default function SidebarNav({ view, setView }: SidebarNavProps) {
   const { user } = useUser();
-  const isAuthorizedForInvestors = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2';
-  const isAuthorizedForBanks = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2' || user?.uid === 'cAmV6Hn6zNhbu45WXo9LFRRd2k82' || user?.uid === '0QjliF8VEbgA7ZAfAvJvrv22pII3';
-  const isAuthorizedForProjects = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2';
+  const isAdmin = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
+  const isAuthorizedForInvestors = isAdmin || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2';
+  const isAuthorizedForBanks = isAdmin || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2' || user?.uid === 'cAmV6Hn6zNhbu45WXo9LFRRd2k82' || user?.uid === '0QjliF8VEbgA7ZAfAvJvrv22pII3';
+  const isAuthorizedForProjects = isAdmin || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2';
 
 
   const navItems = [
@@ -35,6 +36,7 @@ export default function SidebarNav({ view, setView }: SidebarNavProps) {
     { id: 'history', label: 'Histórico de Tareas', icon: Archive },
     ...(isAuthorizedForInvestors ? [{ id: 'investors', label: 'Inversionistas', icon: Landmark }] : []),
     ...(isAuthorizedForBanks ? [{ id: 'banks', label: 'Bancos y Saldos', icon: Landmark }] : []),
+    ...(isAdmin ? [{ id: 'organization', label: 'Estructura Global', icon: Network }] : []),
   ];
 
   return (

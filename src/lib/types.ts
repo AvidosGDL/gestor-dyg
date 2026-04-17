@@ -77,7 +77,8 @@ export interface UserProfile {
   role: string;
   phone?: string;
   uid: string;
-  ownerId?: string; // UID of the team owner who invited this user
+  ownerId?: string; // Legacy
+  ownerIds?: string[]; // Array of UIDs of the team owners who invited or manage this user
 }
 
 export interface ContactLogEntry {

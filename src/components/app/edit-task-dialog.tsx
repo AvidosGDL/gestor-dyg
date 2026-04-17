@@ -130,7 +130,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: { open: boo
   const [elapsedTime, setElapsedTime] = useState(0);
   
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [ownerProfile, setOwnerProfile] = useState<UserProfile | null>(null);
+  const [bossProfiles, setBossProfiles] = useState<(UserProfile & { id: string })[]>([]);
 
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualDate, setManualDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -154,12 +154,18 @@ export default function EditTaskDialog({ open, onOpenChange, task }: { open: boo
         if (userDocSnap.exists()) {
           const profile = userDocSnap.data() as UserProfile;
           setUserProfile(profile);
-          if (profile.ownerId) {
-            const ownerDocRef = doc(firestore, 'users', profile.ownerId);
-            const ownerDocSnap = await getDoc(ownerDocRef);
-            if (ownerDocSnap.exists()) {
-              setOwnerProfile({ ...ownerDocSnap.data() as UserProfile, uid: ownerDocSnap.id });
+          
+          const bossIds = profile.ownerIds || (profile.ownerId ? [profile.ownerId] : []);
+          if (bossIds.length > 0) {
+            const profiles: (UserProfile & { id: string })[] = [];
+            for (const id of bossIds) {
+                const ownerDocRef = doc(firestore, 'users', id);
+                const ownerDocSnap = await getDoc(ownerDocRef);
+                if (ownerDocSnap.exists()) {
+                    profiles.push({ ...ownerDocSnap.data() as UserProfile, id: ownerDocSnap.id });
+                }
             }
+            setBossProfiles(profiles);
           }
         }
       }
@@ -417,8 +423,9 @@ export default function EditTaskDialog({ open, onOpenChange, task }: { open: boo
                           className="pl-9"
                           value={value ? value.toLocaleString('en-US') : '0'}
                           onChange={(e) => {
-                            const rawValue = e.target.value.replace(/[^0-9]/g, '');
-                            onChange(rawValue === '' ? 0 : Number(rawValue));
+                            const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
+                            const numericValue = rawValue === '' ? 0 : Number(rawValue);
+                            onChange(numericValue);
                           }}
                           disabled={!isOwner}
                           {...restField}
@@ -488,7 +495,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: { open: boo
                         <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                         <SelectContent>
                             <SelectItem value="none">Nadie / Tarea personal</SelectItem>
-                             {ownerProfile && <SelectItem value={`${ownerProfile.email}|${ownerProfile.uid}`}>{ownerProfile.name} (Jefe)</SelectItem>}
+                             {bossProfiles.map(boss => <SelectItem key={boss.id} value={`${boss.email}|${boss.id}`}>{boss.name} (Jefe)</SelectItem>)}
                             {members?.map(member => <SelectItem key={member.id} value={`${member.email}|${member.uid}`}>{member.name} ({member.email})</SelectItem>)}
                         </SelectContent>
                     </Select>
@@ -505,7 +512,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: { open: boo
                         <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                         <SelectContent>
                             <SelectItem value="pendiente">Pendiente</SelectItem>
-                            <SelectItem value="en-progreso">En Progreso</SelectItem>
+                            <SelectItem value="en-progreso">En Pregreso</SelectItem>
                             <SelectItem value="cierre">Cierre</SelectItem>
                             <SelectItem value="completado">Completado</SelectItem>
                         </SelectContent>

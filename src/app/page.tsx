@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -27,6 +26,7 @@ import HistoryView from '@/components/app/history-view';
 import InvestorsView from '@/components/app/investors-view';
 import BanksView from '@/components/app/banks-view';
 import ProjectsView from '@/components/app/projects-view';
+import OrganizationView from '@/components/app/organization-view';
 import { doc, getDoc } from 'firebase/firestore';
 import ChatWidget from '@/components/app/chat-widget';
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,7 @@ import { signOut } from 'firebase/auth';
 import { cn } from '@/lib/utils';
 
 
-export type View = 'board' | 'planning' | 'team' | 'import' | 'prospects' | 'analytics' | 'history' | 'investors' | 'banks' | 'projects';
+export type View = 'board' | 'planning' | 'team' | 'import' | 'prospects' | 'analytics' | 'history' | 'investors' | 'banks' | 'projects' | 'organization';
 
 const productivityTips = [
   "Si tarda menos de 2 minutos, hazlo ahora. Si no, ponlo en el backlog.",
@@ -173,6 +173,7 @@ function Dashboard() {
                         {view === 'investors' && <InvestorsView />}
                         {view === 'banks' && <BanksView />}
                         {view === 'projects' && <ProjectsView />}
+                        {view === 'organization' && <OrganizationView />}
                       </main>
                     </SidebarInset>
                     <ChatWidget />
@@ -219,5 +220,3 @@ export default function Home() {
     </AuthWrapper>
   );
 }
-
-    
