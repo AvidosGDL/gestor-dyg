@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -41,6 +41,7 @@ export default function ReconcileBalanceDialog({
 }: ReconcileBalanceDialogProps) {
   const { reconcileBalance } = useBanks();
   const { toast } = useToast();
+  const [displayBalance, setDisplayBalance] = useState('');
 
   const form = useForm<ReconcileFormValues>({
     resolver: zodResolver(reconcileSchema),
@@ -56,6 +57,7 @@ export default function ReconcileBalanceDialog({
         date: new Date().toISOString().split('T')[0],
         balance: bankAccount.currentBalance,
       });
+      setDisplayBalance(bankAccount.currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
     }
   }, [isOpen, bankAccount, form]);
 
@@ -103,7 +105,7 @@ export default function ReconcileBalanceDialog({
             <FormField
               control={form.control}
               name="balance"
-              render={({ field: { onChange, value, ...restField } }) => (
+              render={({ field }) => (
                 <FormItem>
                   <FormLabel>Saldo Real a esa Fecha ($)</FormLabel>
                   <FormControl>
@@ -112,18 +114,23 @@ export default function ReconcileBalanceDialog({
                       <Input
                         type="text"
                         className="pl-9"
-                        value={value}
+                        value={displayBalance}
+                        onFocus={() => setDisplayBalance(displayBalance.replace(/,/g, ''))}
                         onChange={(e) => {
-                          const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
-                          onChange(rawValue === '' ? 0 : parseFloat(rawValue));
+                          const val = e.target.value.replace(/[^0-9.-]/g, '');
+                          setDisplayBalance(val);
+                          const num = parseFloat(val);
+                          field.onChange(isNaN(num) ? 0 : num);
                         }}
-                        onBlur={(e) => {
-                          const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
-                          const numericValue = rawValue === '' ? 0 : parseFloat(rawValue);
-                          e.target.value = numericValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        onBlur={() => {
+                          const num = parseFloat(displayBalance.replace(/,/g, ''));
+                          if (!isNaN(num)) {
+                            setDisplayBalance(num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                          } else {
+                            setDisplayBalance('0.00');
+                          }
                         }}
                         disabled={form.formState.isSubmitting}
-                        {...restField}
                       />
                     </div>
                   </FormControl>

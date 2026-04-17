@@ -50,6 +50,7 @@ export default function EditBankDialog({
   const { toast } = useToast();
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(bankAccount.logoUrl);
+  const [displayBalance, setDisplayBalance] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<BankAccountFormValues>({
@@ -68,6 +69,7 @@ export default function EditBankDialog({
       });
       setLogoFile(null);
       setLogoPreview(bankAccount.logoUrl);
+      setDisplayBalance(bankAccount.initialBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
     }
   }, [isOpen, bankAccount, form]);
 
@@ -210,7 +212,7 @@ export default function EditBankDialog({
             <FormField
                 control={form.control}
                 name="initialBalance"
-                render={({ field: { onChange, value, ...restField } }) => (
+                render={({ field }) => (
                   <FormItem>
                     <FormLabel>Saldo Inicial ($)</FormLabel>
                     <FormControl>
@@ -219,18 +221,23 @@ export default function EditBankDialog({
                       <Input
                           type="text"
                           className="pl-9"
-                          value={value}
+                          value={displayBalance}
+                          onFocus={() => setDisplayBalance(displayBalance.replace(/,/g, ''))}
                           onChange={(e) => {
-                            const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
-                            onChange(rawValue === '' ? 0 : parseFloat(rawValue));
+                            const val = e.target.value.replace(/[^0-9.-]/g, '');
+                            setDisplayBalance(val);
+                            const num = parseFloat(val);
+                            field.onChange(isNaN(num) ? 0 : num);
                           }}
-                          onBlur={(e) => {
-                            const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
-                            const numericValue = rawValue === '' ? 0 : parseFloat(rawValue);
-                            e.target.value = numericValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                          onBlur={() => {
+                            const num = parseFloat(displayBalance.replace(/,/g, ''));
+                            if (!isNaN(num)) {
+                              setDisplayBalance(num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                            } else {
+                              setDisplayBalance('0.00');
+                            }
                           }}
                           disabled={form.formState.isSubmitting}
-                          {...restField}
                         />
                     </div>
                     </FormControl>

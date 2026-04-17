@@ -79,6 +79,7 @@ export default function EditInvestorDialog({
   
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [uploadingMonth, setUploadingMonth] = useState<Date | null>(null);
+  const [displayAmount, setDisplayAmount] = useState('');
 
   const form = useForm<InvestorFormValues>({
     resolver: zodResolver(investorSchema),
@@ -143,6 +144,7 @@ export default function EditInvestorDialog({
         transactions: investor.transactions || [],
       });
       setDeleteConfirmation('');
+      setDisplayAmount(investor.investmentAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
     }
   }, [isOpen, investor, form]);
 
@@ -327,7 +329,7 @@ export default function EditInvestorDialog({
                 <FormField
                   control={form.control}
                   name="investmentAmount"
-                  render={({ field: { onChange, value, ...restField } }) => (
+                  render={({ field }) => (
                     <FormItem>
                       <FormLabel>Monto Invertido ($)</FormLabel>
                       <FormControl>
@@ -336,17 +338,22 @@ export default function EditInvestorDialog({
                           <Input
                             type="text"
                             className="pl-9"
-                            value={value}
+                            value={displayAmount}
+                            onFocus={() => setDisplayAmount(displayAmount.replace(/,/g, ''))}
                             onChange={(e) => {
-                              const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
-                              onChange(rawValue === '' ? 0 : parseFloat(rawValue));
+                              const val = e.target.value.replace(/[^0-9.-]/g, '');
+                              setDisplayAmount(val);
+                              const num = parseFloat(val);
+                              field.onChange(isNaN(num) ? 0 : num);
                             }}
-                            onBlur={(e) => {
-                              const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
-                              const numericValue = rawValue === '' ? 0 : parseFloat(rawValue);
-                              e.target.value = numericValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            onBlur={() => {
+                              const num = parseFloat(displayAmount.replace(/,/g, ''));
+                              if (!isNaN(num)) {
+                                setDisplayAmount(num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                              } else {
+                                setDisplayAmount('0.00');
+                              }
                             }}
-                            {...restField}
                           />
                         </div>
                       </FormControl>

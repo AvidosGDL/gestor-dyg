@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -51,6 +51,7 @@ export default function NewBankTransactionDialog({
 }: NewBankTransactionDialogProps) {
   const { addBankTransaction } = useBanks();
   const { toast } = useToast();
+  const [displayAmount, setDisplayAmount] = useState('0.00');
 
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
@@ -61,6 +62,7 @@ export default function NewBankTransactionDialog({
   useEffect(() => {
     if(!isOpen) {
       form.reset(defaultValues);
+      setDisplayAmount('0.00');
     }
   }, [isOpen, form]);
 
@@ -139,7 +141,7 @@ export default function NewBankTransactionDialog({
               <FormField
                 control={form.control}
                 name="amount"
-                render={({ field: { onChange, value, ...restField } }) => (
+                render={({ field }) => (
                   <FormItem>
                     <FormLabel>Monto ($)</FormLabel>
                     <FormControl>
@@ -148,18 +150,23 @@ export default function NewBankTransactionDialog({
                       <Input
                         type="text"
                         className="pl-9"
-                        value={value}
+                        value={displayAmount}
+                        onFocus={() => setDisplayAmount(displayAmount.replace(/,/g, ''))}
                         onChange={(e) => {
-                          const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
-                          onChange(rawValue === '' ? 0 : parseFloat(rawValue));
+                          const val = e.target.value.replace(/[^0-9.-]/g, '');
+                          setDisplayAmount(val);
+                          const num = parseFloat(val);
+                          field.onChange(isNaN(num) ? 0 : num);
                         }}
-                        onBlur={(e) => {
-                          const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
-                          const numericValue = rawValue === '' ? 0 : parseFloat(rawValue);
-                          e.target.value = numericValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                        onBlur={() => {
+                          const num = parseFloat(displayAmount.replace(/,/g, ''));
+                          if (!isNaN(num)) {
+                            setDisplayAmount(num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                          } else {
+                            setDisplayAmount('0.00');
+                          }
                         }}
                         disabled={form.formState.isSubmitting}
-                        {...restField}
                       />
                     </div>
                     </FormControl>
