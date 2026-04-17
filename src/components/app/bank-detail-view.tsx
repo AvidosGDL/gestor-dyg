@@ -5,7 +5,7 @@ import { useBanks } from '@/contexts/banks-context';
 import type { BankAccount, BankTransaction } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info } from 'lucide-react';
+import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
@@ -15,6 +15,7 @@ import NewBankTransactionDialog from './new-bank-transaction-dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import ImportBankTransactionsDialog from './import-bank-transactions-dialog';
 import ConciliateStatementDialog from './conciliate-statement-dialog';
+import ReconcileBalanceDialog from './reconcile-balance-dialog';
 
 
 export default function BankDetailView({ bankAccount, onBack }: { bankAccount: BankAccount, onBack: () => void }) {
@@ -23,6 +24,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isConciliateOpen, setIsConciliateOpen] = useState(false);
+  const [isReconcileBalanceOpen, setIsReconcileBalanceOpen] = useState(false);
 
   const transactionsPath = useMemo(() => `banks/${bankAccount.id}/transactions`, [bankAccount.id]);
   const transactionsRef = useMemoFirebase(() => collection(firestore, transactionsPath), [firestore, transactionsPath]);
@@ -48,7 +50,12 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Saldo Actual</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground flex justify-between items-center">
+                Saldo Actual
+                <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" onClick={() => setIsReconcileBalanceOpen(true)}>
+                   <Scale size={14} /> Conciliar Manual
+                </Button>
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-4xl font-bold">${(bankAccount.currentBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
@@ -62,7 +69,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold">${(bankAccount.initialBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              <p className="text-xs text-muted-foreground mt-1">Registrado el {bankAccount.balanceDate ? format(new Date(bankAccount.balanceDate), 'dd/MM/yyyy') : 'N/A'}</p>
+              <p className="text-xs text-muted-foreground mt-1">Registrado el {bankAccount.balanceDate ? format(new Date(bankAccount.balanceDate + 'T12:00:00'), 'dd/MM/yyyy') : 'N/A'}</p>
             </CardContent>
           </Card>
         </div>
@@ -190,6 +197,11 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
         onOpenChange={setIsConciliateOpen}
         bankAccount={bankAccount}
         existingTransactions={transactions || []}
+       />
+       <ReconcileBalanceDialog
+        isOpen={isReconcileBalanceOpen}
+        onOpenChange={setIsReconcileBalanceOpen}
+        bankAccount={bankAccount}
        />
     </>
   );

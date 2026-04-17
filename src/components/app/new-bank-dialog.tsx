@@ -27,7 +27,7 @@ const bankAccountSchema = z.object({
   accountNumber: z.string().optional().or(z.literal('')),
   clabe: z.string().length(18, 'La CLABE debe tener 18 dígitos').optional().or(z.literal('')),
   cardNumber: z.string().length(16, 'La tarjeta debe tener 16 dígitos').optional().or(z.literal('')),
-  initialBalance: z.coerce.number(),
+  initialBalance: z.coerce.number().min(-9999999999.99).max(9999999999.99),
   balanceDate: z.string().min(1, 'La fecha del saldo es requerida'),
 });
 
@@ -218,13 +218,13 @@ export default function NewBankDialog({
                         <Input
                           type="text"
                           className="pl-9"
-                          value={(Number(value) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          value={(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           onChange={(e) => {
-                            const rawValue = e.target.value.replace(/[^0-9.]/g, '');
+                            const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
                             onChange(rawValue === '' ? 0 : parseFloat(rawValue));
                           }}
                           onBlur={(e) => {
-                            const rawValue = e.target.value.replace(/[^0-9.]/g, '');
+                            const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
                             const numericValue = rawValue === '' ? 0 : parseFloat(rawValue);
                             e.target.value = numericValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                           }}

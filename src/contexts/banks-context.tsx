@@ -11,6 +11,8 @@ import {
   doc,
   writeBatch,
   getDoc,
+  getDocs,
+  query,
 } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -28,6 +30,7 @@ interface BanksContextType {
   deleteBankTransaction: (bankAccountId: string, transaction: BankTransaction) => void;
   batchAddBankTransactions: (bankAccountId: string, transactionsWithFiles: { data: Omit<BankTransaction, 'id' | 'attachments' | 'source' | 'createdBy'>, file: File }[]) => Promise<void>;
   batchAddConciliatedTransactions: (bankAccountId: string, transactions: Omit<BankTransaction, 'id' | 'source' | 'attachments' | 'createdBy'>[]) => Promise<void>;
+  reconcileBalance: (bankAccountId: string, targetDate: string, targetBalance: number) => Promise<void>;
   loading: boolean;
 }
 
@@ -342,6 +345,79 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const reconcileBalance = async (bankAccountId: string, targetDate: string, targetBalance: number) => {
+    if (!firestore || !collectionPath || !user) return;
+
+    const bankAccountRef = doc(firestore, collectionPath, bankAccountId);
+    const transactionsCollectionRef = collection(firestore, `${collectionPath}/${bankAccountId}/transactions`);
+
+    try {
+        const bankAccountSnap = await getDoc(bankAccountRef);
+        if (!bankAccountSnap.exists()) throw new Error("La cuenta bancaria no existe.");
+        const accountData = bankAccountSnap.data() as BankAccount;
+
+        // Obtenemos todas las transacciones para calcular el saldo a la fecha objetivo
+        const q = query(transactionsCollectionRef);
+        const txSnap = await getDocs(q);
+        
+        let calculatedBalanceAtDate = Number(accountData.initialBalance || 0);
+        const targetDateObj = new Date(targetDate + 'T23:59:59'); // Final del día
+
+        // Solo sumamos si la fecha inicial es anterior o igual
+        if (new Date(accountData.balanceDate) > targetDateObj) {
+            toast({ 
+                variant: 'destructive', 
+                title: 'Error de Fecha', 
+                description: 'La fecha de conciliación no puede ser anterior a la fecha del saldo inicial.' 
+            });
+            return;
+        }
+
+        txSnap.forEach(txDoc => {
+            const tx = txDoc.data() as BankTransaction;
+            if (new Date(tx.date) <= targetDateObj) {
+                calculatedBalanceAtDate += (tx.type === 'ingreso' ? Number(tx.amount) : -Number(tx.amount));
+            }
+        });
+
+        const difference = targetBalance - calculatedBalanceAtDate;
+
+        if (Math.abs(difference) < 0.01) {
+            toast({ title: 'Saldo Correcto', description: 'El saldo del sistema ya coincide con el saldo ingresado para esa fecha.' });
+            return;
+        }
+
+        const batch = writeBatch(firestore);
+        const newTransactionRef = doc(transactionsCollectionRef);
+        
+        const adjustmentData: Omit<BankTransaction, 'id'> = {
+            date: new Date(targetDate + 'T12:00:00').toISOString(),
+            description: `Ajuste por conciliación de saldo (Diferencia detectada el ${targetDate})`,
+            amount: Math.abs(difference),
+            type: difference > 0 ? 'ingreso' : 'egreso',
+            source: 'manual',
+            createdBy: user.displayName || user.email || 'Sistema (Conciliación)',
+        };
+
+        batch.set(newTransactionRef, adjustmentData);
+
+        // Actualizamos también el saldo total actual de la cuenta
+        const newOverallBalance = Number(accountData.currentBalance) + difference;
+        batch.update(bankAccountRef, { currentBalance: newOverallBalance });
+
+        await batch.commit();
+
+        toast({ 
+            title: 'Ajuste Realizado', 
+            description: `Se ha generado un ${difference > 0 ? 'ingreso' : 'egreso'} de $${Math.abs(difference).toLocaleString('en-US', { minimumFractionDigits: 2 })} para cuadrar el saldo.` 
+        });
+
+    } catch (error: any) {
+        console.error("Error en la conciliación:", error);
+        toast({ variant: 'destructive', title: 'Error de Conciliación', description: error.message });
+    }
+  };
+
 
   const contextValue = {
     bankAccounts: bankAccounts || [],
@@ -353,6 +429,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     deleteBankTransaction,
     batchAddBankTransactions,
     batchAddConciliatedTransactions,
+    reconcileBalance,
   };
 
   return (
