@@ -1,3 +1,4 @@
+
 export type TaskStatus =
   | 'pendiente'
   | 'en-progreso'
@@ -79,6 +80,7 @@ export interface UserProfile {
   uid: string;
   ownerId?: string; // Legacy
   ownerIds?: string[]; // Array of UIDs of the team owners who invited or manage this user
+  isTeamLeader?: boolean; // If true, this user appears as a potential boss in the organization structure
 }
 
 export interface ContactLogEntry {

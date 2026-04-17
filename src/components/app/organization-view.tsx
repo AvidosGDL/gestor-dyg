@@ -1,8 +1,9 @@
+
 'use client';
 
 import React, { useState, useMemo } from 'react';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, doc, writeBatch } from 'firebase/firestore';
+import { collection, query, orderBy, doc, writeBatch, updateDoc } from 'firebase/firestore';
 import type { UserProfile, TeamMember } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,10 +11,11 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Search, Loader2, Star } from 'lucide-react';
+import { Search, Loader2, Star, StarOff, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 export default function OrganizationView() {
   const { user } = useUser();
@@ -42,7 +44,7 @@ export default function OrganizationView() {
 
     try {
         const batch = writeBatch(firestore);
-        const userRef = doc(firestore, 'users', targetUser.uid);
+        const userRef = doc(firestore, 'users', targetUser.uid || (targetUser as any).id);
         
         // 1. Update user profile
         batch.update(userRef, { ownerIds: ownerIds, ownerId: ownerIds[0] || null });
@@ -54,16 +56,16 @@ export default function OrganizationView() {
 
         // 3. Remove from old bosses' teamMembers subcollections
         for (const bossId of removedBosses) {
-            const memberRef = doc(firestore, `users/${bossId}/teamMembers`, targetUser.uid);
+            const memberRef = doc(firestore, `users/${bossId}/teamMembers`, targetUser.uid || (targetUser as any).id);
             batch.delete(memberRef);
         }
 
         // 4. Add to new bosses' teamMembers subcollections
         for (const bossId of addedBosses) {
-            const memberRef = doc(firestore, `users/${bossId}/teamMembers`, targetUser.uid);
+            const memberRef = doc(firestore, `users/${bossId}/teamMembers`, targetUser.uid || (targetUser as any).id);
             const teamMemberData: TeamMember = {
-                id: targetUser.uid,
-                uid: targetUser.uid,
+                id: targetUser.uid || (targetUser as any).id,
+                uid: targetUser.uid || (targetUser as any).id,
                 name: targetUser.name,
                 email: targetUser.email,
                 role: targetUser.role || 'Miembro',
@@ -85,13 +87,29 @@ export default function OrganizationView() {
     }
   };
 
+  const toggleLeaderStatus = async (targetUser: UserProfile) => {
+    if (!firestore) return;
+    const userRef = doc(firestore, 'users', targetUser.uid || (targetUser as any).id);
+    const newStatus = !targetUser.isTeamLeader;
+    
+    try {
+        await updateDoc(userRef, { isTeamLeader: newStatus });
+        toast({ 
+            title: newStatus ? 'Líder asignado' : 'Líder removido', 
+            description: `${targetUser.name} ${newStatus ? 'ahora' : 'ya no'} aparecerá como posible jefe.` 
+        });
+    } catch (e: any) {
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo actualizar el estado de líder.' });
+    }
+  }
+
   const getBossNames = (u: UserProfile) => {
     const ids = u.ownerIds || (u.ownerId ? [u.ownerId] : []);
-    if (ids.length === 0) return <Badge variant="outline">Líder Independiente</Badge>;
+    if (ids.length === 0) return <Badge variant="outline" className="font-normal text-[10px]">Independiente</Badge>;
     
     return ids.map(id => {
-        const boss = allUsers?.find(b => b.uid === id);
-        return <Badge key={`${u.uid}-boss-${id}`} variant="secondary" className="mr-1">{boss?.name || 'Desconocido'}</Badge>;
+        const boss = allUsers?.find(b => (b.uid || (b as any).id) === id);
+        return <Badge key={`${(u.uid || (u as any).id)}-boss-${id}`} variant="secondary" className="mr-1 text-[10px] py-0">{boss?.name || 'Desconocido'}</Badge>;
     });
   }
 
@@ -102,7 +120,7 @@ export default function OrganizationView() {
       <Card>
         <CardHeader>
           <CardTitle>Estructura de la Organización</CardTitle>
-          <CardDescription>Administra los jefes y equipos de todos los usuarios registrados.</CardDescription>
+          <CardDescription>Administra quiénes son líderes y ajusta los equipos de trabajo.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="relative mb-6">
@@ -119,9 +137,10 @@ export default function OrganizationView() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Usuario</TableHead>
-                  <TableHead>Rol Actual</TableHead>
-                  <TableHead>Jefe(s) / Equipo</TableHead>
+                  <TableHead className="w-[300px]">Usuario</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Jefe(s) Actuales</TableHead>
+                  <TableHead className="text-center">Es Líder</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -134,16 +153,36 @@ export default function OrganizationView() {
                           <AvatarImage src={u.avatarUrl} alt={u.name} />
                           <AvatarFallback>{u.name[0]}</AvatarFallback>
                         </Avatar>
-                        <div>
-                          <p className="font-medium text-sm">{u.name}</p>
-                          <p className="text-xs text-muted-foreground">{u.email}</p>
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{u.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{u.email}</p>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell><Badge variant="outline">{u.role}</Badge></TableCell>
+                    <TableCell><Badge variant="outline" className="text-[10px]">{u.role}</Badge></TableCell>
                     <TableCell>{getBossNames(u)}</TableCell>
+                    <TableCell className="text-center">
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        onClick={() => toggleLeaderStatus(u)}
+                                        className={cn("h-8 w-8", u.isTeamLeader ? "text-amber-500 hover:text-amber-600" : "text-muted-foreground/30 hover:text-muted-foreground")}
+                                    >
+                                        {u.isTeamLeader ? <Star className="h-5 w-5 fill-amber-500" /> : <StarOff className="h-5 w-5" />}
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{u.isTeamLeader ? 'Remover como posible jefe' : 'Marcar como posible jefe (Líder)'}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => setSelectedUser(u)}>
+                      <Button variant="ghost" size="sm" onClick={() => setSelectedUser(u)} className="h-8 gap-2">
+                        <Users size={14}/>
                         Ajustar Equipo
                       </Button>
                     </TableCell>
@@ -170,6 +209,7 @@ export default function OrganizationView() {
 
 function AssignBossDialog({ user, allUsers, onClose, onSave, isProcessing }: any) {
   const [currentBossIds, setCurrentBossIds] = useState<string[]>(user.ownerIds || (user.ownerId ? [user.ownerId] : []));
+  const [dialogSearch, setDialogSearch] = useState('');
 
   const toggleBoss = (bossId: string) => {
     if (currentBossIds.includes(bossId)) {
@@ -183,46 +223,77 @@ function AssignBossDialog({ user, allUsers, onClose, onSave, isProcessing }: any
     }
   };
 
-  const possibleBosses = allUsers.filter((u: any) => u.uid !== user.uid);
+  // Only users marked as 'isTeamLeader' appear as potential bosses
+  const leaders = useMemo(() => {
+    return allUsers.filter((u: any) => 
+        (u.uid || u.id) !== (user.uid || user.id) && 
+        u.isTeamLeader === true &&
+        (u.name.toLowerCase().includes(dialogSearch.toLowerCase()) || u.email.toLowerCase().includes(dialogSearch.toLowerCase()))
+    );
+  }, [allUsers, user.uid, user.id, dialogSearch]);
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Gestionar Equipos de {user.name}</DialogTitle>
-          <DialogDescription>Selecciona hasta 2 jefes para este usuario. Si no seleccionas ninguno, será un líder independiente.</DialogDescription>
+          <DialogTitle>Asignar Jefes para {user.name}</DialogTitle>
+          <DialogDescription>Solo los usuarios marcados como "Líderes" en la tabla principal aparecen aquí.</DialogDescription>
         </DialogHeader>
         
+        <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+                placeholder="Buscar líder por nombre..." 
+                className="pl-9"
+                value={dialogSearch}
+                onChange={(e) => setDialogSearch(e.target.value)}
+            />
+        </div>
+
         <div className="flex-1 overflow-y-auto pr-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-1">
-                {possibleBosses.map((boss: any) => (
-                    <div 
-                        key={boss.uid || boss.id} 
-                        className={cn(
-                            "flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors",
-                            currentBossIds.includes(boss.uid) ? "border-primary bg-primary/5" : "hover:bg-muted"
-                        )}
-                        onClick={() => toggleBoss(boss.uid)}
-                    >
-                         <Avatar className="h-8 w-8">
-                            <AvatarImage src={boss.avatarUrl} alt={boss.name} />
-                            <AvatarFallback>{boss.name[0]}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{boss.name}</p>
-                            <p className="text-xs text-muted-foreground truncate">{boss.email}</p>
+                {leaders.map((boss: any) => {
+                    const bossUid = boss.uid || boss.id;
+                    const isSelected = currentBossIds.includes(bossUid);
+                    return (
+                        <div 
+                            key={bossUid} 
+                            className={cn(
+                                "flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-all",
+                                isSelected ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:bg-muted border-border"
+                            )}
+                            onClick={() => toggleBoss(bossUid)}
+                        >
+                            <Avatar className="h-10 w-10">
+                                <AvatarImage src={boss.avatarUrl} alt={boss.name} />
+                                <AvatarFallback>{boss.name[0]}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold truncate">{boss.name}</p>
+                                <p className="text-[10px] text-muted-foreground truncate">{boss.role}</p>
+                            </div>
+                            {isSelected && <Star className="h-4 w-4 text-primary fill-primary" />}
                         </div>
-                        {currentBossIds.includes(boss.uid) && <Star className="h-4 w-4 text-primary fill-primary" />}
-                    </div>
-                ))}
+                    );
+                })}
             </div>
+            {leaders.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed rounded-xl">
+                    <StarOff className="h-8 w-8 text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground font-medium">No se encontraron líderes disponibles.</p>
+                    <p className="text-xs text-muted-foreground/60">Asegúrate de marcar a alguien como "Líder" en la tabla principal.</p>
+                </div>
+            )}
         </div>
 
         <DialogFooter className="mt-4 pt-4 border-t">
+          <div className="flex-1 text-xs text-muted-foreground flex items-center">
+            {currentBossIds.length} de 2 jefes seleccionados
+          </div>
           <Button variant="ghost" onClick={onClose} disabled={isProcessing}>Cancelar</Button>
           <Button onClick={() => onSave(user, currentBossIds)} disabled={isProcessing}>
             {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Guardar Cambios
+            Guardar Estructura
           </Button>
         </DialogFooter>
       </DialogContent>
