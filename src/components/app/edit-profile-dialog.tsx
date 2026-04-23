@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2, ImageUp } from 'lucide-react';
+import { Loader2, ImageUp, Lock } from 'lucide-react';
 import { useFirestore, useUser, useAuth } from '@/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
@@ -26,6 +26,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { UserProfile } from '@/lib/types';
+import { Alert, AlertDescription } from '../ui/alert';
 
 const profileSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
@@ -54,6 +55,8 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [customAvatarFile, setCustomAvatarFile] = useState<string | null>(null);
   const [customAvatarPreview, setCustomAvatarPreview] = useState<string | null>(null);
+
+  const isAdmin = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
 
   const avatarOptions = useMemo(() => {
     return Array.from({ length: AVATAR_OPTIONS }, (_, i) => generateAvatarUrl(`avatar-${i}`));
@@ -93,13 +96,14 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
   }, [user, isOpen, reset, firestore, avatarOptions]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isAdmin) return;
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
         const dataUrl = reader.result as string;
-        setCustomAvatarFile(dataUrl); // Store the file data for upload
-        setCustomAvatarPreview(dataUrl); // For visual preview
+        setCustomAvatarFile(dataUrl);
+        setCustomAvatarPreview(dataUrl);
         setValue('avatarUrl', dataUrl, { shouldValidate: true });
       };
       reader.readAsDataURL(file);
@@ -114,7 +118,7 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
   }
 
   const onSubmit: SubmitHandler<ProfileFormValues> = async (formData) => {
-    if (!user) return;
+    if (!user || !isAdmin) return;
     
     let finalAvatarUrl = formData.avatarUrl;
 
@@ -128,7 +132,6 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
         avatarUrl: finalAvatarUrl,
       };
 
-      // 1. Update Firestore document
       const userDocRef = doc(firestore, 'users', user.uid);
       await updateDoc(userDocRef, dataToSave).catch(serverError => {
         const permissionError = new FirestorePermissionError({
@@ -140,7 +143,6 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
        throw serverError;
       });
       
-      // 2. Update Firebase Auth profile
       if (auth.currentUser) {
         await updateProfile(auth.currentUser, {
             displayName: dataToSave.name,
@@ -166,11 +168,21 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Editar Perfil</DialogTitle>
+          <DialogTitle>Perfil de Usuario</DialogTitle>
           <DialogDescription>
-            Actualiza tu información personal y avatar.
+            Información de tu cuenta en Gestor D&G.
           </DialogDescription>
         </DialogHeader>
+
+        {!isAdmin && (
+            <Alert className="bg-muted border-none">
+                <Lock className="h-4 w-4 text-muted-foreground" />
+                <AlertDescription className="text-xs text-muted-foreground">
+                    Solo el superadministrador puede editar los datos de perfil (nombre, correo, avatar y teléfono). Por favor contacta a soporte si necesitas actualizar tu información.
+                </AlertDescription>
+            </Alert>
+        )}
+
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
             <Label>Avatar</Label>
@@ -179,6 +191,7 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
                     <button
                         key={index}
                         type="button"
+                        disabled={!isAdmin}
                         onClick={() => {
                           setValue('avatarUrl', url, { shouldValidate: true });
                           setCustomAvatarPreview(null);
@@ -188,7 +201,8 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
                             "rounded-full p-1 transition-all",
                             selectedAvatarUrl === url && !customAvatarPreview
                                 ? 'ring-2 ring-primary ring-offset-2' 
-                                : 'ring-1 ring-transparent hover:ring-primary/50'
+                                : 'ring-1 ring-transparent hover:ring-primary/50',
+                            !isAdmin && "opacity-50 cursor-not-allowed"
                         )}
                     >
                         <Avatar className="h-16 w-16">
@@ -198,12 +212,14 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
                 ))}
                 <button
                   type="button"
+                  disabled={!isAdmin}
                   onClick={() => fileInputRef.current?.click()}
                   className={cn(
                     "rounded-full p-1 transition-all flex items-center justify-center bg-muted hover:bg-border",
                     customAvatarPreview
                       ? 'ring-2 ring-primary ring-offset-2'
-                      : 'ring-1 ring-transparent hover:ring-primary/50'
+                      : 'ring-1 ring-transparent hover:ring-primary/50',
+                    !isAdmin && "opacity-50 cursor-not-allowed"
                   )}
                 >
                   <Avatar className="h-16 w-16">
@@ -234,7 +250,7 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
             <Input
               id="name"
               {...register('name')}
-              disabled={isSubmitting}
+              disabled={isSubmitting || !isAdmin}
             />
             {errors.name && (
               <p className="text-sm text-destructive">{errors.name.message}</p>
@@ -250,7 +266,6 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
               disabled
               className="disabled:opacity-100 disabled:cursor-not-allowed bg-muted/50"
             />
-            <p className="text-xs text-muted-foreground">El correo electrónico no se puede cambiar.</p>
           </div>
 
           <div className="space-y-2">
@@ -258,18 +273,18 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
             <Input
               id="role"
               {...register('role')}
-              disabled={isSubmitting}
+              disabled={isSubmitting || !isAdmin}
             />
             {errors.role && (
               <p className="text-sm text-destructive">{errors.role.message}</p>
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="phone">Teléfono (Opcional)</Label>
+            <Label htmlFor="phone">Teléfono</Label>
             <Input
               id="phone"
               {...register('phone')}
-              disabled={isSubmitting}
+              disabled={isSubmitting || !isAdmin}
             />
           </div>
           <DialogFooter>
@@ -278,12 +293,14 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
               variant="ghost"
               onClick={() => onOpenChange(false)}
             >
-              Cancelar
+              Cerrar
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Guardar Cambios
-            </Button>
+            {isAdmin && (
+                <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Guardar Cambios
+                </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

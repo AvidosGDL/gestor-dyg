@@ -1,7 +1,6 @@
-
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, doc, writeBatch, updateDoc } from 'firebase/firestore';
 import type { UserProfile, TeamMember } from '@/lib/types';
@@ -9,13 +8,32 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Search, Loader2, Star, StarOff, Users } from 'lucide-react';
+import { Search, Loader2, Star, StarOff, Users, Edit, ImageUp, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { Label } from '../ui/label';
+import { useForm, type SubmitHandler } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { getStorage, ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
+
+const AVATAR_OPTIONS = 7;
+const avatarCollection = 'lorelei';
+const generateAvatarUrl = (seed: string) => `https://api.dicebear.com/8.x/${avatarCollection}/svg?seed=${seed}`;
+
+const adminEditUserSchema = z.object({
+  name: z.string().min(1, 'El nombre es requerido'),
+  email: z.string().email('Correo no válido'),
+  role: z.string().min(1, 'El rol es requerido'),
+  phone: z.string().optional(),
+  avatarUrl: z.string().url('Por favor, selecciona un avatar'),
+});
+
+type AdminEditUserValues = z.infer<typeof adminEditUserSchema>;
 
 export default function OrganizationView() {
   const { user } = useUser();
@@ -23,7 +41,8 @@ export default function OrganizationView() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [selectedUserForTeams, setSelectedUserForTeams] = useState<UserProfile | null>(null);
+  const [selectedUserForEdit, setSelectedUserForEdit] = useState<UserProfile | null>(null);
 
   // UseCollection for all users (Admin rule allows this)
   const usersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('name')), [firestore]);
@@ -78,12 +97,24 @@ export default function OrganizationView() {
 
         await batch.commit();
         toast({ title: '¡Éxito!', description: `La jerarquía de ${targetUser.name} ha sido actualizada.` });
-        setSelectedUser(null);
+        setSelectedUserForTeams(null);
     } catch (error: any) {
         console.error("Error updating organization:", error);
         toast({ variant: 'destructive', title: 'Error', description: error.message });
     } finally {
         setIsAssigning(false);
+    }
+  };
+
+  const handleSaveUserProfile = async (uid: string, data: AdminEditUserValues) => {
+    if (!firestore) return;
+    const userRef = doc(firestore, 'users', uid);
+    try {
+        await updateDoc(userRef, data);
+        toast({ title: 'Perfil actualizado', description: `Los datos de ${data.name} han sido guardados.` });
+        setSelectedUserForEdit(null);
+    } catch (e: any) {
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo actualizar el perfil.' });
     }
   };
 
@@ -120,7 +151,7 @@ export default function OrganizationView() {
       <Card>
         <CardHeader>
           <CardTitle>Estructura de la Organización</CardTitle>
-          <CardDescription>Administra quiénes son líderes y ajusta los equipos de trabajo.</CardDescription>
+          <CardDescription>Administra los perfiles de usuario, quiénes son líderes y ajusta los equipos de trabajo.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="relative mb-6">
@@ -146,7 +177,7 @@ export default function OrganizationView() {
               </TableHeader>
               <TableBody>
                 {filteredUsers.map(u => (
-                  <TableRow key={u.uid || (u as any).id}>
+                  <TableRow key={(u as any).id || u.uid}>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
@@ -181,10 +212,16 @@ export default function OrganizationView() {
                         </TooltipProvider>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => setSelectedUser(u)} className="h-8 gap-2">
-                        <Users size={14}/>
-                        Ajustar Equipo
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedUserForEdit(u)} className="h-8 gap-2">
+                          <Edit size={14}/>
+                          Editar Perfil
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedUserForTeams(u)} className="h-8 gap-2">
+                          <Users size={14}/>
+                          Ajustar Equipo
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -194,17 +231,171 @@ export default function OrganizationView() {
         </CardContent>
       </Card>
 
-      {selectedUser && (
+      {selectedUserForTeams && (
         <AssignBossDialog 
-          user={selectedUser}
+          user={selectedUserForTeams}
           allUsers={allUsers || []}
-          onClose={() => setSelectedUser(null)}
+          onClose={() => setSelectedUserForTeams(null)}
           onSave={handleUpdateTeams}
           isProcessing={isAssigning}
         />
       )}
+
+      {selectedUserForEdit && (
+        <AdminEditUserDialog
+            user={selectedUserForEdit}
+            onClose={() => setSelectedUserForEdit(null)}
+            onSave={handleSaveUserProfile}
+        />
+      )}
     </div>
   );
+}
+
+function AdminEditUserDialog({ user, onClose, onSave }: { user: UserProfile, onClose: () => void, onSave: (uid: string, data: AdminEditUserValues) => Promise<void> }) {
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [customAvatarFile, setCustomAvatarFile] = useState<string | null>(null);
+    const [customAvatarPreview, setCustomAvatarPreview] = useState<string | null>(null);
+    
+    const avatarOptions = useMemo(() => {
+        return Array.from({ length: AVATAR_OPTIONS }, (_, i) => generateAvatarUrl(`avatar-${i}`));
+    }, []);
+
+    const {
+        register,
+        handleSubmit,
+        setValue,
+        watch,
+        formState: { errors, isSubmitting },
+    } = useForm<AdminEditUserValues>({
+        resolver: zodResolver(adminEditUserSchema),
+        defaultValues: {
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            phone: user.phone || '',
+            avatarUrl: user.avatarUrl,
+        }
+    });
+
+    const selectedAvatarUrl = watch('avatarUrl');
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const dataUrl = reader.result as string;
+                setCustomAvatarFile(dataUrl);
+                setCustomAvatarPreview(dataUrl);
+                setValue('avatarUrl', dataUrl, { shouldValidate: true });
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const uploadAvatar = async (uid: string, dataUrl: string): Promise<string> => {
+        const storage = getStorage();
+        const avatarRef = storageRef(storage, `avatars/${uid}/${Date.now()}`);
+        await uploadString(avatarRef, dataUrl, 'data_url');
+        return getDownloadURL(avatarRef);
+    }
+
+    const onSubmit: SubmitHandler<AdminEditUserValues> = async (data) => {
+        let finalAvatarUrl = data.avatarUrl;
+        if (customAvatarFile) {
+            finalAvatarUrl = await uploadAvatar(user.uid || (user as any).id, customAvatarFile);
+        }
+        await onSave(user.uid || (user as any).id, { ...data, avatarUrl: finalAvatarUrl });
+    };
+
+    return (
+        <Dialog open onOpenChange={onClose}>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>Editar Perfil de Usuario</DialogTitle>
+                    <DialogDescription>Como superadministrador, puedes modificar la información de cualquier usuario.</DialogDescription>
+                </DialogHeader>
+
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                        <Label>Avatar</Label>
+                        <div className="grid grid-cols-4 gap-2">
+                            {avatarOptions.map((url, index) => (
+                                <button
+                                    key={index}
+                                    type="button"
+                                    onClick={() => {
+                                        setValue('avatarUrl', url, { shouldValidate: true });
+                                        setCustomAvatarPreview(null);
+                                        setCustomAvatarFile(null);
+                                    }}
+                                    className={cn(
+                                        "rounded-full p-1 transition-all",
+                                        selectedAvatarUrl === url && !customAvatarPreview ? 'ring-2 ring-primary ring-offset-2' : 'ring-1 ring-transparent hover:ring-primary/50'
+                                    )}
+                                >
+                                    <Avatar className="h-12 w-12">
+                                        <AvatarImage src={url} alt={`Avatar ${index + 1}`} />
+                                    </Avatar>
+                                </button>
+                            ))}
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className={cn(
+                                    "rounded-full p-1 transition-all flex items-center justify-center bg-muted hover:bg-border",
+                                    customAvatarPreview ? 'ring-2 ring-primary ring-offset-2' : 'ring-1 ring-transparent hover:ring-primary/50'
+                                )}
+                            >
+                                <Avatar className="h-12 w-12">
+                                    {customAvatarPreview ? (
+                                        <AvatarImage src={customAvatarPreview} alt="Avatar personalizado" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                            <ImageUp className="w-6 h-6 text-muted-foreground" />
+                                        </div>
+                                    )}
+                                </Avatar>
+                            </button>
+                            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="admin-edit-name">Nombre Completo</Label>
+                        <Input id="admin-edit-name" {...register('name')} />
+                        {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="admin-edit-email">Correo Electrónico</Label>
+                        <Input id="admin-edit-email" {...register('email')} />
+                        {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="admin-edit-role">Rol o Cargo</Label>
+                        <Input id="admin-edit-role" {...register('role')} />
+                        {errors.role && <p className="text-xs text-destructive">{errors.role.message}</p>}
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="admin-edit-phone">Teléfono</Label>
+                        <Input id="admin-edit-phone" {...register('phone')} />
+                    </div>
+
+                    <DialogFooter className="pt-4">
+                        <Button type="button" variant="ghost" onClick={onClose} disabled={isSubmitting}>Cancelar</Button>
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Guardar Cambios
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
 }
 
 function AssignBossDialog({ user, allUsers, onClose, onSave, isProcessing }: any) {
