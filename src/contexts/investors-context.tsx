@@ -1,9 +1,8 @@
 
-
 'use client';
 
-import React, { createContext, useContext, ReactNode, useMemo } from 'react';
-import type { Investor } from '@/lib/types';
+import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
+import type { Investor, UserProfile } from '@/lib/types';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import {
   collection,
@@ -11,6 +10,7 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  getDoc,
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -30,10 +30,8 @@ const InvestorsContext = createContext<InvestorsContextType | undefined>(undefin
 const processInvestorData = (data: Partial<Omit<Investor, 'id'>>) => {
   const { investmentDate, investmentTerm, paymentType } = data;
   const processedData = { ...data };
-
   if (investmentDate && investmentTerm) {
-    const startDate = new Date(investmentDate + 'T00:00:00'); // Avoid timezone issues
-    
+    const startDate = new Date(investmentDate + 'T00:00:00');
     if (paymentType === 'mensual') {
       processedData.monthlyPaymentDay = getDate(startDate);
       processedData.liquidationDate = null;
@@ -43,22 +41,30 @@ const processInvestorData = (data: Partial<Omit<Investor, 'id'>>) => {
       processedData.monthlyPaymentDay = null;
     }
   }
-
   return processedData;
 }
-
 
 export function InvestorsProvider({ children }: { children: ReactNode }) {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    async function fetchProfile() {
+        if (user && firestore) {
+            const snap = await getDoc(doc(firestore, 'users', user.uid));
+            if (snap.exists()) setUserProfile(snap.data() as UserProfile);
+        }
+    }
+    fetchProfile();
+  }, [user, firestore]);
 
   const collectionPath = useMemo(() => {
-    if (!user) return null;
-    const isAuthorized = user.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || user.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2';
+    if (!user || !userProfile) return null;
+    const isAuthorized = user.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || !!userProfile.canAccessInvestors;
     return isAuthorized ? 'investors' : null;
-  }, [user]);
-
+  }, [user, userProfile]);
 
   const investorsCollectionRef = useMemoFirebase(() => {
     return collectionPath ? collection(firestore, collectionPath) : null;
@@ -69,14 +75,8 @@ export function InvestorsProvider({ children }: { children: ReactNode }) {
   const addInvestor = (investorData: Omit<Investor, 'id'>) => {
     if (!investorsCollectionRef) return;
     const processedData = processInvestorData(investorData);
-
     addDoc(investorsCollectionRef, processedData).catch(async (serverError) => {
-      const permissionError = new FirestorePermissionError({
-        path: investorsCollectionRef.path,
-        operation: 'create',
-        requestResourceData: processedData,
-      });
-      errorEmitter.emit('permission-error', permissionError);
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ path: investorsCollectionRef.path, operation: 'create', requestResourceData: processedData }));
     });
   };
 
@@ -85,12 +85,7 @@ export function InvestorsProvider({ children }: { children: ReactNode }) {
     const docRef = doc(firestore, collectionPath, id);
     const processedData = processInvestorData(updatedData);
     updateDoc(docRef, processedData).catch(async (serverError) => {
-      const permissionError = new FirestorePermissionError({
-        path: docRef.path,
-        operation: 'update',
-        requestResourceData: processedData,
-      });
-      errorEmitter.emit('permission-error', permissionError);
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update', requestResourceData: processedData }));
     });
   };
 
@@ -98,31 +93,16 @@ export function InvestorsProvider({ children }: { children: ReactNode }) {
     if (!firestore || !collectionPath) return;
     const docRef = doc(firestore, collectionPath, id);
     deleteDoc(docRef).catch(async (serverError) => {
-      const permissionError = new FirestorePermissionError({
-        path: docRef.path,
-        operation: 'delete',
-      });
-      errorEmitter.emit('permission-error', permissionError);
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'delete' }));
     });
   };
 
-  const contextValue = {
-    investors: investors || [],
-    loading,
-    addInvestor,
-    updateInvestor,
-    deleteInvestor,
-  };
-
-  return (
-    <InvestorsContext.Provider value={contextValue}>{children}</InvestorsContext.Provider>
-  );
+  const contextValue = { investors: investors || [], loading, addInvestor, updateInvestor, deleteInvestor };
+  return <InvestorsContext.Provider value={contextValue}>{children}</InvestorsContext.Provider>;
 }
 
 export function useInvestors() {
   const context = useContext(InvestorsContext);
-  if (context === undefined) {
-    throw new Error('useInvestors must be used within a InvestorsProvider');
-  }
+  if (context === undefined) throw new Error('useInvestors must be used within a InvestorsProvider');
   return context;
 }

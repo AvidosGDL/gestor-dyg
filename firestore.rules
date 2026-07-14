@@ -1,203 +1,93 @@
 
-/**
- * This ruleset enforces a strict user-ownership model for the TaskMaster Pro application.
- *
- * Core Philosophy:
- * The security model ensures that users can only access and modify their own data. All user-specific
- * information, including profiles and tasks, is stored within a dedicated user document tree,
- * preventing any user from accessing another user's data. This approach is inherently secure
- * and performant.
- *
- * Data Structure:
- * All data is segregated and nested under the top-level `/users` collection. Each user's data
- * is located at `/users/{userId}`, where `{userId}` corresponds to their Firebase Authentication UID.
- *   - `/users/{userId}/profile/{profileId}`: Contains the user's profile document.
- *   - `/users/{userId}/tasks/{taskId}`: A collection of the user's tasks.
- *
- * Key Security Decisions:
- * - User Enumeration Disabled: Listing documents in the top-level `/users` collection is explicitly
- *   disallowed to protect user privacy and prevent scraping of user IDs.
- * - Strict Ownership: All read and write operations are gated by a check that verifies the
- *   authenticated user's UID matches the `{userId}` in the document path.
- * - Path-to-Data Integrity: On document creation, rules validate that key identifiers within the
- *   document's data (e.g., a `userId` field) match the corresponding IDs in the document's path.
- *   These identifiers are enforced as immutable on update.
- *
- * Denormalization for Authorization:
- * This ruleset relies on path-based security, which is a form of structural denormalization.
- * Placing a user's data under their own `/users/{userId}` path eliminates the need for costly `get()`
- * calls to other documents to verify ownership, resulting in faster and more reliable security checks.
- *
- * Structural Segregation:
- * Each user's data is stored in its own isolated document tree. This complete segregation is the
- * most secure and performant way to manage private user data, especially for list operations,
- * as queries are naturally scoped to a single user's content.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions for readable, reusable logic.
-
-    /**
-     * Checks if the user is authenticated.
-     */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * Checks if the authenticated user's UID matches the userId from the path.
-     * This is the primary function for enforcing data ownership.
-     */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
     
-    /**
-     * Checks if the authenticated user is the super administrator.
-     */
     function isAdmin() {
       return isSignedIn() && request.auth.uid == 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
     }
     
-    /**
-     * Checks if the user is authorized to access the investors module.
-     * Access is restricted to the super admin and a specific user UID.
-     */
     function isAuthorizedForInvestors() {
-      return isSignedIn() && (
-        request.auth.uid == 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || // Superadmin daniel@avidos.mx
-        request.auth.uid == 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2'    // User roberto.d@gygproyectosfiscales.com
-      );
+      return isAdmin() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.canAccessInvestors == true;
     }
     
-    /**
-     * Checks if the user is authorized to access the banks module.
-     */
     function isAuthorizedForBanks() {
-      return isSignedIn() && (
-        request.auth.uid == 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || // daniel@avidos.mx
-        request.auth.uid == 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2' ||   // roberto.d@gygproyectosfiscales.com
-        request.auth.uid == 'cAmV6Hn6zNhbu45WXo9LFRRd2k82' ||   // tesoreria1@dygproyectosfiscales.com
-        request.auth.uid == '0QjliF8VEbgA7ZAfAvJvrv22pII3'     // direccion@dygproyectosfiscales.com
-      );
+      return isAdmin() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.canAccessBanks == true;
     }
 
-     /**
-     * Checks if the user is authorized to access the projects module.
-     */
     function isAuthorizedForProjects() {
-      return isSignedIn() && (
-        request.auth.uid == 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || // daniel@avidos.mx
-        request.auth.uid == 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2'    // roberto.d@dygproyectosfiscales.com
-      );
+      return isAdmin() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.canAccessProjects == true;
     }
 
-    /**
-     * Checks if the user is the owner of an existing document.
-     * Used for safe update and delete operations.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-    
     match /invitations/{email} {
-    	allow read: if true;
+      allow read: if true;
       allow write: if isSignedIn();
     }
 
-    /**
-     * @description Rules for the top-level user document.
-     */
     match /users/{userId} {
-      allow get: if isOwner(userId) || isSignedIn();
+      allow get: if isOwner(userId) || isAdmin() || isSignedIn();
       allow list: if isAdmin();
-      allow create: if isOwner(userId) && request.resource.data.uid == userId;
+      allow create: if isOwner(userId);
       allow update: if isOwner(userId) || isAdmin();
-      allow delete: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
     }
     
     match /users/{userId}/teamMembers/{memberId} {
-    	allow read, write, delete: if isOwner(userId) || isAdmin() || isSignedIn();
+      allow read, write, delete: if isOwner(userId) || isAdmin() || isSignedIn();
     }
     
     match /users/{userId}/prospects/{prospectId} {
-      allow get, list, create, update, delete: if isOwner(userId);
+      allow get, list, create, update, delete: if isOwner(userId) || isAdmin();
     }
     
     match /tasks/{taskId} {
-    	allow read, write, create, update, delete: if isSignedIn();
+      allow read, write, create, update, delete: if isSignedIn();
     }
     
     match /taskHistory/{historyId} {
-      allow create: if isSignedIn();
-      allow read: if isSignedIn();
+      allow create, read: if isSignedIn();
       allow update, delete: if false;
     }
 
-    /**
-     * @description Rules for the chats collection.
-     */
     match /chats/{chatId} {
-      // READ (get + list/query) permitido solo si el usuario pertenece al chat
       allow read: if isSignedIn() && (request.auth.uid in resource.data.memberIds);
-
-      // CREATE solo si el creador se incluye a sí mismo en memberIds
-      allow create: if isSignedIn()
-        && (request.auth.uid in request.resource.data.memberIds)
-        && request.resource.data.memberIds is list
-        && request.resource.data.memberIds.size() >= 2;
-
-      // UPDATE solo si es miembro del chat (y no se permite cambiar memberIds)
-      allow update: if isSignedIn()
-        && (request.auth.uid in resource.data.memberIds)
-        && request.resource.data.memberIds == resource.data.memberIds;
-
-      allow delete: if false;
+      allow create: if isSignedIn() && (request.auth.uid in request.resource.data.memberIds);
+      allow update: if isSignedIn() && (request.auth.uid in resource.data.memberIds);
       
-      /**
-       * @description Rules for messages within a chat.
-       */
       match /messages/{messageId} {
-        allow read, create, update: if isSignedIn() && (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.memberIds);
-        allow delete: if false; // Messages cannot be deleted
+        allow read, create, update: if isSignedIn();
       }
     }
     
-    /**
-     * @description Rules for the investors module.
-     * Access is highly restricted to authorized users only.
-     */
     match /investors/{investorId} {
       allow read, write, create, update, delete: if isAuthorizedForInvestors();
       
       match /transactions/{transactionId} {
-      	allow read, write, create, update, delete: if isAuthorizedForInvestors();
+        allow read, write, create, update, delete: if isAuthorizedForInvestors();
       }
     }
 
-    /**
-     * @description Rules for the banks module.
-     * Access is restricted to authorized financial users.
-     */
     match /banks/{bankId} {
       allow read, write, create, update, delete: if isAuthorizedForBanks();
       
       match /transactions/{transactionId} {
-      	allow read, write, create, update, delete: if isAuthorizedForBanks();
+        allow read, write, create, update, delete: if isAuthorizedForBanks();
       }
     }
 
-    /**
-     * @description Rules for the projects module.
-     * Access is restricted to authorized project managers.
-     */
     match /projects/{projectId} {
       allow read, write, create, update, delete: if isAuthorizedForProjects();
       
       match /activities/{activityId} {
-      	allow read, write, create, update, delete: if isAuthorizedForProjects();
+        allow read, write, create, update, delete: if isAuthorizedForProjects();
       }
     }
   }

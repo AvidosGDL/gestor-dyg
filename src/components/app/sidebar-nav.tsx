@@ -1,6 +1,7 @@
+
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Layout, Calendar, Users, FileUp, Handshake, LineChart, Archive, Landmark, KanbanSquare, Network } from 'lucide-react';
 import type { View } from '@/app/page';
 import { cn } from '@/lib/utils';
@@ -10,7 +11,9 @@ import {
   SidebarMenuButton,
   SidebarMenuBadge,
 } from '@/components/ui/sidebar';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import type { UserProfile } from '@/lib/types';
 
 interface SidebarNavProps {
   view: View;
@@ -19,11 +22,23 @@ interface SidebarNavProps {
 
 export default function SidebarNav({ view, setView }: SidebarNavProps) {
   const { user } = useUser();
-  const isAdmin = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
-  const isAuthorizedForInvestors = isAdmin || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2';
-  const isAuthorizedForBanks = isAdmin || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2' || user?.uid === 'cAmV6Hn6zNhbu45WXo9LFRRd2k82' || user?.uid === '0QjliF8VEbgA7ZAfAvJvrv22pII3';
-  const isAuthorizedForProjects = isAdmin || user?.uid === 'cbXyvN4G98Q7Y9IaJHhec0MyjlT2';
+  const firestore = useFirestore();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
 
+  useEffect(() => {
+    async function fetchProfile() {
+        if (user && firestore) {
+            const snap = await getDoc(doc(firestore, 'users', user.uid));
+            if (snap.exists()) setProfile(snap.data() as UserProfile);
+        }
+    }
+    fetchProfile();
+  }, [user, firestore]);
+
+  const isAdmin = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
+  const isAuthorizedForInvestors = isAdmin || !!profile?.canAccessInvestors;
+  const isAuthorizedForBanks = isAdmin || !!profile?.canAccessBanks;
+  const isAuthorizedForProjects = isAdmin || !!profile?.canAccessProjects;
 
   const navItems = [
     { id: 'board', label: 'Tablero Visual', icon: Layout },
@@ -56,9 +71,6 @@ export default function SidebarNav({ view, setView }: SidebarNavProps) {
           >
             <item.icon size={20} />
             <span>{item.label}</span>
-             {(item as any).notification && (
-              <SidebarMenuBadge className="bg-accent" />
-            )}
           </SidebarMenuButton>
         </SidebarMenuItem>
       ))}
