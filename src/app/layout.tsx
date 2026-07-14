@@ -7,8 +7,8 @@ import { Providers } from './providers';
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
-  title: 'TaskMaster Pro',
-  description: 'Gestiona tus tareas y proyectos con eficiencia.',
+  title: 'Gestor D&G - TaskMaster Pro',
+  description: 'Sistema de gestión de tareas, proyectos y finanzas.',
 };
 
 export default function RootLayout({
@@ -16,8 +16,9 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Se añade este comentario para forzar la regeneración del chunk de layout y evitar errores de carga por caché
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="es" suppressHydrationWarning>
       <head>
         <link
           rel="icon"

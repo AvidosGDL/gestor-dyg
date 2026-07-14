@@ -82,7 +82,7 @@ function normalizeToWhatsAppJid(phone: string | null | undefined): string | null
 }
 
 async function sendWhatsAppMessage(to: string, text: string): Promise<void> {
-  const url = 'https://baileys-worker-701554958520.us-central1.run.app/v1/channels/PRUEBAS-GENERALES/messages/send';
+  const url = 'https://baileys-worker-dev-24342745173.us-central1.run.app/v1/channels/yE1vsdQcwWGuxvNoFIFr/messages/send';
   try {
     console.log('[WA] sending to', to);
     const response = await fetch(url, {
