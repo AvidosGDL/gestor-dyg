@@ -40,8 +40,17 @@ type TransactionFormValues = z.infer<typeof transactionSchema>;
 
 const DEFAULT_CATEGORIES = ['Nómina', 'Impuestos', 'Servicios', 'Ventas', 'Honorarios', 'Renta', 'Suministros', 'Inversión'];
 
+// Function to get local date string in YYYY-MM-DD
+const getLocalDateString = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 const defaultValues: TransactionFormValues = {
-    date: new Date().toISOString().split('T')[0],
+    date: getLocalDateString(),
     description: '',
     amount: 0,
     type: 'egreso',
@@ -172,7 +181,7 @@ export default function NewBankTransactionDialog({
                             disabled={form.formState.isSubmitting}
                           >
                             {field.value ? (
-                              format(parseISO(field.value), "PPP", { locale: es })
+                              format(new Date(field.value + 'T12:00:00'), "PPP", { locale: es })
                             ) : (
                               <span>Seleccionar fecha</span>
                             )}
@@ -183,8 +192,15 @@ export default function NewBankTransactionDialog({
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={field.value ? parseISO(field.value) : undefined}
-                          onSelect={(date) => field.onChange(date ? date.toISOString().split('T')[0] : '')}
+                          selected={field.value ? new Date(field.value + 'T12:00:00') : undefined}
+                          onSelect={(date) => {
+                            if (date) {
+                              const y = date.getFullYear();
+                              const m = String(date.getMonth() + 1).padStart(2, '0');
+                              const d = String(date.getDate()).padStart(2, '0');
+                              field.onChange(`${y}-${m}-${d}`);
+                            }
+                          }}
                           disabled={(date) =>
                             date > new Date() || date < new Date("1900-01-01")
                           }

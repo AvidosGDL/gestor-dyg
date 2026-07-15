@@ -167,7 +167,7 @@ export default function EditBankTransactionDialog({
                             disabled={form.formState.isSubmitting}
                           >
                             {field.value ? (
-                              format(parseISO(field.value), "PPP", { locale: es })
+                              format(new Date(field.value + 'T12:00:00'), "PPP", { locale: es })
                             ) : (
                               <span>Seleccionar fecha</span>
                             )}
@@ -178,8 +178,15 @@ export default function EditBankTransactionDialog({
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={field.value ? parseISO(field.value) : undefined}
-                          onSelect={(date) => field.onChange(date ? date.toISOString().split('T')[0] : '')}
+                          selected={field.value ? new Date(field.value + 'T12:00:00') : undefined}
+                          onSelect={(date) => {
+                            if (date) {
+                              const y = date.getFullYear();
+                              const m = String(date.getMonth() + 1).padStart(2, '0');
+                              const d = String(date.getDate()).padStart(2, '0');
+                              field.onChange(`${y}-${m}-${d}`);
+                            }
+                          }}
                           disabled={(date) =>
                             date > new Date() || date < new Date("1900-01-01")
                           }

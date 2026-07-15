@@ -9,7 +9,7 @@ import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
-import { format, isWithinInterval, startOfDay, endOfDay, parseISO } from 'date-fns';
+import { format, startOfDay, endOfDay, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import NewBankTransactionDialog from './new-bank-transaction-dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -59,7 +59,8 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
         const matchesType = typeFilter === 'all' || tx.type === typeFilter;
         const matchesUser = tx.createdBy?.toLowerCase().includes(userSearch.toLowerCase());
         
-        const txDate = new Date(tx.date);
+        // Use local noon for date comparison to avoid timezone shifts
+        const txDate = new Date(tx.date.includes('T') ? tx.date : tx.date + 'T12:00:00');
         const matchesDate = (!startDate || txDate >= startOfDay(new Date(startDate + 'T00:00:00'))) &&
                           (!endDate || txDate <= endOfDay(new Date(endDate + 'T23:59:59')));
                           
@@ -88,6 +89,16 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
     setCopied(true);
     toast({ title: 'Copiado', description: 'Usuario copiado al portapapeles.' });
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Helper to safely format dates avoiding timezone shift
+  const formatDateSafely = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T12:00:00');
+      return format(date, 'dd/MM/yyyy');
+    } catch (e) {
+      return dateStr;
+    }
   };
 
   return (
@@ -150,7 +161,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold">${(bankAccount.initialBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              <p className="text-xs text-muted-foreground mt-1">Registrado el {bankAccount.balanceDate ? format(new Date(bankAccount.balanceDate + 'T12:00:00'), 'dd/MM/yyyy') : 'N/A'}</p>
+              <p className="text-xs text-muted-foreground mt-1">Registrado el {bankAccount.balanceDate ? formatDateSafely(bankAccount.balanceDate) : 'N/A'}</p>
             </CardContent>
           </Card>
         </div>
@@ -250,7 +261,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                         )}
                         {!transactionsLoading && filteredTransactions.map(tx => (
                             <TableRow key={tx.id}>
-                                <TableCell className="whitespace-nowrap">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
+                                <TableCell className="whitespace-nowrap">{formatDateSafely(tx.date)}</TableCell>
                                 <TableCell>
                                     <div className="space-y-1">
                                         <div className="font-medium">{tx.description}</div>
