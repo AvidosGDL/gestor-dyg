@@ -5,7 +5,7 @@ import { useBanks } from '@/contexts/banks-context';
 import type { BankAccount, BankTransaction } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit, Search, Filter, X, Tag, ExternalLink, Copy, Check, ArrowUp, ArrowDown, ChevronUp, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit, Search, Filter, X, Tag, ExternalLink, Copy, Check, ArrowUp, ArrowDown, ChevronUp, ChevronDown, FileSpreadsheet } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
@@ -23,6 +23,7 @@ import { Badge } from '../ui/badge';
 import EditBankTransactionDialog from './edit-bank-transaction-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '../ui/label';
+import ImportBankExcelDialog from './import-bank-excel-dialog';
 
 
 export default function BankDetailView({ bankAccount, onBack }: { bankAccount: BankAccount, onBack: () => void }) {
@@ -31,6 +32,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
   const { toast } = useToast();
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isImportExcelOpen, setIsImportExcelOpen] = useState(false);
   const [isConciliateOpen, setIsConciliateOpen] = useState(false);
   const [isReconcileBalanceOpen, setIsReconcileBalanceOpen] = useState(false);
   const [isEditBankOpen, setIsEditBankOpen] = useState(false);
@@ -192,12 +194,15 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                         <CardTitle>Historial de Transacciones</CardTitle>
                         <CardDescription>Lista de ingresos y egresos de la cuenta.</CardDescription>
                     </div>
-                    <div className="flex gap-2">
-                        <Button variant="outline" onClick={() => setIsImportOpen(true)}>
-                            <Upload className="mr-2 h-4 w-4"/> Importar Comprobantes
+                    <div className="flex flex-wrap gap-2 justify-end">
+                        <Button variant="outline" size="sm" onClick={() => setIsImportExcelOpen(true)} className="gap-2">
+                            <FileSpreadsheet className="h-4 w-4 text-emerald-600"/> Importar Excel
                         </Button>
-                        <Button onClick={() => setIsAddTransactionOpen(true)}>
-                            <Plus className="mr-2 h-4 w-4"/> Agregar Transacción
+                        <Button variant="outline" size="sm" onClick={() => setIsImportOpen(true)} className="gap-2">
+                            <Upload className="h-4 w-4"/> Importar Comprobantes
+                        </Button>
+                        <Button size="sm" onClick={() => setIsAddTransactionOpen(true)} className="gap-2">
+                            <Plus className="h-4 w-4"/> Agregar Transacción
                         </Button>
                     </div>
                 </div>
@@ -213,16 +218,15 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                         </div>
                         <div className="space-y-1.5">
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Tipo</Label>
-                            <Select value={typeFilter} onValueChange={(v: any) => setTypeFilter(v)}>
-                                <SelectTrigger className="h-8 text-xs">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Todos</SelectItem>
-                                    <SelectItem value="ingreso">Ingresos</SelectItem>
-                                    <SelectItem value="egreso">Egresos</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <select 
+                                value={typeFilter} 
+                                onChange={e => setTypeFilter(e.target.value as any)}
+                                className="w-full h-8 text-xs bg-background border rounded-md px-2 focus:ring-1 focus:ring-primary outline-none"
+                            >
+                                <option value="all">Todos</option>
+                                <option value="ingreso">Ingresos</option>
+                                <option value="egreso">Egresos</option>
+                            </select>
                         </div>
                         <div className="space-y-1.5">
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Rango de Fechas</Label>
@@ -400,6 +404,11 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
       <ImportBankTransactionsDialog
         isOpen={isImportOpen}
         onOpenChange={setIsImportOpen}
+        bankAccountId={bankAccount.id}
+       />
+       <ImportBankExcelDialog
+        isOpen={isImportExcelOpen}
+        onOpenChange={setIsImportExcelOpen}
         bankAccountId={bankAccount.id}
        />
        <ConciliateStatementDialog
