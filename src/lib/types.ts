@@ -176,6 +176,7 @@ export interface BankTransaction {
   attachments?: Attachment[];
   createdBy?: string;
   categories?: string[];
+  sortOrder?: number;
 }
 
 export interface Project {

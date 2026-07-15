@@ -26,12 +26,13 @@ interface BanksContextType {
   addBankAccount: (bankAccountData: BankAccountFormValues, logoFile: File | null) => Promise<void>;
   updateBankAccount: (id: string, bankAccountData: BankAccountFormValues, logoFile: File | null) => Promise<void>;
   deleteBankAccount: (id: string) => void;
-  addBankTransaction: (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source' | 'createdBy'>) => void;
+  addBankTransaction: (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source' | 'createdBy' | 'sortOrder'>) => void;
   updateBankTransaction: (bankAccountId: string, transactionId: string, updatedData: Partial<BankTransaction>) => Promise<void>;
   deleteBankTransaction: (bankAccountId: string, transaction: BankTransaction) => void;
-  batchAddBankTransactions: (bankAccountId: string, transactionsWithFiles: { data: Omit<BankTransaction, 'id' | 'attachments' | 'source' | 'createdBy'>, file: File }[]) => Promise<void>;
-  batchAddConciliatedTransactions: (bankAccountId: string, transactions: Omit<BankTransaction, 'id' | 'source' | 'attachments' | 'createdBy'>[]) => Promise<void>;
+  batchAddBankTransactions: (bankAccountId: string, transactionsWithFiles: { data: Omit<BankTransaction, 'id' | 'attachments' | 'source' | 'createdBy' | 'sortOrder'>, file: File }[]) => Promise<void>;
+  batchAddConciliatedTransactions: (bankAccountId: string, transactions: Omit<BankTransaction, 'id' | 'source' | 'attachments' | 'createdBy' | 'sortOrder'>[]) => Promise<void>;
   reconcileBalance: (bankAccountId: string, targetDate: string, targetBalance: number) => Promise<void>;
+  swapTransactions: (bankAccountId: string, t1: BankTransaction, t2: BankTransaction) => Promise<void>;
   loading: boolean;
 }
 
@@ -124,7 +125,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const addBankTransaction = async (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source' | 'createdBy'>) => {
+  const addBankTransaction = async (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source' | 'createdBy' | 'sortOrder'>) => {
     if (!firestore || !collectionPath) return;
     const bankAccountRef = doc(firestore, collectionPath, bankAccountId);
     const transactionsCollectionRef = collection(firestore, `${collectionPath}/${bankAccountId}/transactions`);
@@ -132,6 +133,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
         ...transactionData,
         source: 'manual',
         createdBy: user?.displayName || user?.email || 'Desconocido',
+        sortOrder: Date.now(),
     };
     try {
         const bankAccountSnap = await getDoc(bankAccountRef);
@@ -208,7 +210,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const batchAddBankTransactions = async (bankAccountId: string, transactionsWithFiles: { data: Omit<BankTransaction, 'id' | 'attachments' | 'source' | 'createdBy'>, file: File }[]) => {
+  const batchAddBankTransactions = async (bankAccountId: string, transactionsWithFiles: { data: Omit<BankTransaction, 'id' | 'attachments' | 'source' | 'createdBy' | 'sortOrder'>, file: File }[]) => {
     if (!firestore || !collectionPath) return;
     const bankAccountRef = doc(firestore, collectionPath, bankAccountId);
     const storage = getStorage();
@@ -221,13 +223,22 @@ export function BanksProvider({ children }: { children: ReactNode }) {
         const newBalance = Number(currentAccountData.currentBalance) + balanceChange;
         const batch = writeBatch(firestore);
         const transactionsCollectionRef = collection(firestore, `${collectionPath}/${bankAccountId}/transactions`);
+        
+        // Use a counter to ensure slightly different sortOrders even if uploaded in the same ms
+        let counter = 0;
         const uploadPromises = transactionsWithFiles.map(async ({ data, file }) => {
             const newTransactionRef = doc(transactionsCollectionRef);
             const attachmentRef = storageRef(storage, `bank_attachments/${bankAccountId}/${newTransactionRef.id}/${file.name}`);
             const snapshot = await uploadBytes(attachmentRef, file);
             const downloadURL = await getDownloadURL(snapshot.ref);
             const newAttachment: Attachment = { name: file.name, type: file.type, size: file.size, url: downloadURL };
-            const finalTransactionData: Omit<BankTransaction, 'id'> = { ...data, source: 'import_file', attachments: [newAttachment], createdBy: user?.displayName || user?.email || 'Desconocido' };
+            const finalTransactionData: Omit<BankTransaction, 'id'> = { 
+                ...data, 
+                source: 'import_file', 
+                attachments: [newAttachment], 
+                createdBy: user?.displayName || user?.email || 'Desconocido',
+                sortOrder: Date.now() + (counter++) 
+            };
             batch.set(newTransactionRef, finalTransactionData);
         });
         await Promise.all(uploadPromises);
@@ -239,7 +250,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const batchAddConciliatedTransactions = async (bankAccountId: string, transactions: Omit<BankTransaction, 'id' | 'source' | 'attachments' | 'createdBy'>[]) => {
+  const batchAddConciliatedTransactions = async (bankAccountId: string, transactions: Omit<BankTransaction, 'id' | 'source' | 'attachments' | 'createdBy' | 'sortOrder'>[]) => {
     if (!firestore || !collectionPath) return;
     const bankAccountRef = doc(firestore, collectionPath, bankAccountId);
     try {
@@ -251,9 +262,16 @@ export function BanksProvider({ children }: { children: ReactNode }) {
         const newBalance = Number(currentAccountData.currentBalance) + balanceChange;
         const batch = writeBatch(firestore);
         const transactionsCollectionRef = collection(firestore, `${collectionPath}/${bankAccountId}/transactions`);
+        
+        let counter = 0;
         transactions.forEach(txData => {
             const newTransactionRef = doc(transactionsCollectionRef);
-            batch.set(newTransactionRef, { ...txData, source: 'conciliado_pdf', createdBy: user?.displayName || user?.email || 'Desconocido' });
+            batch.set(newTransactionRef, { 
+                ...txData, 
+                source: 'conciliado_pdf', 
+                createdBy: user?.displayName || user?.email || 'Desconocido',
+                sortOrder: Date.now() + (counter++)
+            });
         });
         batch.update(bankAccountRef, { currentBalance: newBalance });
         await batch.commit();
@@ -294,12 +312,30 @@ export function BanksProvider({ children }: { children: ReactNode }) {
             type: difference > 0 ? 'ingreso' : 'egreso',
             source: 'manual',
             createdBy: user.displayName || user.email || 'Sistema',
+            sortOrder: Date.now(),
         });
         batch.update(bankAccountRef, { currentBalance: Number(accountData.currentBalance) + difference });
         await batch.commit();
         toast({ title: 'Ajuste Realizado' });
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Error de Conciliación', description: error.message });
+    }
+  };
+
+  const swapTransactions = async (bankAccountId: string, t1: BankTransaction, t2: BankTransaction) => {
+    if (!firestore || !collectionPath) return;
+    const t1Ref = doc(firestore, `${collectionPath}/${bankAccountId}/transactions`, t1.id);
+    const t2Ref = doc(firestore, `${collectionPath}/${bankAccountId}/transactions`, t2.id);
+    
+    const batch = writeBatch(firestore);
+    // Swap date and sortOrder to exchange positions
+    batch.update(t1Ref, { date: t2.date, sortOrder: t2.sortOrder || Date.now() });
+    batch.update(t2Ref, { date: t1.date, sortOrder: t1.sortOrder || Date.now() });
+    
+    try {
+        await batch.commit();
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Error al reordenar', description: error.message });
     }
   };
 
@@ -315,6 +351,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     batchAddBankTransactions,
     batchAddConciliatedTransactions,
     reconcileBalance,
+    swapTransactions,
   };
 
   return <BanksContext.Provider value={contextValue}>{children}</BanksContext.Provider>;

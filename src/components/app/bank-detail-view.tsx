@@ -5,7 +5,7 @@ import { useBanks } from '@/contexts/banks-context';
 import type { BankAccount, BankTransaction } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit, Search, Filter, X, Tag, ExternalLink, Copy, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit, Search, Filter, X, Tag, ExternalLink, Copy, Check, ArrowUp, ArrowDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
@@ -27,7 +27,7 @@ import { Label } from '../ui/label';
 
 export default function BankDetailView({ bankAccount, onBack }: { bankAccount: BankAccount, onBack: () => void }) {
   const firestore = useFirestore();
-  const { deleteBankTransaction } = useBanks();
+  const { deleteBankTransaction, swapTransactions } = useBanks();
   const { toast } = useToast();
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -36,6 +36,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
   const [isEditBankOpen, setIsEditBankOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<BankTransaction | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isMoving, setIsMoving] = useState(false);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -48,7 +49,14 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
 
   const transactionsPath = useMemo(() => `banks/${bankAccount.id}/transactions`, [bankAccount.id]);
   const transactionsRef = useMemoFirebase(() => collection(firestore, transactionsPath), [firestore, transactionsPath]);
-  const transactionsQuery = useMemoFirebase(() => query(transactionsRef, orderBy('date', 'desc')), [transactionsRef]);
+  
+  // Sort by date DESC and sortOrder DESC for precise control
+  const transactionsQuery = useMemoFirebase(() => query(
+      transactionsRef, 
+      orderBy('date', 'desc'),
+      orderBy('sortOrder', 'desc')
+  ), [transactionsRef]);
+  
   const { data: transactions, loading: transactionsLoading } = useCollection<BankTransaction>(transactionsQuery);
 
   const filteredTransactions = useMemo(() => {
@@ -59,7 +67,6 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
         const matchesType = typeFilter === 'all' || tx.type === typeFilter;
         const matchesUser = tx.createdBy?.toLowerCase().includes(userSearch.toLowerCase());
         
-        // Use local noon for date comparison to avoid timezone shifts
         const txDate = new Date(tx.date.includes('T') ? tx.date : tx.date + 'T12:00:00');
         const matchesDate = (!startDate || txDate >= startOfDay(new Date(startDate + 'T00:00:00'))) &&
                           (!endDate || txDate <= endOfDay(new Date(endDate + 'T23:59:59')));
@@ -91,7 +98,6 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Helper to safely format dates avoiding timezone shift
   const formatDateSafely = (dateStr: string) => {
     try {
       const date = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T12:00:00');
@@ -100,6 +106,19 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
       return dateStr;
     }
   };
+
+  const handleMove = async (index: number, direction: 'up' | 'down') => {
+    if (isMoving) return;
+    const targetIdx = direction === 'up' ? index - 1 : index + 1;
+    if (targetIdx < 0 || targetIdx >= filteredTransactions.length) return;
+
+    setIsMoving(true);
+    await swapTransactions(bankAccount.id, filteredTransactions[index], filteredTransactions[targetIdx]);
+    setIsMoving(false);
+  };
+
+  // Reorder buttons logic: only allow if not filtering (to keep data consistent)
+  const canReorder = search === '' && typeFilter === 'all' && startDate === '' && endDate === '' && userSearch === '' && minAmount === '' && maxAmount === '';
 
   return (
     <>
@@ -183,7 +202,6 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                     </div>
                 </div>
                 
-                {/* Advanced Filters */}
                 <div className="bg-muted/30 p-4 rounded-xl space-y-4 border border-border">
                     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         <div className="space-y-1.5">
@@ -243,6 +261,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                 <Table>
                     <TableHeader className="sticky top-0 bg-muted z-10 shadow-sm">
                         <TableRow>
+                            {canReorder && <TableHead className="w-10"></TableHead>}
                             <TableHead>Fecha</TableHead>
                             <TableHead>Descripción / Categorías</TableHead>
                             <TableHead>Tipo</TableHead>
@@ -254,13 +273,37 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                     <TableBody>
                         {transactionsLoading && (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center p-8">
+                                <TableCell colSpan={canReorder ? 7 : 6} className="text-center p-8">
                                     <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                                 </TableCell>
                             </TableRow>
                         )}
-                        {!transactionsLoading && filteredTransactions.map(tx => (
-                            <TableRow key={tx.id}>
+                        {!transactionsLoading && filteredTransactions.map((tx, idx) => (
+                            <TableRow key={tx.id} className="group">
+                                {canReorder && (
+                                    <TableCell className="p-0 text-center">
+                                        <div className="flex flex-col items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Button 
+                                                variant="ghost" 
+                                                size="icon" 
+                                                className="h-5 w-5 hover:bg-muted" 
+                                                disabled={idx === 0 || isMoving}
+                                                onClick={() => handleMove(idx, 'up')}
+                                            >
+                                                <ChevronUp size={14} />
+                                            </Button>
+                                            <Button 
+                                                variant="ghost" 
+                                                size="icon" 
+                                                className="h-5 w-5 hover:bg-muted" 
+                                                disabled={idx === filteredTransactions.length - 1 || isMoving}
+                                                onClick={() => handleMove(idx, 'down')}
+                                            >
+                                                <ChevronDown size={14} />
+                                            </Button>
+                                        </div>
+                                    </TableCell>
+                                )}
                                 <TableCell className="whitespace-nowrap">{formatDateSafely(tx.date)}</TableCell>
                                 <TableCell>
                                     <div className="space-y-1">
@@ -323,7 +366,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                         ))}
                          {!transactionsLoading && filteredTransactions.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
+                                <TableCell colSpan={canReorder ? 7 : 6} className="text-center h-24 text-muted-foreground">
                                     {transactions?.length === 0 ? 'No hay transacciones registradas.' : 'No se encontraron movimientos con los filtros aplicados.'}
                                 </TableCell>
                             </TableRow>
