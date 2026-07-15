@@ -5,7 +5,7 @@ import { useBanks } from '@/contexts/banks-context';
 import type { BankAccount, BankTransaction } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit, Search, Filter, X, Tag } from 'lucide-react';
+import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit, Search, Filter, X, Tag, ExternalLink, Copy, Check } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
@@ -21,17 +21,21 @@ import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Badge } from '../ui/badge';
 import EditBankTransactionDialog from './edit-bank-transaction-dialog';
+import { useToast } from '@/hooks/use-toast';
+import { Label } from '../ui/label';
 
 
 export default function BankDetailView({ bankAccount, onBack }: { bankAccount: BankAccount, onBack: () => void }) {
   const firestore = useFirestore();
   const { deleteBankTransaction } = useBanks();
+  const { toast } = useToast();
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isConciliateOpen, setIsConciliateOpen] = useState(false);
   const [isReconcileBalanceOpen, setIsReconcileBalanceOpen] = useState(false);
   const [isEditBankOpen, setIsEditBankOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<BankTransaction | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -79,17 +83,46 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
     setMaxAmount('');
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    toast({ title: 'Copiado', description: 'Usuario copiado al portapapeles.' });
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <>
       <div className="h-full flex flex-col p-2 space-y-4">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" onClick={onBack} className="h-8 w-8">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h2 className="text-xl font-bold">{bankAccount.companyName}</h2>
-            <p className="text-sm text-muted-foreground">{bankAccount.bankName} | Terminación: {displayIdentifier}</p>
-          </div>
+        <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+                <Button variant="outline" size="icon" onClick={onBack} className="h-8 w-8">
+                    <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <div>
+                    <h2 className="text-xl font-bold">{bankAccount.companyName}</h2>
+                    <p className="text-sm text-muted-foreground">{bankAccount.bankName} | Terminación: {displayIdentifier}</p>
+                </div>
+            </div>
+            {bankAccount.portalUrl && (
+                <div className="flex items-center gap-4 bg-muted/50 p-2 px-4 rounded-xl border border-border">
+                    <div className="flex flex-col items-end">
+                        <span className="text-[9px] uppercase font-bold text-muted-foreground">Acceso Directo</span>
+                        <div className="flex items-center gap-3 mt-1">
+                            {bankAccount.portalUser && (
+                                <Button variant="secondary" size="sm" className="h-7 text-xs gap-1.5" onClick={() => copyToClipboard(bankAccount.portalUser!)}>
+                                    {copied ? <Check size={12} className="text-emerald-500"/> : <Copy size={12}/>}
+                                    <span className="font-mono">{bankAccount.portalUser}</span>
+                                </Button>
+                            )}
+                            <Button size="sm" className="h-7 gap-2" asChild>
+                                <a href={bankAccount.portalUrl} target="_blank" rel="noopener noreferrer">
+                                    <ExternalLink size={14}/> Ir al Banco
+                                </a>
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -122,8 +155,8 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
           </Card>
         </div>
 
-        <Card className="flex-1 flex flex-col">
-            <CardHeader className="pb-2">
+        <Card className="flex-1 flex flex-col overflow-hidden">
+            <CardHeader className="pb-2 shrink-0">
                 <div className="flex flex-row items-center justify-between mb-4">
                     <div>
                         <CardTitle>Historial de Transacciones</CardTitle>
@@ -194,10 +227,10 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                     </div>
                 </div>
             </CardHeader>
-            <CardContent className="flex-1 overflow-hidden">
+            <CardContent className="flex-1 overflow-hidden pt-4">
                 <div className="border rounded-lg h-full overflow-y-auto">
                 <Table>
-                    <TableHeader className="sticky top-0 bg-muted z-10">
+                    <TableHeader className="sticky top-0 bg-muted z-10 shadow-sm">
                         <TableRow>
                             <TableHead>Fecha</TableHead>
                             <TableHead>Descripción / Categorías</TableHead>
@@ -290,15 +323,15 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
             </CardContent>
         </Card>
 
-        <Card>
-            <CardHeader>
-                <CardTitle>Conciliación Bancaria con IA</CardTitle>
-                <CardDescription>
+        <Card className="shrink-0">
+            <CardHeader className="py-4">
+                <CardTitle className="text-base">Conciliación Bancaria con IA</CardTitle>
+                <CardDescription className="text-xs">
                     Sube tu estado de cuenta mensual en PDF para compararlo con las transacciones registradas y encontrar discrepancias.
                 </CardDescription>
             </CardHeader>
-            <CardContent>
-                <Button onClick={() => setIsConciliateOpen(true)}>
+            <CardContent className="pb-4">
+                <Button size="sm" onClick={() => setIsConciliateOpen(true)}>
                     <FileCheck2 className="mr-2 h-4 w-4"/> Iniciar Conciliación
                 </Button>
             </CardContent>

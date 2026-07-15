@@ -162,6 +162,8 @@ export interface BankAccount {
   initialBalance: number;
   balanceDate: string; // ISO Date
   currentBalance: number;
+  portalUrl?: string;
+  portalUser?: string;
 }
 
 export interface BankTransaction {

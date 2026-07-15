@@ -5,7 +5,7 @@ import { useBanks } from '@/contexts/banks-context';
 import { BankAccount } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Landmark, Loader2, Edit, Search, MoreVertical, Trash2, LayoutGrid, List, FileSpreadsheet, FileText, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
+import { Landmark, Loader2, Edit, Search, MoreVertical, Trash2, LayoutGrid, List, FileSpreadsheet, FileText, ArrowUpDown, ChevronUp, ChevronDown, ExternalLink, Copy, Check } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import BankDetailView from './bank-detail-view';
 import EditBankDialog from './edit-bank-dialog';
@@ -30,16 +30,26 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import * as XLSX from 'xlsx';
 import BanksReportDialog from './banks-report-dialog';
+import { useToast } from '@/hooks/use-toast';
 
 function BankAccountCard({ bankAccount, onSelect, onEdit, onDelete }: { bankAccount: BankAccount, onSelect: (id: string) => void, onEdit: (account: BankAccount) => void, onDelete: (id: string) => void }) {
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
 
   const identifier = bankAccount.accountNumber || bankAccount.cardNumber || bankAccount.clabe || '';
   const displayIdentifier = identifier ? `...${identifier.slice(-4)}` : 'Sin número';
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    toast({ title: 'Copiado', description: 'Usuario copiado al portapapeles.' });
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <Card className="flex flex-col">
-      <CardHeader className="flex flex-row items-start justify-between">
+      <CardHeader className="flex flex-row items-start justify-between pb-2">
         <div className="flex-1 space-y-1.5 cursor-pointer" onClick={() => onSelect(bankAccount.id)}>
           <CardTitle className="text-base truncate">{bankAccount.companyName}</CardTitle>
           <CardDescription className="flex items-center gap-2 pt-1 text-xs">
@@ -96,10 +106,35 @@ function BankAccountCard({ bankAccount, onSelect, onEdit, onDelete }: { bankAcco
       </CardHeader>
       <CardContent className="flex-1 flex flex-col justify-between">
         <div>
-            <p className="text-[10px] text-muted-foreground uppercase font-semibold">Saldo Actual</p>
-            <p className="text-xl font-bold">${(Number(bankAccount.currentBalance) || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+            <div className="flex justify-between items-end mb-4">
+                <div>
+                    <p className="text-[10px] text-muted-foreground uppercase font-semibold">Saldo Actual</p>
+                    <p className="text-xl font-bold">${(Number(bankAccount.currentBalance) || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                </div>
+                {bankAccount.portalUser && (
+                    <div className="flex flex-col items-end gap-1">
+                        <p className="text-[9px] text-muted-foreground uppercase font-bold">Usuario</p>
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] gap-1.5" onClick={() => copyToClipboard(bankAccount.portalUser!)}>
+                            {copied ? <Check size={10} className="text-emerald-500" /> : <Copy size={10} />}
+                            {bankAccount.portalUser}
+                        </Button>
+                    </div>
+                )}
+            </div>
+            
+            {bankAccount.portalUrl ? (
+                <Button variant="default" size="sm" className="w-full gap-2" asChild>
+                    <a href={bankAccount.portalUrl} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink size={14} /> Acceder a Banca
+                    </a>
+                </Button>
+            ) : (
+                <Button variant="outline" size="sm" className="w-full opacity-50 cursor-not-allowed">
+                    Sin URL configurada
+                </Button>
+            )}
         </div>
-        <Button variant="outline" size="sm" className="w-full mt-4" onClick={() => onSelect(bankAccount.id)}>
+        <Button variant="ghost" size="sm" className="w-full mt-2 text-xs" onClick={() => onSelect(bankAccount.id)}>
           Ver Transacciones
         </Button>
       </CardContent>
@@ -264,7 +299,7 @@ export default function BanksView() {
                                     <TableHead className="text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('currentBalance')}>
                                         <div className="flex items-center justify-end gap-2">Saldo Actual <ArrowUpDown size={14}/></div>
                                     </TableHead>
-                                    <TableHead className="text-right">Acciones</TableHead>
+                                    <TableHead className="text-right">Portal</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -285,7 +320,12 @@ export default function BanksView() {
                                                 ${account.currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </TableCell>
                                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                                <div className="flex justify-end gap-1">
+                                                <div className="flex justify-end gap-2">
+                                                    {account.portalUrl && (
+                                                        <Button variant="ghost" size="icon" asChild>
+                                                            <a href={account.portalUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={14}/></a>
+                                                        </Button>
+                                                    )}
                                                     <Button variant="ghost" size="icon" onClick={() => setEditingAccount(account)}><Edit size={14}/></Button>
                                                 </div>
                                             </TableCell>
@@ -299,7 +339,7 @@ export default function BanksView() {
             </ScrollArea>
         ) : (
             <div className="flex flex-col items-center justify-center flex-1 text-center text-muted-foreground border-2 border-dashed rounded-xl">
-                <Landmark size={48} className="mb-4" />
+                <landmark size={48} className="mb-4" />
                 <h3 className="text-lg font-semibold">
                     {searchTerm ? 'No se encontraron cuentas' : 'No hay cuentas bancarias registradas'}
                 </h3>

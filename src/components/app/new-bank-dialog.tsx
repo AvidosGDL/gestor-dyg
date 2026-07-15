@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { DollarSign, Loader2, ImageUp } from 'lucide-react';
+import { DollarSign, Loader2, ImageUp, Link, User } from 'lucide-react';
 import { useBanks } from '@/contexts/banks-context';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
@@ -29,6 +29,8 @@ const bankAccountSchema = z.object({
   cardNumber: z.string().length(16, 'La tarjeta debe tener 16 dígitos').optional().or(z.literal('')),
   initialBalance: z.coerce.number().min(-999999999999.99).max(999999999999.99),
   balanceDate: z.string().min(1, 'La fecha del saldo es requerida'),
+  portalUrl: z.string().url('Ingresa una URL válida').optional().or(z.literal('')),
+  portalUser: z.string().optional(),
 });
 
 
@@ -42,6 +44,8 @@ const defaultValues: Partial<BankAccountFormValues> = {
     cardNumber: '',
     initialBalance: 0,
     balanceDate: new Date().toISOString().split('T')[0],
+    portalUrl: '',
+    portalUser: '',
 };
 
 interface NewBankDialogProps {
@@ -108,7 +112,7 @@ export default function NewBankDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Agregar Nueva Cuenta Bancaria</DialogTitle>
           <DialogDescription>
@@ -257,6 +261,39 @@ export default function NewBankDialog({
                   </FormItem>
                 )}
               />
+            </div>
+
+            <div className="space-y-4 pt-4 border-t">
+                <h4 className="text-sm font-semibold flex items-center gap-2"><Link size={14}/> Accesos a Banca</h4>
+                <FormField
+                    control={form.control}
+                    name="portalUrl"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>URL de Acceso</FormLabel>
+                        <FormControl>
+                        <Input {...field} placeholder="https://banca.ejemplo.com" disabled={form.formState.isSubmitting} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="portalUser"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Usuario Predefinido</FormLabel>
+                        <FormControl>
+                        <div className="relative">
+                             <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                             <Input {...field} className="pl-9" placeholder="usuario123" disabled={form.formState.isSubmitting} />
+                        </div>
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
             </div>
             
             <DialogFooter className="pt-4">
