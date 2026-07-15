@@ -27,6 +27,7 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Badge } from '../ui/badge';
+import type { BankTransaction } from '@/lib/types';
 
 const transactionSchema = z.object({
   date: z.string().min(1, 'La fecha es requerida'),
@@ -40,44 +41,43 @@ type TransactionFormValues = z.infer<typeof transactionSchema>;
 
 const DEFAULT_CATEGORIES = ['Nómina', 'Impuestos', 'Servicios', 'Ventas', 'Honorarios', 'Renta', 'Suministros', 'Inversión'];
 
-const defaultValues: TransactionFormValues = {
-    date: new Date().toISOString().split('T')[0],
-    description: '',
-    amount: 0,
-    type: 'egreso',
-    categories: [],
-};
-
-interface NewBankTransactionDialogProps {
+interface EditBankTransactionDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   bankAccountId: string;
+  transaction: BankTransaction;
 }
 
-export default function NewBankTransactionDialog({
+export default function EditBankTransactionDialog({
   isOpen,
   onOpenChange,
   bankAccountId,
-}: NewBankTransactionDialogProps) {
-  const { addBankTransaction } = useBanks();
+  transaction
+}: EditBankTransactionDialogProps) {
+  const { updateBankTransaction } = useBanks();
   const { toast } = useToast();
-  const [displayAmount, setDisplayAmount] = useState('0.00');
+  const [displayAmount, setDisplayAmount] = useState('');
   const [newCategory, setNewCategory] = useState('');
 
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
-    defaultValues,
   });
 
   const selectedCategories = form.watch('categories') || [];
 
   useEffect(() => {
-    if(!isOpen) {
-      form.reset(defaultValues);
-      setDisplayAmount('0.00');
+    if(isOpen && transaction) {
+      form.reset({
+        date: transaction.date.split('T')[0],
+        description: transaction.description,
+        amount: transaction.amount,
+        type: transaction.type,
+        categories: transaction.categories || [],
+      });
+      setDisplayAmount(transaction.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
       setNewCategory('');
     }
-  }, [isOpen, form]);
+  }, [isOpen, transaction, form]);
 
   const toggleCategory = (cat: string) => {
     const current = form.getValues('categories') || [];
@@ -98,17 +98,12 @@ export default function NewBankTransactionDialog({
 
   const onSubmit: SubmitHandler<TransactionFormValues> = async (data) => {
     try {
-      addBankTransaction(bankAccountId, data);
-
-      toast({
-        title: 'Transacción Agregada',
-        description: 'El movimiento ha sido registrado y el saldo actualizado.',
-      });
+      await updateBankTransaction(bankAccountId, transaction.id, data);
       onOpenChange(false);
     } catch (error: any) {
       toast({
         variant: 'destructive',
-        title: 'Error al agregar la transacción',
+        title: 'Error al actualizar',
         description: error.message || 'Ocurrió un error inesperado.',
       });
     }
@@ -118,9 +113,9 @@ export default function NewBankTransactionDialog({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Agregar Nueva Transacción</DialogTitle>
+          <DialogTitle>Editar Transacción</DialogTitle>
           <DialogDescription>
-            Registra un nuevo ingreso o egreso para esta cuenta.
+            Modifica los detalles del movimiento bancario.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -135,14 +130,14 @@ export default function NewBankTransactionDialog({
                   <FormControl>
                   <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-4">
                       <div>
-                      <RadioGroupItem value="egreso" id="new-egreso" className="peer sr-only" />
-                      <Label htmlFor="new-egreso" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-rose-500 [&:has([data-state=checked])]:border-rose-500 cursor-pointer">
+                      <RadioGroupItem value="egreso" id="edit-tx-egreso" className="peer sr-only" />
+                      <Label htmlFor="edit-tx-egreso" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-rose-500 [&:has([data-state=checked])]:border-rose-500 cursor-pointer">
                           Egreso
                       </Label>
                       </div>
                       <div>
-                      <RadioGroupItem value="ingreso" id="new-ingreso" className="peer sr-only" />
-                      <Label htmlFor="new-ingreso" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-emerald-500 [&:has([data-state=checked])]:border-emerald-500 cursor-pointer">
+                      <RadioGroupItem value="ingreso" id="edit-tx-ingreso" className="peer sr-only" />
+                      <Label htmlFor="edit-tx-ingreso" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-emerald-500 [&:has([data-state=checked])]:border-emerald-500 cursor-pointer">
                           Ingreso
                       </Label>
                       </div>
@@ -293,7 +288,7 @@ export default function NewBankTransactionDialog({
               </Button>
               <Button type="submit" disabled={form.formState.isSubmitting}>
                 {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Agregar Transacción
+                Guardar Cambios
               </Button>
             </DialogFooter>
           </form>

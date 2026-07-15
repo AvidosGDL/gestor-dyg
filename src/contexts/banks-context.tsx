@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
@@ -28,6 +27,7 @@ interface BanksContextType {
   updateBankAccount: (id: string, bankAccountData: BankAccountFormValues, logoFile: File | null) => Promise<void>;
   deleteBankAccount: (id: string) => void;
   addBankTransaction: (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source' | 'createdBy'>) => void;
+  updateBankTransaction: (bankAccountId: string, transactionId: string, updatedData: Partial<BankTransaction>) => Promise<void>;
   deleteBankTransaction: (bankAccountId: string, transaction: BankTransaction) => void;
   batchAddBankTransactions: (bankAccountId: string, transactionsWithFiles: { data: Omit<BankTransaction, 'id' | 'attachments' | 'source' | 'createdBy'>, file: File }[]) => Promise<void>;
   batchAddConciliatedTransactions: (bankAccountId: string, transactions: Omit<BankTransaction, 'id' | 'source' | 'attachments' | 'createdBy'>[]) => Promise<void>;
@@ -143,6 +143,47 @@ export function BanksProvider({ children }: { children: ReactNode }) {
         batch.set(newTransactionRef, dataToSave);
         batch.update(bankAccountRef, { currentBalance: newBalance });
         await batch.commit();
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Error', description: error.message });
+    }
+  };
+
+  const updateBankTransaction = async (bankAccountId: string, transactionId: string, updatedData: Partial<BankTransaction>) => {
+    if (!firestore || !collectionPath) return;
+    const bankAccountRef = doc(firestore, collectionPath, bankAccountId);
+    const transactionRef = doc(firestore, `${collectionPath}/${bankAccountId}/transactions`, transactionId);
+    
+    try {
+        const [bankSnap, transSnap] = await Promise.all([
+            getDoc(bankAccountRef),
+            getDoc(transactionRef)
+        ]);
+        
+        if (!bankSnap.exists() || !transSnap.exists()) throw new Error("Datos no encontrados.");
+        
+        const bankData = bankSnap.data() as BankAccount;
+        const oldTransData = transSnap.data() as BankTransaction;
+        
+        const batch = writeBatch(firestore);
+        
+        // Revert old transaction impact on balance
+        let balanceAfterRevert = oldTransData.type === 'ingreso' 
+            ? Number(bankData.currentBalance) - Number(oldTransData.amount)
+            : Number(bankData.currentBalance) + Number(oldTransData.amount);
+            
+        // Apply new transaction impact
+        const newAmount = updatedData.amount !== undefined ? Number(updatedData.amount) : Number(oldTransData.amount);
+        const newType = updatedData.type || oldTransData.type;
+        
+        let finalBalance = newType === 'ingreso' 
+            ? balanceAfterRevert + newAmount
+            : balanceAfterRevert - newAmount;
+            
+        batch.update(transactionRef, updatedData);
+        batch.update(bankAccountRef, { currentBalance: finalBalance });
+        
+        await batch.commit();
+        toast({ title: 'Transacción actualizada' });
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
     }
@@ -269,6 +310,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     updateBankAccount,
     deleteBankAccount,
     addBankTransaction,
+    updateBankTransaction,
     deleteBankTransaction,
     batchAddBankTransactions,
     batchAddConciliatedTransactions,
