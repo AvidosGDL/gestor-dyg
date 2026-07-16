@@ -30,14 +30,6 @@ export interface UseCollectionResult<T> {
 /**
  * React hook to subscribe to a Firestore collection or query in real-time.
  * Handles nullable references/queries.
- * 
- * IMPORTANT! YOU MUST MEMOIZE the inputted memoizedTargetRefOrQuery or BAD THINGS WILL HAPPEN
- * use useMemoFirebase to memoize it.
- *  
- * @template T Optional type for document data. Defaults to any.
- * @param {CollectionReference<DocumentData> | Query<DocumentData> | null | undefined} targetRefOrQuery -
- * The Firestore CollectionReference or Query. Waits if null/undefined.
- * @returns {UseCollectionResult<T>} Object with data, isLoading, error.
  */
 export function useCollection<T = any>(
     targetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined,
@@ -50,6 +42,7 @@ export function useCollection<T = any>(
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   useEffect(() => {
+    // Si no hay referencia, reseteamos estado y salimos temprano
     if (!targetRefOrQuery) {
       setData(null);
       setIsLoading(false);
@@ -71,32 +64,26 @@ export function useCollection<T = any>(
         setError(null);
         setIsLoading(false);
       },
-      (error: FirestoreError) => {
-        // We avoid accessing internal properties like _query to prevent SDK corruption
+      (err: FirestoreError) => {
         const path: string = targetRefOrQuery.type === 'collection' 
           ? (targetRefOrQuery as CollectionReference).path 
           : "query-result";
 
-        try {
-          const auth = getAuth();
-          console.error("Firestore onSnapshot error:", error.code, error.message);
-          console.log("DENIED operation=list path=", path);
-          console.log("UID=", auth?.currentUser?.uid);
-        } catch (e) {
-          // ignore diag errors
+        console.error(`[Firestore Error] Code: ${err.code} | Message: ${err.message} | Path: ${path}`);
+        
+        setError(err);
+        setData(null);
+        setIsLoading(false);
+
+        // SOLO emitimos error de permiso si el código es realmente de permisos.
+        // Esto evita que errores de índices (failed-precondition) se reporten como fallos de seguridad.
+        if (err.code === 'permission-denied') {
+          const contextualError = new FirestorePermissionError({
+            operation: 'list',
+            path,
+          });
+          errorEmitter.emit('permission-error', contextualError);
         }
-
-        const contextualError = new FirestorePermissionError({
-          operation: 'list',
-          path,
-        })
-
-        setError(contextualError)
-        setData(null)
-        setIsLoading(false)
-
-        // trigger global error propagation
-        errorEmitter.emit('permission-error', contextualError);
       }
     );
 

@@ -3,6 +3,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Forzar redeploy de reglas para asegurar sincronización con los nuevos índices
     function isSignedIn() {
       return request.auth != null;
     }
