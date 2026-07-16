@@ -1,60 +1,46 @@
+
 {
   "indexes": [
     {
       "collectionGroup": "chats",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "memberIds",
-          "arrayConfig": "CONTAINS"
-        },
-        {
-          "fieldPath": "lastMessageTimestamp",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "memberIds", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "lastMessageTimestamp", "order": "DESCENDING" }
       ]
     },
     {
       "collectionGroup": "tasks",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "delegateToEmail",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "delegateToId",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "delegateToEmail", "order": "ASCENDING" },
+        { "fieldPath": "delegateToId", "order": "ASCENDING" }
       ]
     },
     {
       "collectionGroup": "transactions",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "date",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "sortOrder",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "date", "order": "DESCENDING" },
+        { "fieldPath": "sortOrder", "order": "DESCENDING" }
       ]
     },
     {
       "collectionGroup": "transactions",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
-        {
-          "fieldPath": "date",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "sortOrder",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "date", "order": "DESCENDING" },
+        { "fieldPath": "sortOrder", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "transactions",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "date", "order": "DESCENDING" },
+        { "fieldPath": "sortOrder", "order": "ASCENDING" }
       ]
     }
-  ]
+  ],
+  "fieldOverrides": []
 }

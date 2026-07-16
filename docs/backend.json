@@ -1,263 +1,82 @@
+
 {
   "entities": {
     "Task": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Task",
       "type": "object",
-      "description": "Represents a task or business opportunity within the TaskMaster Pro application.",
+      "description": "Represents a task or business opportunity.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Task entity."
-        },
-        "title": {
-          "type": "string",
-          "description": "The title or name of the task or business opportunity."
-        },
-        "client": {
-          "type": "string",
-          "description": "The client or company associated with the task."
-        },
-        "value": {
-          "type": "number",
-          "description": "The estimated value or potential revenue of the task."
-        },
-        "probability": {
-          "type": "number",
-          "description": "The probability of success for the task, expressed as a percentage."
-        },
-        "dueDate": {
-          "type": "string",
-          "description": "The date by which the task should be completed.",
-          "format": "date-time"
-        },
-        "status": {
-          "type": "string",
-          "description": "The current status of the task (e.g., backlog, prospecting, negotiation, closing, done)."
-        },
-        "priority": {
-          "type": "string",
-          "description": "The priority level of the task (e.g., low, medium, high)."
-        },
-        "delegateTo": {
-          "type": "string",
-          "description": "The person to whom the task is delegated."
-        },
-        "description": {
-          "type": "string",
-          "description": "A detailed description of the task."
-        }
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "client": { "type": "string" },
+        "value": { "type": "number" },
+        "probability": { "type": "number" },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "status": { "type": "string" },
+        "priority": { "type": "string" }
       },
-      "required": [
-        "id",
-        "title",
-        "status",
-        "priority"
-      ]
+      "required": ["id", "title", "status", "priority"]
     },
     "UserProfile": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "UserProfile",
       "type": "object",
-      "description": "Represents a user profile in the TaskMaster Pro application.",
+      "description": "User profile with role-based access control.",
       "properties": {
-        "uid": {
-          "type": "string",
-          "description": "Unique identifier for the UserProfile entity, matching the Firebase Auth UID."
-        },
-        "name": {
-          "type": "string",
-          "description": "The name of the user."
-        },
-        "email": {
-          "type": "string",
-          "description": "The email address of the user.",
-          "format": "email"
-        },
-        "avatarUrl": {
-          "type": "string",
-          "description": "URL of the user's profile picture.",
-          "format": "uri"
-        },
-        "role": {
-          "type": "string",
-          "description": "The role of the user."
-        },
-        "phone": {
-          "type": "string",
-          "description": "The phone number of the user."
-        },
-        "ownerIds": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Array of UIDs of the team owners who invited this user. Supports belonging to multiple teams."
-        }
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string" },
+        "canAccessBanks": { "type": "boolean" },
+        "canAccessInvestors": { "type": "boolean" },
+        "canAccessProjects": { "type": "boolean" }
       },
-      "required": [
-        "uid",
-        "name",
-        "email"
-      ]
+      "required": ["uid", "name", "email"]
     },
-    "Prospect": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Prospect",
+    "BankAccount": {
+      "title": "BankAccount",
       "type": "object",
-      "description": "Represents a business prospect or lead.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Prospect."
-        },
-        "name": {
-          "type": "string",
-          "description": "Name of the prospect."
-        },
-        "email": {
-          "type": "string",
-          "description": "Email of the prospect.",
-          "format": "email"
-        },
-        "phone": {
-          "type": "string",
-          "description": "Phone number of the prospect."
-        },
-        "businessDescription": {
-          "type": "string",
-          "description": "Description of the prospect's business."
-        },
-        "nextContactDate": {
-          "type": "string",
-          "description": "Next scheduled contact date.",
-          "format": "date"
-        },
-        "value": {
-          "type": "number",
-          "description": "The estimated value of the business opportunity."
-        },
-        "probability": {
-          "type": "number",
-          "description": "The probability of closing the deal, as a percentage."
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "businessDescription"
-      ]
-    },
-    "Chat": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Chat",
-      "type": "object",
-      "description": "Represents a chat conversation between two or more users.",
-      "properties": {
-        "memberIds": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Array of user UIDs participating in the chat."
-        },
-        "lastMessageTimestamp": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Timestamp of the last message sent in the chat."
-        }
+        "companyName": { "type": "string" },
+        "bankName": { "type": "string" },
+        "currentBalance": { "type": "number" }
       }
     },
-    "Message": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Message",
+    "BankTransaction": {
+      "title": "BankTransaction",
       "type": "object",
-      "description": "Represents a single message within a chat.",
       "properties": {
-        "senderId": {
-          "type": "string",
-          "description": "The UID of the user who sent the message."
-        },
-        "text": {
-          "type": "string",
-          "description": "The text content of the message."
-        },
-        "mediaUrl": {
-          "type": "string",
-          "format": "uri",
-          "description": "URL of any media attached to the message."
-        },
-        "mediaType": {
-          "type": "string",
-          "enum": [
-            "image",
-            "video",
-            "audio"
-          ],
-          "description": "The type of media attached."
-        },
-        "timestamp": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The time the message was sent."
-        },
-        "readBy": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Array of user UIDs who have read the message."
-        }
-      },
-      "required": [
-        "senderId",
-        "timestamp"
-      ]
+        "date": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["ingreso", "egreso"] },
+        "sortOrder": { "type": "number" }
+      }
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
+    "providers": ["password"]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "UserProfile",
-          "schema": {
-            "$ref": "#/backend/entities/UserProfile"
-          },
-          "description": "Stores user profile information.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user, matching the Firebase Auth UID."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/tasks/{taskId}",
-        "definition": {
-          "entityName": "Task",
-          "schema": {
-            "$ref": "#/backend/entities/Task"
-          },
-          "description": "Stores tasks associated with a specific user. The path includes `userId` to enforce ownership, ensuring only the authenticated user can access their own tasks.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user, matching the Firebase Auth UID."
-            },
-            {
-              "name": "taskId",
-              "description": "The unique identifier for the task."
-            }
-          ]
-        }
-      }
-    ],
-    "reasoning": "The Firestore structure is designed to manage tasks and user profiles for the TaskMaster Pro application, prioritizing security, scalability, and debuggability."
+    "/users/{userId}": {
+      "schema": { "$ref": "#/backend/entities/UserProfile" },
+      "description": "User profiles and permissions."
+    },
+    "/banks/{bankId}": {
+      "schema": { "$ref": "#/backend/entities/BankAccount" },
+      "description": "Bank account definitions."
+    },
+    "/banks/{bankId}/transactions/{txId}": {
+      "schema": { "$ref": "#/backend/entities/BankTransaction" },
+      "description": "Movements for a specific bank account."
+    },
+    "/investors/{investorId}": {
+      "schema": { "type": "object" },
+      "description": "Investor data."
+    },
+    "/projects/{projectId}": {
+      "schema": { "type": "object" },
+      "description": "Project and construction management."
+    }
   }
 }

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -11,7 +12,6 @@ import {
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { getAuth } from 'firebase/auth';
 
 /** Utility type to add an 'id' field to a given type T. */
 export type WithId<T> = T & { id: string };
@@ -42,7 +42,6 @@ export function useCollection<T = any>(
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   useEffect(() => {
-    // Si no hay referencia, reseteamos estado y salimos temprano
     if (!targetRefOrQuery) {
       setData(null);
       setIsLoading(false);
@@ -65,9 +64,8 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (err: FirestoreError) => {
-        const path: string = targetRefOrQuery.type === 'collection' 
-          ? (targetRefOrQuery as CollectionReference).path 
-          : "query-result";
+        // Mejor reporte de ruta para depuración
+        const path: string = (targetRefOrQuery as any).path || "query-object";
 
         console.error(`[Firestore Error] Code: ${err.code} | Message: ${err.message} | Path: ${path}`);
         
@@ -75,12 +73,12 @@ export function useCollection<T = any>(
         setData(null);
         setIsLoading(false);
 
-        // SOLO emitimos error de permiso si el código es realmente de permisos.
-        // Esto evita que errores de índices (failed-precondition) se reporten como fallos de seguridad.
+        // CRÍTICO: Solo emitimos error de permiso si realmente es un fallo de seguridad.
+        // Los errores de "failed-precondition" (índices faltantes) se manejan solo por consola.
         if (err.code === 'permission-denied') {
           const contextualError = new FirestorePermissionError({
             operation: 'list',
-            path,
+            path: path,
           });
           errorEmitter.emit('permission-error', contextualError);
         }
