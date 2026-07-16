@@ -30,7 +30,7 @@
     },
     {
       "collectionGroup": "transactions",
-      "queryScope": "COLLECTION",
+      "queryScope": "COLLECTION_GROUP",
       "fields": [
         {
           "fieldPath": "date",
