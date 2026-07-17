@@ -1,3 +1,4 @@
+
 'use client';
     
 import { useState, useEffect } from 'react';
@@ -59,7 +60,7 @@ export function useDoc<T = any>(
         setIsLoading(false);
       },
       (err: FirestoreError) => {
-        console.error(`[Firestore Error] Code: ${err.code} | Message: ${err.message} | Path: ${memoizedDocRef.path}`);
+        console.error(`[Firestore Error] Code: ${err.code} | Message: ${err.message}`);
         
         setError(err);
         setData(null);

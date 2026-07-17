@@ -96,4 +96,4 @@ service cloud.firestore {
     }
   }
 }
-// Forzado de sincronización de índices y reglas - 2024-07-16
+// Forzado de sincronización de índices y reglas - 2024-07-17

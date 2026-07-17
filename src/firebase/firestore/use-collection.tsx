@@ -64,18 +64,17 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (err: FirestoreError) => {
-        // Intento de extraer la ruta de la colección para el log
-        const path: string = (targetRefOrQuery as any).path 
-          || (targetRefOrQuery as any)._query?.path?.segments?.join('/')
-          || "query-object";
+        // SEGURIDAD: Evitamos acceder a propiedades privadas del SDK (_query, etc.)
+        // para prevenir el error INTERNAL ASSERTION FAILED.
+        const path: string = (targetRefOrQuery as any).path || "query-result";
 
-        console.error(`[Firestore Error] Code: ${err.code} | Message: ${err.message} | Path: ${path}`);
+        console.error(`[Firestore Error] Code: ${err.code} | Message: ${err.message}`);
         
         setError(err);
         setData(null);
         setIsLoading(false);
 
-        // CRÍTICO: Solo emitimos error visual de permisos si el código es 'permission-denied'
+        // Solo emitimos error visual de permisos si el código es 'permission-denied'
         if (err.code === 'permission-denied') {
           const contextualError = new FirestorePermissionError({
             operation: 'list',
