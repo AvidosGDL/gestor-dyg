@@ -96,4 +96,4 @@ service cloud.firestore {
     }
   }
 }
-// Trigger rule sync - Index creation in progress
+// Forzado de sincronización de índices y reglas - 2024-07-16
