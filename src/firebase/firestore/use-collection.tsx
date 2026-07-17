@@ -64,8 +64,10 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (err: FirestoreError) => {
-        // Mejor reporte de ruta para depuración
-        const path: string = (targetRefOrQuery as any).path || "query-object";
+        // Intento de extraer la ruta de la colección para el log
+        const path: string = (targetRefOrQuery as any).path 
+          || (targetRefOrQuery as any)._query?.path?.segments?.join('/')
+          || "query-object";
 
         console.error(`[Firestore Error] Code: ${err.code} | Message: ${err.message} | Path: ${path}`);
         
@@ -73,8 +75,7 @@ export function useCollection<T = any>(
         setData(null);
         setIsLoading(false);
 
-        // CRÍTICO: Solo emitimos error de permiso si realmente es un fallo de seguridad.
-        // Los errores de "failed-precondition" (índices faltantes) se manejan solo por consola.
+        // CRÍTICO: Solo emitimos error visual de permisos si el código es 'permission-denied'
         if (err.code === 'permission-denied') {
           const contextualError = new FirestorePermissionError({
             operation: 'list',
