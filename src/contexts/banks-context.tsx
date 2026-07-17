@@ -99,9 +99,16 @@ export function BanksProvider({ children }: { children: ReactNode }) {
         const bankAccountSnap = await getDoc(docRef);
         if (!bankAccountSnap.exists()) throw new Error("La cuenta no existe");
         const oldData = bankAccountSnap.data() as BankAccount;
-        const dataToUpdate: Partial<BankAccount> = { ...bankAccountData };
+        
+        // Recalculamos saldo actual basado en el cambio de saldo inicial
         const initialBalanceDiff = Number(bankAccountData.initialBalance || 0) - Number(oldData.initialBalance || 0);
-        dataToUpdate.currentBalance = Number(oldData.currentBalance || 0) + initialBalanceDiff;
+        const newCurrentBalance = Number(oldData.currentBalance || 0) + initialBalanceDiff;
+        
+        const dataToUpdate: any = { 
+            ...bankAccountData,
+            currentBalance: newCurrentBalance
+        };
+        
         if (logoFile) {
             const storage = getStorage();
             const logoRef = storageRef(storage, `bank_logos/${Date.now()}_${logoFile.name}`);
@@ -129,22 +136,30 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     if (!firestore || !collectionPath) return;
     const bankAccountRef = doc(firestore, collectionPath, bankAccountId);
     const transactionsCollectionRef = collection(firestore, `${collectionPath}/${bankAccountId}/transactions`);
-    const dataToSave: Omit<BankTransaction, 'id'> = {
-        ...transactionData,
-        source: 'manual',
-        createdBy: user?.displayName || user?.email || 'Desconocido',
-        sortOrder: Date.now(),
-    };
+    
     try {
         const bankAccountSnap = await getDoc(bankAccountRef);
         if (!bankAccountSnap.exists()) throw new Error("La cuenta no existe.");
         const currentAccountData = bankAccountSnap.data() as BankAccount;
-        const newBalance = transactionData.type === 'ingreso' ? Number(currentAccountData.currentBalance) + Number(transactionData.amount) : Number(currentAccountData.currentBalance) - Number(transactionData.amount);
+        
+        const amount = Number(transactionData.amount);
+        const newBalance = transactionData.type === 'ingreso' 
+            ? Number(currentAccountData.currentBalance) + amount 
+            : Number(currentAccountData.currentBalance) - amount;
+
         const batch = writeBatch(firestore);
         const newTransactionRef = doc(transactionsCollectionRef);
-        batch.set(newTransactionRef, dataToSave);
+        
+        batch.set(newTransactionRef, {
+            ...transactionData,
+            source: 'manual',
+            createdBy: user?.displayName || user?.email || 'Desconocido',
+            sortOrder: Date.now(),
+        });
+        
         batch.update(bankAccountRef, { currentBalance: newBalance });
         await batch.commit();
+        toast({ title: 'Transacción agregada' });
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
     }
@@ -168,12 +183,12 @@ export function BanksProvider({ children }: { children: ReactNode }) {
         
         const batch = writeBatch(firestore);
         
-        // Revert old transaction impact on balance
+        // Revertimos impacto anterior
         let balanceAfterRevert = oldTransData.type === 'ingreso' 
             ? Number(bankData.currentBalance) - Number(oldTransData.amount)
             : Number(bankData.currentBalance) + Number(oldTransData.amount);
             
-        // Apply new transaction impact
+        // Aplicamos impacto nuevo
         const newAmount = updatedData.amount !== undefined ? Number(updatedData.amount) : Number(oldTransData.amount);
         const newType = updatedData.type || oldTransData.type;
         
@@ -199,7 +214,11 @@ export function BanksProvider({ children }: { children: ReactNode }) {
         const bankAccountSnap = await getDoc(bankAccountRef);
         if (!bankAccountSnap.exists()) throw new Error("La cuenta no existe.");
         const currentAccountData = bankAccountSnap.data() as BankAccount;
-        const newBalance = transaction.type === 'ingreso' ? Number(currentAccountData.currentBalance) - Number(transaction.amount) : Number(currentAccountData.currentBalance) + Number(transaction.amount);
+        
+        const newBalance = transaction.type === 'ingreso' 
+            ? Number(currentAccountData.currentBalance) - Number(transaction.amount) 
+            : Number(currentAccountData.currentBalance) + Number(transaction.amount);
+            
         const batch = writeBatch(firestore);
         batch.delete(transactionRef);
         batch.update(bankAccountRef, { currentBalance: newBalance });
@@ -218,29 +237,33 @@ export function BanksProvider({ children }: { children: ReactNode }) {
         const bankAccountSnap = await getDoc(bankAccountRef);
         if (!bankAccountSnap.exists()) throw new Error("La cuenta no existe.");
         const currentAccountData = bankAccountSnap.data() as BankAccount;
+        
         let balanceChange = 0;
-        transactionsWithFiles.forEach(({ data }) => { balanceChange += data.type === 'ingreso' ? Number(data.amount) : -Number(data.amount); });
+        transactionsWithFiles.forEach(({ data }) => { 
+            balanceChange += data.type === 'ingreso' ? Number(data.amount) : -Number(data.amount); 
+        });
+        
         const newBalance = Number(currentAccountData.currentBalance) + balanceChange;
         const batch = writeBatch(firestore);
         const transactionsCollectionRef = collection(firestore, `${collectionPath}/${bankAccountId}/transactions`);
         
-        // Use a counter to ensure slightly different sortOrders even if uploaded in the same ms
         let counter = 0;
         const uploadPromises = transactionsWithFiles.map(async ({ data, file }) => {
             const newTransactionRef = doc(transactionsCollectionRef);
             const attachmentRef = storageRef(storage, `bank_attachments/${bankAccountId}/${newTransactionRef.id}/${file.name}`);
             const snapshot = await uploadBytes(attachmentRef, file);
             const downloadURL = await getDownloadURL(snapshot.ref);
-            const newAttachment: Attachment = { name: file.name, type: file.type, size: file.size, url: downloadURL };
-            const finalTransactionData: Omit<BankTransaction, 'id'> = { 
+            
+            const finalTransactionData = { 
                 ...data, 
                 source: 'import_file', 
-                attachments: [newAttachment], 
+                attachments: [{ name: file.name, type: file.type, size: file.size, url: downloadURL }], 
                 createdBy: user?.displayName || user?.email || 'Desconocido',
                 sortOrder: Date.now() + (counter++) 
             };
             batch.set(newTransactionRef, finalTransactionData);
         });
+        
         await Promise.all(uploadPromises);
         batch.update(bankAccountRef, { currentBalance: newBalance });
         await batch.commit();
@@ -257,8 +280,12 @@ export function BanksProvider({ children }: { children: ReactNode }) {
         const bankAccountSnap = await getDoc(bankAccountRef);
         if (!bankAccountSnap.exists()) throw new Error("La cuenta no existe.");
         const currentAccountData = bankAccountSnap.data() as BankAccount;
+        
         let balanceChange = 0;
-        transactions.forEach(tx => { balanceChange += tx.type === 'ingreso' ? Number(tx.amount) : -Number(tx.amount); });
+        transactions.forEach(tx => { 
+            balanceChange += tx.type === 'ingreso' ? Number(tx.amount) : -Number(tx.amount); 
+        });
+        
         const newBalance = Number(currentAccountData.currentBalance) + balanceChange;
         const batch = writeBatch(firestore);
         const transactionsCollectionRef = collection(firestore, `${collectionPath}/${bankAccountId}/transactions`);
@@ -268,11 +295,12 @@ export function BanksProvider({ children }: { children: ReactNode }) {
             const newTransactionRef = doc(transactionsCollectionRef);
             batch.set(newTransactionRef, { 
                 ...txData, 
-                source: 'conciliado_pdf', 
+                source: 'import_file', 
                 createdBy: user?.displayName || user?.email || 'Desconocido',
                 sortOrder: Date.now() + (counter++)
             });
         });
+        
         batch.update(bankAccountRef, { currentBalance: newBalance });
         await batch.commit();
     } catch (error: any) {
@@ -283,28 +311,22 @@ export function BanksProvider({ children }: { children: ReactNode }) {
   const reconcileBalance = async (bankAccountId: string, targetDate: string, targetBalance: number) => {
     if (!firestore || !collectionPath || !user) return;
     const bankAccountRef = doc(firestore, collectionPath, bankAccountId);
-    const transactionsCollectionRef = collection(firestore, `${collectionPath}/${bankAccountId}/transactions`);
     try {
         const bankAccountSnap = await getDoc(bankAccountRef);
         if (!bankAccountSnap.exists()) throw new Error("La cuenta no existe.");
         const accountData = bankAccountSnap.data() as BankAccount;
-        const txSnap = await getDocs(query(transactionsCollectionRef));
-        let calculatedBalanceAtDate = Number(accountData.initialBalance || 0);
-        const targetDateObj = new Date(targetDate + 'T23:59:59');
-        if (new Date(accountData.balanceDate) > targetDateObj) {
-            toast({ variant: 'destructive', title: 'Error de Fecha', description: 'No puede ser anterior a la fecha inicial.' });
-            return;
-        }
-        txSnap.forEach(txDoc => {
-            const tx = txDoc.data() as BankTransaction;
-            if (new Date(tx.date) <= targetDateObj) calculatedBalanceAtDate += (tx.type === 'ingreso' ? Number(tx.amount) : -Number(tx.amount));
-        });
-        const difference = targetBalance - calculatedBalanceAtDate;
+        
+        // Ajustamos el saldo actual directamente
+        const difference = targetBalance - Number(accountData.currentBalance);
+        
         if (Math.abs(difference) < 0.01) {
-            toast({ title: 'Saldo Correcto' });
+            toast({ title: 'El saldo ya coincide' });
             return;
         }
+
         const batch = writeBatch(firestore);
+        const transactionsCollectionRef = collection(firestore, `${collectionPath}/${bankAccountId}/transactions`);
+        
         batch.set(doc(transactionsCollectionRef), {
             date: new Date(targetDate + 'T12:00:00').toISOString(),
             description: `Ajuste por conciliación manual (${targetDate})`,
@@ -314,9 +336,10 @@ export function BanksProvider({ children }: { children: ReactNode }) {
             createdBy: user.displayName || user.email || 'Sistema',
             sortOrder: Date.now(),
         });
-        batch.update(bankAccountRef, { currentBalance: Number(accountData.currentBalance) + difference });
+        
+        batch.update(bankAccountRef, { currentBalance: targetBalance });
         await batch.commit();
-        toast({ title: 'Ajuste Realizado' });
+        toast({ title: 'Saldo cuadrado correctamente' });
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Error de Conciliación', description: error.message });
     }
@@ -328,9 +351,8 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     const t2Ref = doc(firestore, `${collectionPath}/${bankAccountId}/transactions`, t2.id);
     
     const batch = writeBatch(firestore);
-    // Swap date and sortOrder to exchange positions
-    batch.update(t1Ref, { date: t2.date, sortOrder: t2.sortOrder || Date.now() });
-    batch.update(t2Ref, { date: t1.date, sortOrder: t1.sortOrder || Date.now() });
+    batch.update(t1Ref, { sortOrder: t2.sortOrder || Date.now() });
+    batch.update(t2Ref, { sortOrder: t1.sortOrder || Date.now() });
     
     try {
         await batch.commit();

@@ -40,7 +40,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
   const [copied, setCopied] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
 
-  // Filters
+  // Filtros
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'ingreso' | 'egreso'>('all');
   const [startDate, setStartDate] = useState('');
@@ -52,22 +52,33 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
   const transactionsPath = useMemo(() => `banks/${bankAccount.id}/transactions`, [bankAccount.id]);
   const transactionsRef = useMemoFirebase(() => collection(firestore, transactionsPath), [firestore, transactionsPath]);
   
-  // Sort by date DESC and sortOrder DESC for precise control
+  // SOLUCIÓN: Usamos solo un orderBy para evitar requerir índices compuestos inmediatos.
+  // El ordenamiento secundario por sortOrder lo haremos en memoria abajo.
   const transactionsQuery = useMemoFirebase(() => query(
       transactionsRef, 
-      orderBy('date', 'desc'),
-      orderBy('sortOrder', 'desc')
+      orderBy('date', 'desc')
   ), [transactionsRef]);
   
-  const { data: transactions, loading: transactionsLoading } = useCollection<BankTransaction>(transactionsQuery);
+  const { data: rawTransactions, isLoading: transactionsLoading, error } = useCollection<BankTransaction>(transactionsQuery);
 
-  const filteredTransactions = useMemo(() => {
-    if (!transactions) return [];
-    return transactions.filter(tx => {
+  // Ordenamiento y filtrado en memoria
+  const sortedAndFilteredTransactions = useMemo(() => {
+    if (!rawTransactions) return [];
+    
+    // 1. Ordenamiento manual (Secundario al de fecha)
+    const sorted = [...rawTransactions].sort((a, b) => {
+        if (a.date === b.date) {
+            return (b.sortOrder || 0) - (a.sortOrder || 0);
+        }
+        return 0; // Ya vienen ordenados por fecha desde Firestore
+    });
+
+    // 2. Aplicar filtros del usuario
+    return sorted.filter(tx => {
         const matchesSearch = tx.description.toLowerCase().includes(search.toLowerCase()) || 
                              (tx.categories?.some(c => c.toLowerCase().includes(search.toLowerCase())));
         const matchesType = typeFilter === 'all' || tx.type === typeFilter;
-        const matchesUser = tx.createdBy?.toLowerCase().includes(userSearch.toLowerCase());
+        const matchesUser = (tx.createdBy || '').toLowerCase().includes(userSearch.toLowerCase());
         
         const txDate = new Date(tx.date.includes('T') ? tx.date : tx.date + 'T12:00:00');
         const matchesDate = (!startDate || txDate >= startOfDay(new Date(startDate + 'T00:00:00'))) &&
@@ -78,7 +89,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
 
         return matchesSearch && matchesType && matchesUser && matchesDate && matchesAmount;
     });
-  }, [transactions, search, typeFilter, startDate, endDate, userSearch, minAmount, maxAmount]);
+  }, [rawTransactions, search, typeFilter, startDate, endDate, userSearch, minAmount, maxAmount]);
 
   const identifier = bankAccount.accountNumber || bankAccount.cardNumber || bankAccount.clabe || '';
   const displayIdentifier = identifier ? `...${identifier.slice(-4)}` : 'Sin número';
@@ -112,14 +123,13 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
   const handleMove = async (index: number, direction: 'up' | 'down') => {
     if (isMoving) return;
     const targetIdx = direction === 'up' ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= filteredTransactions.length) return;
+    if (targetIdx < 0 || targetIdx >= sortedAndFilteredTransactions.length) return;
 
     setIsMoving(true);
-    await swapTransactions(bankAccount.id, filteredTransactions[index], filteredTransactions[targetIdx]);
+    await swapTransactions(bankAccount.id, sortedAndFilteredTransactions[index], sortedAndFilteredTransactions[targetIdx]);
     setIsMoving(false);
   };
 
-  // Reorder buttons logic: only allow if not filtering (to keep data consistent)
   const canReorder = search === '' && typeFilter === 'all' && startDate === '' && endDate === '' && userSearch === '' && minAmount === '' && maxAmount === '';
 
   return (
@@ -255,10 +265,16 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                             </Button>
                         </div>
                         <div className="text-xs text-muted-foreground font-medium">
-                            Mostrando {filteredTransactions.length} de {transactions?.length || 0} movimientos
+                            Mostrando {sortedAndFilteredTransactions.length} de {rawTransactions?.length || 0} movimientos
                         </div>
                     </div>
                 </div>
+                {error && (
+                    <div className="mt-2 p-2 bg-destructive/10 text-destructive text-[10px] rounded border border-destructive/20 flex items-center gap-2">
+                        <Info size={12} />
+                        Ocurrió un error al cargar los datos. Es posible que el servidor esté actualizando índices.
+                    </div>
+                )}
             </CardHeader>
             <CardContent className="flex-1 overflow-hidden pt-4">
                 <div className="border rounded-lg h-full overflow-y-auto">
@@ -282,7 +298,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                                 </TableCell>
                             </TableRow>
                         )}
-                        {!transactionsLoading && filteredTransactions.map((tx, idx) => (
+                        {!transactionsLoading && sortedAndFilteredTransactions.map((tx, idx) => (
                             <TableRow key={tx.id} className="group">
                                 {canReorder && (
                                     <TableCell className="p-0 text-center">
@@ -300,7 +316,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                                                 variant="ghost" 
                                                 size="icon" 
                                                 className="h-5 w-5 hover:bg-muted" 
-                                                disabled={idx === filteredTransactions.length - 1 || isMoving}
+                                                disabled={idx === sortedAndFilteredTransactions.length - 1 || isMoving}
                                                 onClick={() => handleMove(idx, 'down')}
                                             >
                                                 <ChevronDown size={14} />
@@ -368,10 +384,10 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                                 </TableCell>
                             </TableRow>
                         ))}
-                         {!transactionsLoading && filteredTransactions.length === 0 && (
+                         {!transactionsLoading && sortedAndFilteredTransactions.length === 0 && (
                             <TableRow>
                                 <TableCell colSpan={canReorder ? 7 : 6} className="text-center h-24 text-muted-foreground">
-                                    {transactions?.length === 0 ? 'No hay transacciones registradas.' : 'No se encontraron movimientos con los filtros aplicados.'}
+                                    {rawTransactions?.length === 0 ? 'No hay transacciones registradas.' : 'No se encontraron movimientos con los filtros aplicados.'}
                                 </TableCell>
                             </TableRow>
                         )}
@@ -415,7 +431,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
         isOpen={isConciliateOpen}
         onOpenChange={setIsConciliateOpen}
         bankAccount={bankAccount}
-        existingTransactions={transactions || []}
+        existingTransactions={rawTransactions || []}
        />
        <ReconcileBalanceDialog
         isOpen={isReconcileBalanceOpen}
