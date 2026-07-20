@@ -50,7 +50,8 @@
         "date": { "type": "string" },
         "amount": { "type": "number" },
         "type": { "type": "string", "enum": ["ingreso", "egreso"] },
-        "sortOrder": { "type": "number" }
+        "sortOrder": { "type": "number" },
+        "isAdjustment": { "type": "boolean" }
       }
     }
   },

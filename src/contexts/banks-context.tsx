@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
@@ -329,17 +330,18 @@ export function BanksProvider({ children }: { children: ReactNode }) {
         
         batch.set(doc(transactionsCollectionRef), {
             date: new Date(targetDate + 'T12:00:00').toISOString(),
-            description: `Ajuste por conciliación manual (${targetDate})`,
+            description: `Ajuste por conciliación manual (${targetDate}) - Pendiente de identificar`,
             amount: Math.abs(difference),
             type: difference > 0 ? 'ingreso' : 'egreso',
             source: 'manual',
+            isAdjustment: true,
             createdBy: user.displayName || user.email || 'Sistema',
             sortOrder: Date.now(),
         });
         
         batch.update(bankAccountRef, { currentBalance: targetBalance });
         await batch.commit();
-        toast({ title: 'Saldo cuadrado correctamente' });
+        toast({ title: 'Saldo actualizado y ajuste registrado.' });
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Error de Conciliación', description: error.message });
     }

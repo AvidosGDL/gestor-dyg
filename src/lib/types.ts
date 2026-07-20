@@ -1,3 +1,4 @@
+
 export type TaskStatus =
   | 'pendiente'
   | 'en-progreso'
@@ -177,6 +178,7 @@ export interface BankTransaction {
   createdBy?: string;
   categories?: string[];
   sortOrder?: number;
+  isAdjustment?: boolean;
 }
 
 export interface Project {

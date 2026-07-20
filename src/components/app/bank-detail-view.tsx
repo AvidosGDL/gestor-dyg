@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -5,7 +6,7 @@ import { useBanks } from '@/contexts/banks-context';
 import type { BankAccount, BankTransaction } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit, Search, Filter, X, Tag, ExternalLink, Copy, Check, ArrowUp, ArrowDown, ChevronUp, ChevronDown, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit, Search, Filter, X, Tag, ExternalLink, Copy, Check, ArrowUp, ArrowDown, ChevronUp, ChevronDown, FileSpreadsheet, AlertCircle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
@@ -23,6 +24,7 @@ import EditBankTransactionDialog from './edit-bank-transaction-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '../ui/label';
 import ImportBankExcelDialog from './import-bank-excel-dialog';
+import { cn } from '@/lib/utils';
 
 
 export default function BankDetailView({ bankAccount, onBack }: { bankAccount: BankAccount, onBack: () => void }) {
@@ -51,8 +53,6 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
   const transactionsPath = useMemo(() => `banks/${bankAccount.id}/transactions`, [bankAccount.id]);
   const transactionsRef = useMemoFirebase(() => collection(firestore, transactionsPath), [firestore, transactionsPath]);
   
-  // SOLUCIÓN DEFINITIVA: Quitamos el orderBy de Firestore para evitar errores de índices.
-  // Obtenemos todos los documentos y ordenamos en el cliente.
   const { data: rawTransactions, isLoading: transactionsLoading, error } = useCollection<BankTransaction>(transactionsRef);
 
   // Ordenamiento y filtrado en memoria (Cliente)
@@ -262,8 +262,12 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                                 <X size={14}/> Limpiar Filtros
                             </Button>
                         </div>
-                        <div className="text-xs text-muted-foreground font-medium">
-                            Mostrando {sortedAndFilteredTransactions.length} de {rawTransactions?.length || 0} movimientos
+                        <div className="text-xs text-muted-foreground font-medium flex items-center gap-4">
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-2.5 h-2.5 rounded-full bg-amber-500/20 border border-amber-500" />
+                                <span className="text-[10px]">Ajuste Pendiente</span>
+                            </div>
+                            <span>Mostrando {sortedAndFilteredTransactions.length} de {rawTransactions?.length || 0} movimientos</span>
                         </div>
                     </div>
                 </div>
@@ -291,7 +295,13 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                             </TableRow>
                         )}
                         {!transactionsLoading && sortedAndFilteredTransactions.map((tx, idx) => (
-                            <TableRow key={tx.id} className="group">
+                            <TableRow 
+                                key={tx.id} 
+                                className={cn(
+                                    "group transition-colors", 
+                                    tx.isAdjustment ? "bg-amber-500/5 hover:bg-amber-500/10 border-l-4 border-l-amber-500" : ""
+                                )}
+                            >
                                 {canReorder && (
                                     <TableCell className="p-0 text-center">
                                         <div className="flex flex-col items-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -319,7 +329,14 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                                 <TableCell className="whitespace-nowrap">{formatDateSafely(tx.date)}</TableCell>
                                 <TableCell>
                                     <div className="space-y-1">
-                                        <div className="font-medium">{tx.description}</div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-medium">{tx.description}</span>
+                                            {tx.isAdjustment && (
+                                                <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-[9px] h-4 py-0 flex gap-1 items-center">
+                                                    <AlertCircle size={10} /> Pendiente de Conciliar
+                                                </Badge>
+                                            )}
+                                        </div>
                                         {tx.categories && tx.categories.length > 0 && (
                                             <div className="flex flex-wrap gap-1">
                                                 {tx.categories.map(cat => (
