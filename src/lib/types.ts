@@ -165,6 +165,7 @@ export interface BankAccount {
   currentBalance: number;
   portalUrl?: string;
   portalUser?: string;
+  portalPasswordTip?: string;
 }
 
 export interface BankTransaction {

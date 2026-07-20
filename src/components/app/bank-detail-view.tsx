@@ -6,7 +6,7 @@ import { useBanks } from '@/contexts/banks-context';
 import type { BankAccount, BankTransaction } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit, Search, Filter, X, Tag, ExternalLink, Copy, Check, ArrowUp, ArrowDown, ChevronUp, ChevronDown, FileSpreadsheet, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit, Search, Filter, X, Tag, ExternalLink, Copy, Check, ArrowUp, ArrowDown, ChevronUp, ChevronDown, FileSpreadsheet, AlertCircle, Lightbulb } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
@@ -25,6 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Label } from '../ui/label';
 import ImportBankExcelDialog from './import-bank-excel-dialog';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 
 export default function BankDetailView({ bankAccount, onBack }: { bankAccount: BankAccount, onBack: () => void }) {
@@ -143,22 +144,39 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                     <p className="text-sm text-muted-foreground">{bankAccount.bankName} | Terminación: {displayIdentifier}</p>
                 </div>
             </div>
-            {bankAccount.portalUrl && (
+            {(bankAccount.portalUrl || bankAccount.portalPasswordTip) && (
                 <div className="flex items-center gap-4 bg-muted/50 p-2 px-4 rounded-xl border border-border">
                     <div className="flex flex-col items-end">
                         <span className="text-[9px] uppercase font-bold text-muted-foreground">Acceso Directo</span>
                         <div className="flex items-center gap-3 mt-1">
+                            {bankAccount.portalPasswordTip && (
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Badge variant="outline" className="h-7 cursor-help border-amber-200 bg-amber-50 text-amber-700 flex gap-1.5 px-2">
+                                                <Lightbulb size={12}/>
+                                                <span className="text-[10px]">Tip Contraseña</span>
+                                            </Badge>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="bg-amber-50 text-amber-900 border-amber-200 max-w-[200px]">
+                                            <p className="text-xs font-medium">{bankAccount.portalPasswordTip}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            )}
                             {bankAccount.portalUser && (
                                 <Button variant="secondary" size="sm" className="h-7 text-xs gap-1.5" onClick={() => copyToClipboard(bankAccount.portalUser!)}>
                                     {copied ? <Check size={12} className="text-emerald-500"/> : <Copy size={12}/>}
                                     <span className="font-mono">{bankAccount.portalUser}</span>
                                 </Button>
                             )}
-                            <Button size="sm" className="h-7 gap-2" asChild>
-                                <a href={bankAccount.portalUrl} target="_blank" rel="noopener noreferrer">
-                                    <ExternalLink size={14}/> Ir al Banco
-                                </a>
-                            </Button>
+                            {bankAccount.portalUrl && (
+                                <Button size="sm" className="h-7 gap-2" asChild>
+                                    <a href={bankAccount.portalUrl} target="_blank" rel="noopener noreferrer">
+                                        <ExternalLink size={14}/> Ir al Banco
+                                    </a>
+                                </Button>
+                            )}
                         </div>
                     </div>
                 </div>

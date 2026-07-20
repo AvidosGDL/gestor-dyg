@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -5,7 +6,7 @@ import { useBanks } from '@/contexts/banks-context';
 import { BankAccount } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Landmark, Loader2, Edit, Search, MoreVertical, Trash2, LayoutGrid, List, FileSpreadsheet, FileText, ArrowUpDown, ChevronUp, ChevronDown, ExternalLink, Copy, Check } from 'lucide-react';
+import { Landmark, Loader2, Edit, Search, MoreVertical, Trash2, LayoutGrid, List, FileSpreadsheet, FileText, ArrowUpDown, ChevronUp, ChevronDown, ExternalLink, Copy, Check, Lightbulb } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import BankDetailView from './bank-detail-view';
 import EditBankDialog from './edit-bank-dialog';
@@ -31,6 +32,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import * as XLSX from 'xlsx';
 import BanksReportDialog from './banks-report-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 function BankAccountCard({ bankAccount, onSelect, onEdit, onDelete }: { bankAccount: BankAccount, onSelect: (id: string) => void, onEdit: (account: BankAccount) => void, onDelete: (id: string) => void }) {
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
@@ -106,20 +108,37 @@ function BankAccountCard({ bankAccount, onSelect, onEdit, onDelete }: { bankAcco
       </CardHeader>
       <CardContent className="flex-1 flex flex-col justify-between">
         <div>
-            <div className="flex justify-between items-end mb-4">
+            <div className="flex justify-between items-start mb-4">
                 <div>
                     <p className="text-[10px] text-muted-foreground uppercase font-semibold">Saldo Actual</p>
                     <p className="text-xl font-bold">${(Number(bankAccount.currentBalance) || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                 </div>
-                {bankAccount.portalUser && (
-                    <div className="flex flex-col items-end gap-1">
-                        <p className="text-[9px] text-muted-foreground uppercase font-bold">Usuario</p>
-                        <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] gap-1.5" onClick={() => copyToClipboard(bankAccount.portalUser!)}>
-                            {copied ? <Check size={10} className="text-emerald-500" /> : <Copy size={10} />}
-                            {bankAccount.portalUser}
-                        </Button>
-                    </div>
-                )}
+                <div className="flex flex-col items-end gap-1">
+                    {bankAccount.portalUser && (
+                        <>
+                            <p className="text-[9px] text-muted-foreground uppercase font-bold">Usuario</p>
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] gap-1.5" onClick={() => copyToClipboard(bankAccount.portalUser!)}>
+                                {copied ? <Check size={10} className="text-emerald-500" /> : <Copy size={10} />}
+                                {bankAccount.portalUser}
+                            </Button>
+                        </>
+                    )}
+                    {bankAccount.portalPasswordTip && (
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div className="text-amber-600 cursor-help flex items-center gap-1 mt-1">
+                                        <Lightbulb size={12}/>
+                                        <span className="text-[9px] font-bold uppercase">Tip</span>
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="max-w-[180px] bg-amber-50 text-amber-900 border-amber-200">
+                                    <p className="text-[10px] font-medium leading-tight">{bankAccount.portalPasswordTip}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    )}
+                </div>
             </div>
             
             {bankAccount.portalUrl ? (

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -15,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { DollarSign, Loader2, ImageUp, Link, User } from 'lucide-react';
+import { DollarSign, Loader2, ImageUp, Link, User, Lightbulb } from 'lucide-react';
 import { useBanks } from '@/contexts/banks-context';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
@@ -32,6 +33,7 @@ const bankAccountSchema = z.object({
   balanceDate: z.string().min(1, 'La fecha del saldo es requerida'),
   portalUrl: z.string().url('Ingresa una URL válida').optional().or(z.literal('')),
   portalUser: z.string().optional(),
+  portalPasswordTip: z.string().optional(),
 });
 
 
@@ -70,6 +72,7 @@ export default function EditBankDialog({
         balanceDate: bankAccount.balanceDate ? bankAccount.balanceDate.split('T')[0] : '',
         portalUrl: bankAccount.portalUrl || '',
         portalUser: bankAccount.portalUser || '',
+        portalPasswordTip: bankAccount.portalPasswordTip || '',
       });
       setLogoFile(null);
       setLogoPreview(bankAccount.logoUrl);
@@ -289,6 +292,22 @@ export default function EditBankDialog({
                         <div className="relative">
                              <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                              <Input {...field} className="pl-9" placeholder="usuario123" disabled={form.formState.isSubmitting} />
+                        </div>
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="portalPasswordTip"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Tip o sugerencia (Contraseña)</FormLabel>
+                        <FormControl>
+                        <div className="relative">
+                             <Lightbulb size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                             <Input {...field} className="pl-9" placeholder="Ej. El nombre de mi mascota + año" disabled={form.formState.isSubmitting} />
                         </div>
                         </FormControl>
                         <FormMessage />
