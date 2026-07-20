@@ -16,7 +16,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Se añade este comentario para forzar la regeneración del chunk de layout y evitar errores de carga por caché
+  // Versión de sincronización de Chunks: 2024-07-17T02:00:00Z
   return (
     <html lang="es" suppressHydrationWarning>
       <head>

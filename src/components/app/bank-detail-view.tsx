@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit, Search, Filter, X, Tag, ExternalLink, Copy, Check, ArrowUp, ArrowDown, ChevronUp, ChevronDown, FileSpreadsheet } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
-import { format, startOfDay, endOfDay, parseISO } from 'date-fns';
+import { collection, query } from 'firebase/firestore';
+import { format, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import NewBankTransactionDialog from './new-bank-transaction-dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -18,7 +18,6 @@ import ConciliateStatementDialog from './conciliate-statement-dialog';
 import ReconcileBalanceDialog from './reconcile-balance-dialog';
 import EditBankDialog from './edit-bank-dialog';
 import { Input } from '../ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Badge } from '../ui/badge';
 import EditBankTransactionDialog from './edit-bank-transaction-dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -52,25 +51,24 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
   const transactionsPath = useMemo(() => `banks/${bankAccount.id}/transactions`, [bankAccount.id]);
   const transactionsRef = useMemoFirebase(() => collection(firestore, transactionsPath), [firestore, transactionsPath]);
   
-  // SOLUCIÓN: Usamos solo un orderBy para evitar requerir índices compuestos inmediatos.
-  // El ordenamiento secundario por sortOrder lo haremos en memoria abajo.
-  const transactionsQuery = useMemoFirebase(() => query(
-      transactionsRef, 
-      orderBy('date', 'desc')
-  ), [transactionsRef]);
-  
-  const { data: rawTransactions, isLoading: transactionsLoading, error } = useCollection<BankTransaction>(transactionsQuery);
+  // SOLUCIÓN DEFINITIVA: Quitamos el orderBy de Firestore para evitar errores de índices.
+  // Obtenemos todos los documentos y ordenamos en el cliente.
+  const { data: rawTransactions, isLoading: transactionsLoading, error } = useCollection<BankTransaction>(transactionsRef);
 
-  // Ordenamiento y filtrado en memoria
+  // Ordenamiento y filtrado en memoria (Cliente)
   const sortedAndFilteredTransactions = useMemo(() => {
     if (!rawTransactions) return [];
     
-    // 1. Ordenamiento manual (Secundario al de fecha)
+    // 1. Ordenamiento completo (Fecha Desc, luego sortOrder Desc)
     const sorted = [...rawTransactions].sort((a, b) => {
-        if (a.date === b.date) {
-            return (b.sortOrder || 0) - (a.sortOrder || 0);
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        
+        if (dateB !== dateA) {
+            return dateB - dateA;
         }
-        return 0; // Ya vienen ordenados por fecha desde Firestore
+        // Si la fecha es igual, usamos el orden manual
+        return (b.sortOrder || 0) - (a.sortOrder || 0);
     });
 
     // 2. Aplicar filtros del usuario
@@ -269,12 +267,6 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                         </div>
                     </div>
                 </div>
-                {error && (
-                    <div className="mt-2 p-2 bg-destructive/10 text-destructive text-[10px] rounded border border-destructive/20 flex items-center gap-2">
-                        <Info size={12} />
-                        Ocurrió un error al cargar los datos. Es posible que el servidor esté actualizando índices.
-                    </div>
-                )}
             </CardHeader>
             <CardContent className="flex-1 overflow-hidden pt-4">
                 <div className="border rounded-lg h-full overflow-y-auto">

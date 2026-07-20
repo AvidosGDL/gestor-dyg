@@ -1,14 +1,13 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import {
-  Query,
   onSnapshot,
   DocumentData,
   FirestoreError,
   QuerySnapshot,
   CollectionReference,
+  Query,
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -18,26 +17,22 @@ export type WithId<T> = T & { id: string };
 
 /**
  * Interface for the return value of the useCollection hook.
- * @template T Type of the document data.
  */
 export interface UseCollectionResult<T> {
-  data: WithId<T>[] | null; // Document data with ID, or null.
-  isLoading: boolean;       // True if loading.
-  error: FirestoreError | Error | null; // Error object, or null.
+  data: WithId<T>[] | null;
+  isLoading: boolean;
+  error: FirestoreError | Error | null;
   setData: React.Dispatch<React.SetStateAction<WithId<T>[] | null>>;
 }
 
 /**
  * React hook to subscribe to a Firestore collection or query in real-time.
- * Handles nullable references/queries.
+ * Robust implementation to avoid SDK internal assertion failures.
  */
 export function useCollection<T = any>(
     targetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined,
 ): UseCollectionResult<T> {
-  type ResultItemType = WithId<T>;
-  type StateDataType = ResultItemType[] | null;
-
-  const [data, setData] = useState<StateDataType>(null);
+  const [data, setData] = useState<WithId<T>[] | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
@@ -55,30 +50,27 @@ export function useCollection<T = any>(
     const unsubscribe = onSnapshot(
       targetRefOrQuery,
       (snapshot: QuerySnapshot<DocumentData>) => {
-        const results: ResultItemType[] = [];
-        for (const doc of snapshot.docs) {
+        const results: WithId<T>[] = [];
+        snapshot.forEach((doc) => {
           results.push({ ...(doc.data() as T), id: doc.id });
-        }
+        });
         setData(results);
         setError(null);
         setIsLoading(false);
       },
       (err: FirestoreError) => {
-        // SEGURIDAD: Evitamos acceder a propiedades privadas del SDK (_query, etc.)
-        // para prevenir el error INTERNAL ASSERTION FAILED.
-        const path: string = (targetRefOrQuery as any).path || "query-result";
-
+        // Reportar el error de forma segura sin acceder a propiedades privadas del SDK
         console.error(`[Firestore Error] Code: ${err.code} | Message: ${err.message}`);
         
         setError(err);
         setData(null);
         setIsLoading(false);
 
-        // Solo emitimos error visual de permisos si el código es 'permission-denied'
+        // Solo emitimos alerta visual de seguridad si es 'permission-denied'
         if (err.code === 'permission-denied') {
           const contextualError = new FirestorePermissionError({
             operation: 'list',
-            path: path,
+            path: 'collection-query', // No intentamos derivar la ruta para evitar el fallo de SDK
           });
           errorEmitter.emit('permission-error', contextualError);
         }
