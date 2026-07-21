@@ -20,7 +20,7 @@ import NewProjectDialog from './new-project-dialog';
 import { useTasks } from '@/contexts/tasks-context';
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 
 interface AppHeaderProps {
   view: View;
@@ -76,14 +76,26 @@ export default function AppHeader({
         return;
     }
 
+    const formatDateSafely = (dateStr: string | undefined | null, showTime: boolean = false) => {
+        if (!dateStr) return '';
+        try {
+            const dateToParse = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
+            const d = new Date(dateToParse);
+            if (!isValid(d)) return 'Fecha inválida';
+            return format(d, showTime ? 'dd/MM/yyyy HH:mm' : 'dd/MM/yyyy');
+        } catch (e) {
+            return 'Error en fecha';
+        }
+    };
+
     const exportData = tasksToExport.map(task => ({
       'Título': task.title,
       'Proyecto/Cliente': task.client || 'Sin Proyecto',
       'Estado': task.status,
       'Prioridad': task.priority === 'high' ? 'Alta' : task.priority === 'medium' ? 'Media' : 'Baja',
       'Progreso (%)': task.progress,
-      'Fecha Creación': task.createdAt ? format(new Date(task.createdAt), 'dd/MM/yyyy HH:mm') : 'N/A',
-      'Fecha Límite': task.dueDate ? format(new Date(task.dueDate + 'T12:00:00'), 'dd/MM/yyyy') : 'Sin fecha',
+      'Fecha Creación': formatDateSafely(task.createdAt, true) || 'N/A',
+      'Fecha Límite': task.dueDate ? formatDateSafely(task.dueDate) : 'Sin fecha',
       'Potencial ($)': task.value,
       'Probabilidad (%)': task.probability,
       'Delegado a': task.delegateToEmail || 'Personal',
