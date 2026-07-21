@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2, ImageUp, Lock, UserCheck } from 'lucide-react';
+import { Loader2, ImageUp, Lock, UserCheck, Upload, Trash2 } from 'lucide-react';
 import { useFirestore, useUser, useAuth } from '@/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
@@ -23,7 +23,7 @@ import { updateProfile } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
-import { Avatar, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { UserProfile } from '@/lib/types';
 import { Alert, AlertDescription } from '../ui/alert';
@@ -83,6 +83,7 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
         if (userDocSnap.exists()) {
           const profileData = userDocSnap.data() as UserProfile;
           reset(profileData);
+          // Si el avatar actual no es uno de los presets, lo tratamos como custom
           if (profileData.avatarUrl && !avatarOptions.includes(profileData.avatarUrl)) {
             setCustomAvatarPreview(profileData.avatarUrl);
           } else {
@@ -165,18 +166,20 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[95vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Mi Perfil de Usuario</DialogTitle>
           <DialogDescription>
-            Personaliza tu identidad en Gestor D&G subiendo una foto o eligiendo un avatar.
+            Personaliza tu identidad. Puedes elegir un avatar rápido o subir tu propia fotografía.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 pt-4">
+          
+          {/* SECCIÓN DE AVATARES PREDEFINIDOS */}
           <div className="space-y-3">
-            <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Tu Avatar / Foto de Perfil</Label>
-            <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
+            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Elegir un Avatar Rápido</Label>
+            <div className="flex flex-wrap gap-3">
                 {avatarOptions.map((url, index) => (
                     <button
                         key={index}
@@ -193,44 +196,74 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
                                 : 'ring-1 ring-transparent hover:ring-primary/50'
                         )}
                     >
-                        <Avatar className="h-10 w-10">
+                        <Avatar className="h-12 w-12 border">
                             <AvatarImage src={url} alt={`Avatar ${index + 1}`} />
                         </Avatar>
                     </button>
                 ))}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className={cn(
-                    "rounded-full p-0.5 transition-all flex items-center justify-center bg-muted hover:bg-border",
-                    customAvatarPreview
-                      ? 'ring-2 ring-primary ring-offset-2 scale-110'
-                      : 'ring-1 ring-transparent hover:ring-primary/50'
-                  )}
-                  title="Subir mi propia foto"
-                >
-                  <Avatar className="h-10 w-10">
-                    {customAvatarPreview ? (
-                      <AvatarImage src={customAvatarPreview} alt="Mi foto personalizada" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <ImageUp className="w-5 h-5 text-muted-foreground" />
-                      </div>
-                    )}
-                  </Avatar>
-                </button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  className="hidden"
-                  accept="image/png, image/jpeg, image/gif"
-                  onChange={handleFileChange}
-                />
             </div>
-            {errors.avatarUrl && (
-              <p className="text-sm text-destructive">{errors.avatarUrl.message}</p>
-            )}
-            <p className="text-[10px] text-muted-foreground italic">Puedes elegir uno de nuestros avatares o subir tu propia foto haciendo clic en el ícono de carga.</p>
+          </div>
+
+          {/* SECCIÓN DE FOTO PERSONALIZADA (ESTA ES LA QUE FALTABA O NO SE VEÍA) */}
+          <div className="p-4 bg-muted/30 rounded-xl border border-dashed border-primary/20 space-y-4">
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+                <div className="relative">
+                    <Avatar className="h-24 w-24 border-2 border-background shadow-lg">
+                        {customAvatarPreview ? (
+                            <AvatarImage src={customAvatarPreview} className="object-cover" />
+                        ) : (
+                            <AvatarFallback className="bg-primary/10 text-primary">
+                                <ImageUp size={32} />
+                            </AvatarFallback>
+                        )}
+                    </Avatar>
+                    {customAvatarPreview && (
+                        <div className="absolute -bottom-2 -right-2 bg-primary text-primary-foreground rounded-full p-1.5 shadow-md border-2 border-background">
+                            <UserCheck size={16} />
+                        </div>
+                    )}
+                </div>
+                
+                <div className="flex-1 text-center sm:text-left space-y-2">
+                    <h4 className="font-bold text-sm">Tu Foto Personalizada</h4>
+                    <p className="text-xs text-muted-foreground">Sube una imagen real para que tu equipo pueda reconocerte mejor en los chats y tareas.</p>
+                    <div className="flex flex-wrap gap-2 justify-center sm:justify-start pt-1">
+                        <Button 
+                            type="button" 
+                            variant="default" 
+                            size="sm" 
+                            onClick={() => fileInputRef.current?.click()}
+                            className="gap-2"
+                        >
+                            <Upload size={16} />
+                            Subir Foto desde mi Equipo
+                        </Button>
+                        {customAvatarPreview && (
+                            <Button 
+                                type="button" 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => {
+                                    setCustomAvatarPreview(null);
+                                    setCustomAvatarFile(null);
+                                    setValue('avatarUrl', avatarOptions[0]);
+                                }}
+                                className="text-destructive hover:text-destructive"
+                            >
+                                <Trash2 size={16} className="mr-2" />
+                                Quitar Foto
+                            </Button>
+                        )}
+                    </div>
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
+                        accept="image/png, image/jpeg, image/webp"
+                        onChange={handleFileChange}
+                    />
+                </div>
+            </div>
           </div>
 
           <div className="space-y-4 pt-4 border-t">
@@ -294,7 +327,7 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
             </Alert>
           )}
 
-          <DialogFooter className="gap-2 pt-2">
+          <DialogFooter className="gap-2 pt-2 border-t">
             <Button
               type="button"
               variant="ghost"
