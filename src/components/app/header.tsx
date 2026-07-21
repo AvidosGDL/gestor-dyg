@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { Plus, UserPlus, Timer, Handshake, Filter, User, Users, Landmark, KanbanSquare, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, UserPlus, Timer, Handshake, Filter, User, Users, Landmark, KanbanSquare, Calendar as CalendarIcon, FileSpreadsheet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import NewTaskDialog from './new-task-dialog';
 import NewMemberDialog from './new-member-dialog';
@@ -17,6 +17,10 @@ import { UserNav } from '@/components/app/user-nav';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { collection } from 'firebase/firestore';
 import NewProjectDialog from './new-project-dialog';
+import { useTasks } from '@/contexts/tasks-context';
+import { useToast } from '@/hooks/use-toast';
+import * as XLSX from 'xlsx';
+import { format } from 'date-fns';
 
 interface AppHeaderProps {
   view: View;
@@ -39,6 +43,8 @@ export default function AppHeader({
   const [showNewProjectDialog, setShowNewProjectDialog] = React.useState(false);
   const { user } = useUser();
   const firestore = useFirestore();
+  const { tasks } = useTasks();
+  const { toast } = useToast();
 
   const collectionPath = user ? `users/${user.uid}/teamMembers` : null;
   const membersCollectionRef = useMemoFirebase(() => {
@@ -48,6 +54,56 @@ export default function AppHeader({
 
   const showAddButton = view === 'board' || view === 'planning';
   const showFilterButton = view === 'board' || view === 'planning' || view === 'analytics' || view === 'history' || view === 'calendar';
+
+  const handleExportTasks = () => {
+    if (!tasks || tasks.length === 0) {
+      toast({ title: "Sin tareas", description: "No hay tareas para exportar." });
+      return;
+    }
+
+    // Aplicar la misma lógica de filtrado que las vistas
+    let tasksToExport = tasks;
+    if (taskFilter === 'me' && user) {
+        tasksToExport = tasks.filter(t => (t.ownerId === user.uid && !t.delegateToId) || (t.delegateToId === user.uid));
+    } else if (taskFilter === 'all' && user) {
+        tasksToExport = tasks.filter(t => t.ownerId === user.uid);
+    } else if (taskFilter !== 'all' && taskFilter !== 'me') {
+        tasksToExport = tasks.filter(t => (t.ownerId === taskFilter && !t.delegateToId) || (t.delegateToId === taskFilter));
+    }
+
+    if (tasksToExport.length === 0) {
+        toast({ title: "Lista vacía", description: "No hay tareas con los filtros actuales." });
+        return;
+    }
+
+    const exportData = tasksToExport.map(task => ({
+      'Título': task.title,
+      'Proyecto/Cliente': task.client || 'Sin Proyecto',
+      'Estado': task.status,
+      'Prioridad': task.priority === 'high' ? 'Alta' : task.priority === 'medium' ? 'Media' : 'Baja',
+      'Progreso (%)': task.progress,
+      'Fecha Creación': task.createdAt ? format(new Date(task.createdAt), 'dd/MM/yyyy HH:mm') : 'N/A',
+      'Fecha Límite': task.dueDate ? format(new Date(task.dueDate + 'T12:00:00'), 'dd/MM/yyyy') : 'Sin fecha',
+      'Potencial ($)': task.value,
+      'Probabilidad (%)': task.probability,
+      'Delegado a': task.delegateToEmail || 'Personal',
+      'Delegado por': task.delegatedByName || 'N/A',
+      'Descripción': task.description || ''
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Tareas");
+    
+    // Auto-ajuste de columnas
+    const wscols = Object.keys(exportData[0] || {}).map(key => ({
+        wch: Math.max(key.length, ...exportData.map(row => String((row as any)[key] || '').length)) + 2
+    }));
+    worksheet['!cols'] = wscols;
+
+    XLSX.writeFile(workbook, `Gestor_DyG_Reporte_Tareas_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
+    toast({ title: "Reporte generado", description: "El archivo Excel se ha descargado correctamente." });
+  };
 
   const renderAddButton = () => {
     if (view === 'team') {
@@ -126,6 +182,8 @@ export default function AppHeader({
     return member?.name.split(' ')[0] || 'Filtrar';
   };
 
+  const isTaskView = ['board', 'planning', 'calendar', 'history'].includes(view);
+
   return (
     <>
       <header className="h-16 bg-card border-b flex items-center justify-between px-4 md:px-8 flex-shrink-0 sticky top-0 z-40">
@@ -149,6 +207,19 @@ export default function AppHeader({
           )}
         </div>
         <div className="flex items-center gap-2 md:gap-4">
+          {isTaskView && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportTasks}
+              className="hidden md:flex gap-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50 h-8 md:h-10"
+              title="Exportar tareas a Excel"
+            >
+              <FileSpreadsheet size={16} />
+              <span className="hidden lg:inline">Excel</span>
+            </Button>
+          )}
+
           {showFilterButton && (
              <DropdownMenu>
               <DropdownMenuTrigger asChild>
