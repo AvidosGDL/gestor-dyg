@@ -200,3 +200,23 @@ export interface ProjectActivity {
   attachments?: Attachment[];
   parentId: string | null;
 }
+
+export interface SupportTicket {
+  id: string;
+  type: 'bug' | 'improvement';
+  description: string;
+  severity: 1 | 2 | 3;
+  status: 'open' | 'closed';
+  createdAt: string;
+  creatorId: string;
+  creatorName: string;
+  creatorEmail: string;
+  creatorPhone?: string;
+  browser: string;
+  device: string;
+  attachments?: Attachment[];
+  solution?: string;
+  solutionAttachment?: Attachment;
+  closedAt?: string;
+  closedBy?: string;
+}

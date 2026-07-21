@@ -53,6 +53,20 @@
         "sortOrder": { "type": "number" },
         "isAdjustment": { "type": "boolean" }
       }
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["bug", "improvement"] },
+        "description": { "type": "string" },
+        "severity": { "type": "number", "enum": [1, 2, 3] },
+        "status": { "type": "string", "enum": ["open", "closed"] },
+        "browser": { "type": "string" },
+        "device": { "type": "string" },
+        "creatorName": { "type": "string" },
+        "creatorEmail": { "type": "string" }
+      }
     }
   },
   "auth": {
@@ -78,6 +92,10 @@
     "/projects/{projectId}": {
       "schema": { "type": "object" },
       "description": "Project and construction management."
+    },
+    "/supportTickets/{ticketId}": {
+      "schema": { "$ref": "#/backend/entities/SupportTicket" },
+      "description": "System bug reports and improvement requests."
     }
   }
 }

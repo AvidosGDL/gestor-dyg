@@ -1,7 +1,8 @@
+
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Layout, Calendar, Users, FileUp, Handshake, LineChart, Archive, Landmark, KanbanSquare, Network, CalendarClock } from 'lucide-react';
+import { Layout, Calendar, Users, FileUp, Handshake, LineChart, Archive, Landmark, KanbanSquare, Network, CalendarClock, LifeBuoy } from 'lucide-react';
 import type { View } from '@/app/page';
 import { cn } from '@/lib/utils';
 import {
@@ -34,7 +35,7 @@ export default function SidebarNav({ view, setView }: SidebarNavProps) {
     fetchProfile();
   }, [user, firestore]);
 
-  const isAdmin = user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
+  const isAdmin = user?.email === 'gdldanny@gmail.com' || user?.email === 'Roger1996.developer@gmail.com' || user?.uid === 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
   const isAuthorizedForInvestors = isAdmin || !!profile?.canAccessInvestors;
   const isAuthorizedForBanks = isAdmin || !!profile?.canAccessBanks;
   const isAuthorizedForProjects = isAdmin || !!profile?.canAccessProjects;
@@ -52,6 +53,7 @@ export default function SidebarNav({ view, setView }: SidebarNavProps) {
     ...(isAuthorizedForInvestors ? [{ id: 'investors', label: 'Inversionistas', icon: Landmark }] : []),
     ...(isAuthorizedForBanks ? [{ id: 'banks', label: 'Bancos y Saldos', icon: Landmark }] : []),
     ...(isAdmin ? [{ id: 'organization', label: 'Estructura Global', icon: Network }] : []),
+    { id: 'support', label: 'Reportar al Sistema', icon: LifeBuoy },
   ];
 
   return (

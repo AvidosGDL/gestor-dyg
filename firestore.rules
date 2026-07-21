@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -12,8 +13,12 @@ service cloud.firestore {
     }
     
     function isAdmin() {
-      // Daniel ID - Superadmin
-      return isSignedIn() && request.auth.uid == 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
+      // Daniel ID & Roger Email check (UID for Daniel, but let's be safe)
+      return isSignedIn() && (
+        request.auth.uid == 'fKZUAAXTENPcUeEA4tUXFEV4xbr1' || 
+        request.auth.token.email == 'Roger1996.developer@gmail.com' ||
+        request.auth.token.email == 'gdldanny@gmail.com'
+      );
     }
     
     // Permission checks based on user profile flags
@@ -93,6 +98,12 @@ service cloud.firestore {
         allow read, write, create, update, delete: if isAuthorizedForProjects();
       }
     }
+
+    match /supportTickets/{ticketId} {
+      allow create: if isSignedIn();
+      allow read, list: if isSignedIn() && (resource.data.creatorId == request.auth.uid || isAdmin());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
   }
 }
-// Forzado de sincronización de índices y reglas - 2024-07-17T02:00:00Z

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -12,6 +13,7 @@ import { ChatProvider } from '@/contexts/chat-context';
 import { InvestorsProvider } from '@/contexts/investors-context';
 import { BanksProvider } from '@/contexts/banks-context';
 import { ProjectsProvider } from '@/contexts/projects-context';
+import { SupportProvider } from '@/contexts/support-context';
 import BoardView from '@/components/app/board-view';
 import PlanningView from '@/components/app/planning-view';
 import SidebarNav from '@/components/app/sidebar-nav';
@@ -28,6 +30,7 @@ import BanksView from '@/components/app/banks-view';
 import ProjectsView from '@/components/app/projects-view';
 import OrganizationView from '@/components/app/organization-view';
 import CalendarDashboardView from '@/components/app/calendar-dashboard-view';
+import SupportView from '@/components/app/support-view';
 import { doc, getDoc } from 'firebase/firestore';
 import ChatWidget from '@/components/app/chat-widget';
 import { Button } from '@/components/ui/button';
@@ -37,7 +40,7 @@ import { cn } from '@/lib/utils';
 import MobileBottomNav from '@/components/app/mobile-bottom-nav';
 
 
-export type View = 'board' | 'planning' | 'team' | 'import' | 'prospects' | 'analytics' | 'history' | 'investors' | 'banks' | 'projects' | 'organization' | 'calendar';
+export type View = 'board' | 'planning' | 'team' | 'import' | 'prospects' | 'analytics' | 'history' | 'investors' | 'banks' | 'projects' | 'organization' | 'calendar' | 'support';
 
 const productivityTips = [
   "Si tarda menos de 2 minutos, hazlo ahora. Si no, ponlo en el backlog.",
@@ -51,7 +54,6 @@ const productivityTips = [
 
 
 function Dashboard() {
-  // Versión de navegación nativa móvil: 2024-07-17T05:00:00Z
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const router = useRouter();
@@ -84,14 +86,10 @@ function Dashboard() {
   };
 
   useEffect(() => {
-    // Set an initial random tip
     setCurrentTip(productivityTips[Math.floor(Math.random() * productivityTips.length)]);
-
-    // Change tip every 8 hours
     const intervalId = setInterval(() => {
       setCurrentTip(productivityTips[Math.floor(Math.random() * productivityTips.length)]);
-    }, 8 * 60 * 60 * 1000); // 8 hours in milliseconds
-
+    }, 8 * 60 * 60 * 1000);
     return () => clearInterval(intervalId);
   }, []);
 
@@ -104,6 +102,7 @@ function Dashboard() {
             <InvestorsProvider>
               <BanksProvider>
                 <ProjectsProvider>
+                  <SupportProvider>
                   {isImpersonating && (
                     <div className="bg-yellow-400 text-yellow-900 font-bold text-center p-2 flex items-center justify-center gap-4 fixed top-0 w-full z-50">
                       <span>Estás viendo como <strong>{impersonatedUserName}</strong>.</span>
@@ -181,13 +180,15 @@ function Dashboard() {
                         {view === 'history' && <HistoryView taskFilter={taskFilter} setView={setView} />}
                         {view === 'investors' && <InvestorsView />}
                         {view === 'banks' && <BanksView />}
-                        {view === 'projects' && <ProjectDetailViewWrapper setView={setView} />}
+                        {view === 'projects' && <ProjectsView />}
                         {view === 'organization' && <OrganizationView />}
+                        {view === 'support' && <SupportView />}
                       </main>
                     </SidebarInset>
                     <ChatWidget />
                     <MobileBottomNav currentView={view} setView={setView} />
                   </SidebarProvider>
+                  </SupportProvider>
                 </ProjectsProvider>
               </BanksProvider>
             </InvestorsProvider>
@@ -198,14 +199,8 @@ function Dashboard() {
   );
 }
 
-// Wrapper for Projects to avoid breaking logic if we switch views inside
-function ProjectDetailViewWrapper({ setView }: { setView: (v: View) => void }) {
-    return <ProjectsView />;
-}
-
 function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
-  const firestore = useFirestore();
   const router = useRouter();
 
   useEffect(() => {
