@@ -50,6 +50,7 @@ const productivityTips = [
 
 
 function Dashboard() {
+  // Versión de sincronización de Chunks: 2024-07-17T03:00:00Z
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const router = useRouter();
