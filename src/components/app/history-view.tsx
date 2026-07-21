@@ -1,16 +1,18 @@
-
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { ListTodo, Archive } from 'lucide-react';
+import { ListTodo, Archive, LineChart } from 'lucide-react';
 import { useHistory } from '@/contexts/history-context';
 import type { Task, TaskStatus } from '@/lib/types';
 import HistoryTaskCard from './history-task-card';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { useUser } from '@/firebase';
+import { Button } from '../ui/button';
+import type { View } from '@/app/page';
 
 interface HistoryViewProps {
   taskFilter: string;
+  setView: (view: View) => void;
 }
 
 const columns: { id: TaskStatus; label: string; color: string }[] = [
@@ -65,7 +67,7 @@ const HistoryTaskColumn = ({
   );
 };
 
-export default function HistoryView({ taskFilter }: HistoryViewProps) {
+export default function HistoryView({ taskFilter, setView }: HistoryViewProps) {
   const { historyTasks, loading } = useHistory();
   const { user } = useUser();
 
@@ -87,19 +89,23 @@ export default function HistoryView({ taskFilter }: HistoryViewProps) {
     return <div className="text-center py-10">Cargando histórico...</div>
   }
 
-  if (historyTasks.length === 0) {
-    return (
-        <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-            <Archive size={48} className="mb-4" />
-            <h3 className="text-lg font-semibold">El histórico de tareas está vacío</h3>
-            <p className="text-sm">Las tareas completadas y archivadas aparecerán aquí.</p>
-        </div>
-    )
-  }
-
   return (
-    <>
-      <div className="h-full flex flex-col gap-4">
+    <div className="h-full flex flex-col gap-4">
+      <div className="flex justify-between items-center px-1">
+        <h2 className="text-xl font-bold">Historial de Tareas Archivadas</h2>
+        <Button onClick={() => setView('analytics')} variant="outline" className="gap-2 border-primary text-primary hover:bg-primary/5">
+            <LineChart size={16} />
+            Análisis de Eficiencia
+        </Button>
+      </div>
+
+      {historyTasks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center flex-1 text-center text-muted-foreground">
+              <Archive size={48} className="mb-4" />
+              <h3 className="text-lg font-semibold">El histórico está vacío</h3>
+              <p className="text-sm">Las tareas completadas y archivadas aparecerán aquí.</p>
+          </div>
+      ) : (
         <ScrollArea className="flex-1 -mx-4">
           <div className="px-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 pb-4">
             {columns.map((col) => (
@@ -114,7 +120,7 @@ export default function HistoryView({ taskFilter }: HistoryViewProps) {
           </div>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
-      </div>
-    </>
+      )}
+    </div>
   );
 }

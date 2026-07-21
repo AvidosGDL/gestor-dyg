@@ -1,17 +1,19 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, Cell, PieChart, Pie } from 'recharts';
 import { useTasks } from '@/contexts/tasks-context';
 import { useHistory } from '@/contexts/history-context';
 import { useUser } from '@/firebase';
 import type { Task } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval, isWithinInterval, subDays } from 'date-fns';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval, isWithinInterval, subDays, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { TrendingUp, CheckCircle2, Clock, CalendarCheck } from 'lucide-react';
+import { TrendingUp, CheckCircle2, Clock, CalendarCheck, Zap, AlertTriangle } from 'lucide-react';
 import { ChartContainer, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
+import { Badge } from '../ui/badge';
+import { ScrollArea } from '../ui/scroll-area';
 
 type Period = 'day' | 'week' | 'month';
 
@@ -21,7 +23,7 @@ interface AnalyticsViewProps {
 
 // Helper to format duration from milliseconds to a readable string like "2h 30m"
 const formatDuration = (milliseconds: number) => {
-  if (milliseconds < 0) return '0m';
+  if (milliseconds <= 0) return '0m';
   const totalSeconds = Math.floor(milliseconds / 1000);
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -70,20 +72,24 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
     } 
     
     if (taskFilter === 'all') {
-      return allTasks.filter(t => t.ownerId === user.uid);
+      return allTasks.filter(t => t.ownerId === user.uid || t.delegateToId === user.uid);
     }
     
     return allTasks.filter(t => (t.ownerId === taskFilter && !t.delegateToId) || (t.delegateToId === taskFilter));
   }, [allTasks, user, taskFilter, loading]);
   
   const completedTasks = useMemo(() => {
-     return filteredTasksForView.filter(t => t.status === 'completado');
+     return filteredTasksForView.filter(t => t.status === 'completado').sort((a,b) => {
+        const dateA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const dateB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return dateB - dateA;
+     });
   }, [filteredTasksForView]);
 
 
   const chartData = useMemo(() => {
     const now = new Date();
-    let interval: Interval;
+    let interval: { start: Date; end: Date };
     let timeUnitFormat: string;
     let getIntervals;
     
@@ -93,8 +99,8 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
       getIntervals = eachDayOfInterval;
     } else if (period === 'week') {
       interval = { start: subDays(now, 6 * 7), end: now };
-      timeUnitFormat = "'Semana' w";
-      getIntervals = (int: Interval) => eachWeekOfInterval(int, { weekStartsOn: 1 });
+      timeUnitFormat = "'Sem' w";
+      getIntervals = (int: any) => eachWeekOfInterval(int, { weekStartsOn: 1 });
     } else { // month
       interval = { start: subDays(now, 365), end: now };
       timeUnitFormat = 'MMM yyyy';
@@ -119,9 +125,12 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
       });
 
       const onTimeInPeriod = tasksInPeriod.filter(t => {
-        if (!t.dueDate) return true; // No due date is considered on-time
+        if (!t.dueDate) return true;
         if (!t.updatedAt) return false;
-        return new Date(t.updatedAt).getTime() <= new Date(t.dueDate).getTime() + (24 * 60 * 60 * 1000 - 1); // End of day
+        // Check if finished at or before due date
+        const completion = new Date(t.updatedAt).getTime();
+        const due = new Date(t.dueDate + 'T23:59:59').getTime();
+        return completion <= due;
       }).length;
 
       const totalTime = tasksInPeriod.reduce((acc, task) => {
@@ -145,59 +154,65 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
   const totalOnTimeTasks = useMemo(() => chartData.reduce((acc, data) => acc + data.tareasATiempo, 0), [chartData]);
   const onTimePercentage = totalTasksCompleted > 0 ? Math.round((totalOnTimeTasks / totalTasksCompleted) * 100) : 0;
 
+  const getTaskExecutionTime = (task: Task) => {
+    return (task.focusSessions || []).reduce((acc, s) => acc + (new Date(s.endTime).getTime() - new Date(s.startTime).getTime()), 0);
+  };
 
   return (
     <div className="h-full overflow-y-auto space-y-6 p-1">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Resumen de Productividad</h2>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <Button variant={period === 'day' ? 'default' : 'outline'} onClick={() => setPeriod('day')} className="rounded-r-none">Día</Button>
-          <Button variant={period === 'week' ? 'default' : 'outline'} onClick={() => setPeriod('week')} className="rounded-none">Semana</Button>
-          <Button variant={period === 'month' ? 'default' : 'outline'} onClick={() => setPeriod('month')} className="rounded-l-none">Mes</Button>
+            <h2 className="text-2xl font-bold">Análisis de Eficiencia</h2>
+            <p className="text-muted-foreground">Métricas de cumplimiento y tiempo invertido en tareas completadas.</p>
+        </div>
+        <div className="bg-muted p-1 rounded-lg">
+          <Button variant={period === 'day' ? 'secondary' : 'ghost'} size="sm" onClick={() => setPeriod('day')}>Día</Button>
+          <Button variant={period === 'week' ? 'secondary' : 'ghost'} size="sm" onClick={() => setPeriod('week')}>Semana</Button>
+          <Button variant={period === 'month' ? 'secondary' : 'ghost'} size="sm" onClick={() => setPeriod('month')}>Mes</Button>
         </div>
       </div>
       
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="border-l-4 border-l-primary">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Tareas Completadas</CardTitle>
-                <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-bold uppercase tracking-tight text-muted-foreground">Completadas</CardTitle>
+                <CheckCircle2 className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{totalTasksCompleted}</div>
-                <p className="text-xs text-muted-foreground">En el período seleccionado</p>
+                <div className="text-3xl font-bold">{totalTasksCompleted}</div>
+                <p className="text-xs text-muted-foreground mt-1">En el período seleccionado</p>
             </CardContent>
         </Card>
-        <Card>
+        <Card className={cn("border-l-4", onTimePercentage >= 80 ? "border-l-emerald-500" : "border-l-amber-500")}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Cumplimiento de Plazos</CardTitle>
-                <CalendarCheck className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-bold uppercase tracking-tight text-muted-foreground">Puntualidad</CardTitle>
+                <CalendarCheck className={cn("h-4 w-4", onTimePercentage >= 80 ? "text-emerald-500" : "text-amber-500")} />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{onTimePercentage}%</div>
-                <p className="text-xs text-muted-foreground">{totalOnTimeTasks} de {totalTasksCompleted} tareas a tiempo</p>
+                <div className="text-3xl font-bold">{onTimePercentage}%</div>
+                <p className="text-xs text-muted-foreground mt-1">{totalOnTimeTasks} de {totalTasksCompleted} entregadas a tiempo</p>
             </CardContent>
         </Card>
-        <Card>
+        <Card className="border-l-4 border-l-accent">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Tiempo Total de Enfoque</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-bold uppercase tracking-tight text-muted-foreground">Tiempo Invertido</CardTitle>
+                <Clock className="h-4 w-4 text-accent" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{formatDuration(totalTimeFocusedMs)}</div>
-                <p className="text-xs text-muted-foreground">Invertido en tareas completadas</p>
+                <div className="text-3xl font-bold">{formatDuration(totalTimeFocusedMs)}</div>
+                <p className="text-xs text-muted-foreground mt-1">Tiempo real de enfoque acumulado</p>
             </CardContent>
         </Card>
-        <Card>
+        <Card className="border-l-4 border-l-blue-500">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Productividad Promedio</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-bold uppercase tracking-tight text-muted-foreground">Ratio de Eficiencia</CardTitle>
+                <Zap className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">
+                <div className="text-3xl font-bold">
                     {totalTasksCompleted > 0 ? formatDuration(totalTimeFocusedMs / totalTasksCompleted) : '0m'}
                 </div>
-                <p className="text-xs text-muted-foreground">Tiempo promedio por tarea</p>
+                <p className="text-xs text-muted-foreground mt-1">Esfuerzo promedio por tarea</p>
             </CardContent>
         </Card>
       </div>
@@ -205,8 +220,8 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
       <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Tareas por {period === 'day' ? 'Día' : period === 'week' ? 'Semana' : 'Mes'}</CardTitle>
-            <CardDescription>Comparativo de tareas completadas vs. tareas entregadas a tiempo.</CardDescription>
+            <CardTitle>Cumplimiento de Plazos</CardTitle>
+            <CardDescription>Comparativo de tareas terminadas vs. entregadas en fecha.</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={barChartConfig} className="h-[300px] w-full">
@@ -227,8 +242,8 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Tiempo de Enfoque por {period === 'day' ? 'Día' : period === 'week' ? 'Semana' : 'Mes'}</CardTitle>
-            <CardDescription>Minutos dedicados a las tareas completadas.</CardDescription>
+            <CardTitle>Intensidad de Trabajo</CardTitle>
+            <CardDescription>Minutos de enfoque dedicados a cerrar proyectos.</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={lineChartConfig} className="h-[300px] w-full">
@@ -246,6 +261,60 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+          <CardHeader>
+              <CardTitle>Auditoría de Eficiencia por Tarea</CardTitle>
+              <CardDescription>Detalle de las tareas completadas recientemente y su desempeño individual.</CardDescription>
+          </CardHeader>
+          <CardContent>
+              <ScrollArea className="h-[300px]">
+                  <div className="space-y-4 pr-4">
+                      {completedTasks.length === 0 ? (
+                          <div className="text-center py-10 text-muted-foreground italic">No hay tareas completadas registradas.</div>
+                      ) : (
+                          completedTasks.map(task => {
+                              const timeUsed = getTaskExecutionTime(task);
+                              const isLate = task.dueDate && task.updatedAt && new Date(task.updatedAt).getTime() > new Date(task.dueDate + 'T23:59:59').getTime();
+                              
+                              return (
+                                  <div key={task.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 bg-muted/30 rounded-xl border border-border gap-4">
+                                      <div className="flex-1 min-w-0">
+                                          <h4 className="font-bold text-sm truncate">{task.title}</h4>
+                                          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                                              <Badge variant="outline" className="text-[10px] uppercase font-bold">{task.client || 'Sin Proyecto'}</Badge>
+                                              <span>Finalizada: {task.updatedAt ? format(new Date(task.updatedAt), 'dd/MM/yy HH:mm') : 'N/A'}</span>
+                                          </div>
+                                      </div>
+                                      <div className="flex items-center gap-6 flex-shrink-0">
+                                          <div className="text-right">
+                                              <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Tiempo</p>
+                                              <div className="flex items-center justify-end gap-1.5 font-mono font-bold text-sm">
+                                                  <Clock size={14} className="text-accent"/>
+                                                  {formatDuration(timeUsed)}
+                                              </div>
+                                          </div>
+                                          <div className="text-right min-w-[100px]">
+                                              <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Entrega</p>
+                                              {isLate ? (
+                                                  <Badge variant="destructive" className="bg-rose-50 text-rose-700 border-rose-200 flex gap-1 items-center">
+                                                      <AlertTriangle size={10}/> FUERA DE PLAZO
+                                                  </Badge>
+                                              ) : (
+                                                  <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 flex gap-1 items-center">
+                                                      <Zap size={10}/> A TIEMPO
+                                                  </Badge>
+                                              )}
+                                          </div>
+                                      </div>
+                                  </div>
+                              );
+                          })
+                      )}
+                  </div>
+              </ScrollArea>
+          </CardContent>
+      </Card>
     </div>
   );
 }

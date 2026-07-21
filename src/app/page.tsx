@@ -78,7 +78,6 @@ function Dashboard() {
 
   const handleStopImpersonating = async () => {
     await signOut(auth);
-    localStorage.removeItem('impersonator_uid');
     router.push('/login');
   };
 
@@ -177,7 +176,7 @@ function Dashboard() {
                         {view === 'import' && <ImportView />}
                         {view === 'prospects' && <ProspectsView />}
                         {view === 'analytics' && <AnalyticsView taskFilter={taskFilter} />}
-                        {view === 'history' && <HistoryView taskFilter={taskFilter} />}
+                        {view === 'history' && <HistoryView taskFilter={taskFilter} setView={setView} />}
                         {view === 'investors' && <InvestorsView />}
                         {view === 'banks' && <BanksView />}
                         {view === 'projects' && <ProjectsView />}

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { ListTodo, Bell, Trash2, CheckCheck, MessageSquare, ArrowRightLeft, Search, CalendarClock } from 'lucide-react';
+import { ListTodo, Bell, Trash2, CheckCheck, MessageSquare, ArrowRightLeft, Search, CalendarClock, LineChart } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus } from '@/lib/types';
 import TaskCard from './task-card';
@@ -256,6 +256,15 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter, setVie
            </div>
            
            <div className="flex items-center gap-4 flex-1 justify-end">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setView('analytics')}
+                className="gap-2 border-primary text-primary hover:bg-primary/5"
+              >
+                <LineChart size={16} />
+                <span>Análisis de Eficiencia</span>
+              </Button>
               <Button 
                 variant="outline" 
                 size="sm" 
