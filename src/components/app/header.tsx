@@ -1,9 +1,8 @@
-
 'use client';
 
 import React from 'react';
 import Image from 'next/image';
-import { Plus, UserPlus, Timer, Handshake, Filter, User, Users, Landmark, KanbanSquare } from 'lucide-react';
+import { Plus, UserPlus, Timer, Handshake, Filter, User, Users, Landmark, KanbanSquare, Calendar as CalendarIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import NewTaskDialog from './new-task-dialog';
 import NewMemberDialog from './new-member-dialog';
@@ -48,7 +47,7 @@ export default function AppHeader({
   const { data: members } = useCollection<TeamMember>(membersCollectionRef);
 
   const showAddButton = view === 'board' || view === 'planning';
-  const showFilterButton = view === 'board' || view === 'planning' || view === 'analytics' || view === 'history';
+  const showFilterButton = view === 'board' || view === 'planning' || view === 'analytics' || view === 'history' || view === 'calendar';
 
   const renderAddButton = () => {
     if (view === 'team') {
@@ -204,6 +203,5 @@ const viewTitles: Record<View, string> = {
   investors: 'Gestión de Inversionistas',
   banks: 'Bancos y Saldos',
   projects: 'Gestión de Proyectos',
+  calendar: 'Calendario de Vencimientos',
 };
-
-    

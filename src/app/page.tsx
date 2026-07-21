@@ -27,6 +27,7 @@ import InvestorsView from '@/components/app/investors-view';
 import BanksView from '@/components/app/banks-view';
 import ProjectsView from '@/components/app/projects-view';
 import OrganizationView from '@/components/app/organization-view';
+import CalendarDashboardView from '@/components/app/calendar-dashboard-view';
 import { doc, getDoc } from 'firebase/firestore';
 import ChatWidget from '@/components/app/chat-widget';
 import { Button } from '@/components/ui/button';
@@ -35,7 +36,7 @@ import { signOut } from 'firebase/auth';
 import { cn } from '@/lib/utils';
 
 
-export type View = 'board' | 'planning' | 'team' | 'import' | 'prospects' | 'analytics' | 'history' | 'investors' | 'banks' | 'projects' | 'organization';
+export type View = 'board' | 'planning' | 'team' | 'import' | 'prospects' | 'analytics' | 'history' | 'investors' | 'banks' | 'projects' | 'organization' | 'calendar';
 
 const productivityTips = [
   "Si tarda menos de 2 minutos, hazlo ahora. Si no, ponlo en el backlog.",
@@ -156,7 +157,14 @@ function Dashboard() {
 
                       <main className="flex-1 overflow-hidden p-4 md:p-6 bg-background">
                         {view === 'board' && (
-                          <BoardView setActiveTaskForPomodoro={setActiveTaskForPomodoro} taskFilter={taskFilter} />
+                          <BoardView 
+                            setActiveTaskForPomodoro={setActiveTaskForPomodoro} 
+                            taskFilter={taskFilter}
+                            setView={setView}
+                          />
+                        )}
+                        {view === 'calendar' && (
+                          <CalendarDashboardView taskFilter={taskFilter} />
                         )}
                         {view === 'planning' && (
                           <PlanningView

@@ -1,8 +1,7 @@
-
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Layout, Calendar, Users, FileUp, Handshake, LineChart, Archive, Landmark, KanbanSquare, Network } from 'lucide-react';
+import { Layout, Calendar, Users, FileUp, Handshake, LineChart, Archive, Landmark, KanbanSquare, Network, CalendarClock } from 'lucide-react';
 import type { View } from '@/app/page';
 import { cn } from '@/lib/utils';
 import {
@@ -42,6 +41,7 @@ export default function SidebarNav({ view, setView }: SidebarNavProps) {
 
   const navItems = [
     { id: 'board', label: 'Tablero Visual', icon: Layout },
+    { id: 'calendar', label: 'Calendario y Plazos', icon: CalendarClock },
     { id: 'planning', label: 'Planeación Diaria', icon: Calendar },
     { id: 'prospects', label: 'Prospectos', icon: Handshake },
     ...(isAuthorizedForProjects ? [{ id: 'projects', label: 'Proyectos', icon: KanbanSquare }] : []),

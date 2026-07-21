@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { ListTodo, Bell, Trash2, CheckCheck, MessageSquare, ArrowRightLeft, Search } from 'lucide-react';
+import { ListTodo, Bell, Trash2, CheckCheck, MessageSquare, ArrowRightLeft, Search, CalendarClock } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus } from '@/lib/types';
 import TaskCard from './task-card';
@@ -16,10 +16,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { cn } from '@/lib/utils';
+import type { View } from '@/app/page';
 
 interface BoardViewProps {
   setActiveTaskForPomodoro: (task: Task | null) => void;
   taskFilter: string;
+  setView: (view: View) => void;
 }
 
 const columns: { id: TaskStatus; label: string; color: string }[] = [
@@ -80,7 +82,7 @@ const TaskColumn = ({
   );
 };
 
-export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: BoardViewProps) {
+export default function BoardView({ setActiveTaskForPomodoro, taskFilter, setView }: BoardViewProps) {
   const { tasks, updateTask, bulkUpdateTasks } = useTasks();
   const { user } = useUser();
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
@@ -232,7 +234,7 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
   return (
     <>
       <div className="h-full flex flex-col gap-4">
-        <div className="flex-shrink-0 flex flex-wrap items-center gap-4">
+        <div className="flex-shrink-0 flex flex-wrap items-center justify-between gap-4">
            <div className="flex items-center gap-2">
             <Button
                 variant={activeStatusFilter === 'all' ? 'default' : 'outline'}
@@ -252,14 +254,26 @@ export default function BoardView({ setActiveTaskForPomodoro, taskFilter }: Boar
               </Button>
             ))}
            </div>
-           <div className="relative flex-grow min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-             <Input
-                placeholder="Buscar por título..."
-                className="pl-9"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+           
+           <div className="flex items-center gap-4 flex-1 justify-end">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setView('calendar')}
+                className="gap-2 border-primary text-primary hover:bg-primary/5"
+              >
+                <CalendarClock size={16} />
+                <span>Modo Calendario</span>
+              </Button>
+              <div className="relative max-w-xs w-full">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                    placeholder="Buscar por título..."
+                    className="pl-9"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+              </div>
            </div>
         </div>
 
