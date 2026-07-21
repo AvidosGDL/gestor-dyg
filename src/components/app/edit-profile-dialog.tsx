@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2, ImageUp, Lock } from 'lucide-react';
+import { Loader2, ImageUp, Lock, UserCheck } from 'lucide-react';
 import { useFirestore, useUser, useAuth } from '@/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
@@ -83,7 +83,7 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
         if (userDocSnap.exists()) {
           const profileData = userDocSnap.data() as UserProfile;
           reset(profileData);
-          if (!avatarOptions.includes(profileData.avatarUrl)) {
+          if (profileData.avatarUrl && !avatarOptions.includes(profileData.avatarUrl)) {
             setCustomAvatarPreview(profileData.avatarUrl);
           } else {
             setCustomAvatarPreview(null);
@@ -96,7 +96,6 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
   }, [user, isOpen, reset, firestore, avatarOptions]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!isAdmin) return;
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -118,7 +117,7 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
   }
 
   const onSubmit: SubmitHandler<ProfileFormValues> = async (formData) => {
-    if (!user || !isAdmin) return;
+    if (!user) return;
     
     let finalAvatarUrl = formData.avatarUrl;
 
@@ -168,71 +167,59 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Perfil de Usuario</DialogTitle>
+          <DialogTitle>Mi Perfil de Usuario</DialogTitle>
           <DialogDescription>
-            Información de tu cuenta en Gestor D&G.
+            Personaliza tu identidad en Gestor D&G subiendo una foto o eligiendo un avatar.
           </DialogDescription>
         </DialogHeader>
 
-        {!isAdmin && (
-            <Alert className="bg-muted border-none">
-                <Lock className="h-4 w-4 text-muted-foreground" />
-                <AlertDescription className="text-xs text-muted-foreground">
-                    Solo el superadministrador puede editar los datos de perfil (nombre, correo, avatar y teléfono). Por favor contacta a soporte si necesitas actualizar tu información.
-                </AlertDescription>
-            </Alert>
-        )}
-
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-2">
-            <Label>Avatar</Label>
-            <div className="grid grid-cols-4 gap-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <div className="space-y-3">
+            <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Tu Avatar / Foto de Perfil</Label>
+            <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
                 {avatarOptions.map((url, index) => (
                     <button
                         key={index}
                         type="button"
-                        disabled={!isAdmin}
                         onClick={() => {
                           setValue('avatarUrl', url, { shouldValidate: true });
                           setCustomAvatarPreview(null);
                           setCustomAvatarFile(null);
                         }}
                         className={cn(
-                            "rounded-full p-1 transition-all",
+                            "rounded-full p-0.5 transition-all",
                             selectedAvatarUrl === url && !customAvatarPreview
-                                ? 'ring-2 ring-primary ring-offset-2' 
-                                : 'ring-1 ring-transparent hover:ring-primary/50',
-                            !isAdmin && "opacity-50 cursor-not-allowed"
+                                ? 'ring-2 ring-primary ring-offset-2 scale-110' 
+                                : 'ring-1 ring-transparent hover:ring-primary/50'
                         )}
                     >
-                        <Avatar className="h-16 w-16">
+                        <Avatar className="h-10 w-10">
                             <AvatarImage src={url} alt={`Avatar ${index + 1}`} />
                         </Avatar>
                     </button>
                 ))}
                 <button
                   type="button"
-                  disabled={!isAdmin}
                   onClick={() => fileInputRef.current?.click()}
                   className={cn(
-                    "rounded-full p-1 transition-all flex items-center justify-center bg-muted hover:bg-border",
+                    "rounded-full p-0.5 transition-all flex items-center justify-center bg-muted hover:bg-border",
                     customAvatarPreview
-                      ? 'ring-2 ring-primary ring-offset-2'
-                      : 'ring-1 ring-transparent hover:ring-primary/50',
-                    !isAdmin && "opacity-50 cursor-not-allowed"
+                      ? 'ring-2 ring-primary ring-offset-2 scale-110'
+                      : 'ring-1 ring-transparent hover:ring-primary/50'
                   )}
+                  title="Subir mi propia foto"
                 >
-                  <Avatar className="h-16 w-16">
+                  <Avatar className="h-10 w-10">
                     {customAvatarPreview ? (
-                      <AvatarImage src={customAvatarPreview} alt="Avatar personalizado" />
+                      <AvatarImage src={customAvatarPreview} alt="Mi foto personalizada" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <ImageUp className="w-8 h-8 text-muted-foreground" />
+                        <ImageUp className="w-5 h-5 text-muted-foreground" />
                       </div>
                     )}
                   </Avatar>
                 </button>
-                <Input
+                <input
                   type="file"
                   ref={fileInputRef}
                   className="hidden"
@@ -243,64 +230,85 @@ export default function EditProfileDialog({ isOpen, onOpenChange }: EditProfileD
             {errors.avatarUrl && (
               <p className="text-sm text-destructive">{errors.avatarUrl.message}</p>
             )}
+            <p className="text-[10px] text-muted-foreground italic">Puedes elegir uno de nuestros avatares o subir tu propia foto haciendo clic en el ícono de carga.</p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="name">Nombre Completo</Label>
-            <Input
-              id="name"
-              {...register('name')}
-              disabled={isSubmitting || !isAdmin}
-            />
-            {errors.name && (
-              <p className="text-sm text-destructive">{errors.name.message}</p>
-            )}
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="email">Correo Electrónico</Label>
-            <Input
-              id="email"
-              type="email"
-              {...register('email')}
-              disabled
-              className="disabled:opacity-100 disabled:cursor-not-allowed bg-muted/50"
-            />
+          <div className="space-y-4 pt-4 border-t">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="name">Nombre Completo</Label>
+                    <Input
+                        id="name"
+                        {...register('name')}
+                        disabled={isSubmitting || !isAdmin}
+                        className={cn(!isAdmin && "bg-muted/50 cursor-not-allowed")}
+                    />
+                    {errors.name && (
+                        <p className="text-sm text-destructive">{errors.name.message}</p>
+                    )}
+                </div>
+                
+                <div className="space-y-2">
+                    <Label htmlFor="email">Correo Electrónico</Label>
+                    <Input
+                        id="email"
+                        type="email"
+                        {...register('email')}
+                        disabled
+                        className="disabled:opacity-100 disabled:cursor-not-allowed bg-muted/50"
+                    />
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="role">Rol o Cargo</Label>
+                    <Input
+                        id="role"
+                        {...register('role')}
+                        disabled={isSubmitting || !isAdmin}
+                        className={cn(!isAdmin && "bg-muted/50 cursor-not-allowed")}
+                    />
+                    {errors.role && (
+                        <p className="text-sm text-destructive">{errors.role.message}</p>
+                    )}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="phone">Teléfono de Contacto</Label>
+                    <Input
+                        id="phone"
+                        {...register('phone')}
+                        disabled={isSubmitting}
+                        placeholder="Ej. +52 1 33..."
+                    />
+                </div>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="role">Rol o Cargo</Label>
-            <Input
-              id="role"
-              {...register('role')}
-              disabled={isSubmitting || !isAdmin}
-            />
-            {errors.role && (
-              <p className="text-sm text-destructive">{errors.role.message}</p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="phone">Teléfono</Label>
-            <Input
-              id="phone"
-              {...register('phone')}
-              disabled={isSubmitting || !isAdmin}
-            />
-          </div>
-          <DialogFooter>
+          {!isAdmin && (
+            <Alert className="bg-blue-50 border-blue-100">
+                <Lock className="h-4 w-4 text-blue-600" />
+                <AlertDescription className="text-[10px] text-blue-700 leading-tight">
+                    Puedes cambiar tu <b>Foto de Perfil</b> y <b>Teléfono</b> libremente. Para modificar tu nombre, correo o rol, solicita apoyo al superadministrador.
+                </AlertDescription>
+            </Alert>
+          )}
+
+          <DialogFooter className="gap-2 pt-2">
             <Button
               type="button"
               variant="ghost"
               onClick={() => onOpenChange(false)}
             >
-              Cerrar
+              Cancelar
             </Button>
-            {isAdmin && (
-                <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Guardar Cambios
-                </Button>
-            )}
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</>
+              ) : (
+                <><UserCheck className="mr-2 h-4 w-4" /> Guardar Perfil</>
+              )}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
