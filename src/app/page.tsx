@@ -34,6 +34,7 @@ import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { cn } from '@/lib/utils';
+import MobileBottomNav from '@/components/app/mobile-bottom-nav';
 
 
 export type View = 'board' | 'planning' | 'team' | 'import' | 'prospects' | 'analytics' | 'history' | 'investors' | 'banks' | 'projects' | 'organization' | 'calendar';
@@ -50,7 +51,7 @@ const productivityTips = [
 
 
 function Dashboard() {
-  // Versión de sincronización de Chunks: 2024-07-17T03:00:00Z
+  // Versión de navegación nativa móvil: 2024-07-17T05:00:00Z
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const router = useRouter();
@@ -155,7 +156,7 @@ function Dashboard() {
                         setTaskFilter={setTaskFilter}
                       />
 
-                      <main className="flex-1 overflow-hidden p-4 md:p-6 bg-background">
+                      <main className="flex-1 overflow-hidden p-4 md:p-6 bg-background pb-24 md:pb-6">
                         {view === 'board' && (
                           <BoardView 
                             setActiveTaskForPomodoro={setActiveTaskForPomodoro} 
@@ -180,11 +181,12 @@ function Dashboard() {
                         {view === 'history' && <HistoryView taskFilter={taskFilter} setView={setView} />}
                         {view === 'investors' && <InvestorsView />}
                         {view === 'banks' && <BanksView />}
-                        {view === 'projects' && <ProjectsView />}
+                        {view === 'projects' && <ProjectDetailViewWrapper setView={setView} />}
                         {view === 'organization' && <OrganizationView />}
                       </main>
                     </SidebarInset>
                     <ChatWidget />
+                    <MobileBottomNav currentView={view} setView={setView} />
                   </SidebarProvider>
                 </ProjectsProvider>
               </BanksProvider>
@@ -194,6 +196,11 @@ function Dashboard() {
       </ProspectsProvider>
     </TasksProvider>
   );
+}
+
+// Wrapper for Projects to avoid breaking logic if we switch views inside
+function ProjectDetailViewWrapper({ setView }: { setView: (v: View) => void }) {
+    return <ProjectsView />;
 }
 
 function AuthWrapper({ children }: { children: React.ReactNode }) {

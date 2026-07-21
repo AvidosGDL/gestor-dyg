@@ -92,7 +92,6 @@ export default function AppHeader({
           <Landmark size={18} />
           <span className="hidden sm:inline">Nueva Cuenta</span>
         </Button>
-      );
     }
     if (view === 'projects') {
       return (
@@ -121,43 +120,43 @@ export default function AppHeader({
   
   const getFilterLabel = () => {
     if (taskFilter === 'me') return 'Mis Tareas';
-    if (taskFilter === 'all') return 'Todas las Tareas';
+    if (taskFilter === 'all') return 'Todas';
     const member = members?.find(m => m.uid === taskFilter);
-    return member?.name || 'Filtrar';
+    return member?.name.split(' ')[0] || 'Filtrar';
   };
 
   return (
     <>
-      <header className="h-16 bg-card border-b flex items-center justify-between px-4 md:px-8 flex-shrink-0">
-        <div className="flex items-center gap-4">
-          <SidebarTrigger className="lg:hidden" />
+      <header className="h-16 bg-card border-b flex items-center justify-between px-4 md:px-8 flex-shrink-0 sticky top-0 z-40">
+        <div className="flex items-center gap-2 md:gap-4">
+          <SidebarTrigger className="lg:hidden hidden" />
           <Image
             src="https://firebasestorage.googleapis.com/v0/b/studio-8033020115-912ac.firebasestorage.app/o/public%2Flogo%20DyG.jpeg?alt=media&token=578d1bd8-b8a4-47b6-a97f-e7731dc39bf1"
             alt="Gestor D&G Logo"
-            width={32}
-            height={32}
-            className="w-8 h-8 rounded-lg"
+            width={28}
+            height={28}
+            className="w-7 h-7 rounded-md md:w-8 md:h-8 md:rounded-lg"
           />
-          <h1 className="text-xl font-bold text-foreground">
+          <h1 className="text-sm md:text-xl font-bold text-foreground truncate max-w-[120px] md:max-w-none">
             {viewTitles[view]}
           </h1>
           {activeTaskForPomodoro && view !== 'team' && (
-            <div className="hidden md:flex items-center gap-2 bg-accent/10 text-accent-foreground/80 px-3 py-1 rounded-full text-xs font-bold border border-accent/20 animate-pulse">
+            <div className="hidden lg:flex items-center gap-2 bg-accent/10 text-accent-foreground/80 px-3 py-1 rounded-full text-xs font-bold border border-accent/20 animate-pulse">
               <Timer size={12} />
               Enfocado en: {activeTaskForPomodoro.title}
             </div>
           )}
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           {showFilterButton && (
              <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="shadow-sm">
-                  <Filter size={16} className="sm:mr-2" />
-                  <span className="hidden sm:inline">{getFilterLabel()}</span>
+                <Button variant="outline" size="sm" className="shadow-sm h-8 md:h-10 px-2 md:px-4">
+                  <Filter size={14} className="md:mr-2" />
+                  <span className="text-xs md:text-sm font-medium">{getFilterLabel()}</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent>
+              <DropdownMenuContent align="end">
                 <DropdownMenuRadioGroup value={taskFilter} onValueChange={setTaskFilter}>
                   <DropdownMenuRadioItem value="me">
                     <User className="mr-2 h-4 w-4" /> Mis Tareas
@@ -168,14 +167,16 @@ export default function AppHeader({
                   {members && members.length > 0 && <DropdownMenuSeparator />}
                   {members?.map(member => (
                     <DropdownMenuRadioItem key={member.id} value={member.uid}>
-                      <User className="mr-2 h-4 w-4" /> {member.name} ({member.email})
+                      <User className="mr-2 h-4 w-4" /> {member.name}
                     </DropdownMenuRadioItem>
                   ))}
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          {renderAddButton()}
+          <div className="flex items-center scale-90 md:scale-100">
+             {renderAddButton()}
+          </div>
           <UserNav />
         </div>
       </header>
@@ -193,15 +194,16 @@ export default function AppHeader({
 }
 
 const viewTitles: Record<View, string> = {
-  board: 'Tablero de Tareas',
-  planning: 'Centro de Comando',
-  team: 'Gestión de Equipo',
-  import: 'Importar Tareas',
-  prospects: 'Seguimiento de Prospectos',
-  analytics: 'Análisis de Avances',
-  history: 'Histórico de Tareas',
-  investors: 'Gestión de Inversionistas',
-  banks: 'Bancos y Saldos',
-  projects: 'Gestión de Proyectos',
-  calendar: 'Calendario de Vencimientos',
+  board: 'Tablero',
+  planning: 'Planeación',
+  team: 'Equipo',
+  import: 'Importar',
+  prospects: 'Prospectos',
+  analytics: 'Análisis',
+  history: 'Histórico',
+  investors: 'Inversionistas',
+  banks: 'Bancos',
+  projects: 'Proyectos',
+  calendar: 'Calendario',
+  organization: 'Estructura',
 };
