@@ -92,6 +92,7 @@ export default function AppHeader({
           <Landmark size={18} />
           <span className="hidden sm:inline">Nueva Cuenta</span>
         </Button>
+      );
     }
     if (view === 'projects') {
       return (
@@ -113,10 +114,10 @@ export default function AppHeader({
           <Plus size={18} />
           <span className="hidden sm:inline">Nueva Tarea</span>
         </Button>
-      )
+      );
     }
     return null;
-  }
+  };
   
   const getFilterLabel = () => {
     if (taskFilter === 'me') return 'Mis Tareas';
