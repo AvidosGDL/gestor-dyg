@@ -14,6 +14,7 @@ import { TrendingUp, CheckCircle2, Clock, CalendarCheck, Zap, AlertTriangle } fr
 import { ChartContainer, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 type Period = 'day' | 'week' | 'month';
 
