@@ -10,11 +10,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval, isWithinInterval, subDays, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { TrendingUp, CheckCircle2, Clock, CalendarCheck, Zap, AlertTriangle } from 'lucide-react';
+import { TrendingUp, CheckCircle2, Clock, CalendarCheck, Zap, AlertTriangle, FileText, Download } from 'lucide-react';
 import { ChartContainer, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
 import { cn } from '@/lib/utils';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 type Period = 'day' | 'week' | 'month';
 
@@ -58,6 +60,7 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
   const { historyTasks, loading: historyLoading } = useHistory();
   const { user } = useUser();
   const [period, setPeriod] = useState<Period>('week');
+  const [isExporting, setIsExporting] = useState(false);
   
   const loading = tasksLoading || historyLoading;
 
@@ -150,13 +153,110 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
     });
   }, [completedTasks, period]);
   
-  const totalTasksCompleted = useMemo(() => chartData.reduce((acc, data) => acc + data.tareasCompletadas, 0), [chartData]);
-  const totalTimeFocusedMs = useMemo(() => chartData.reduce((acc, data) => acc + (data.tiempoEnfoque * 60 * 1000), 0), [chartData]);
-  const totalOnTimeTasks = useMemo(() => chartData.reduce((acc, data) => acc + data.tareasATiempo, 0), [chartData]);
+  const totalTasksCompleted = useMemo(() => completedTasks.length, [completedTasks]);
+  const totalTimeFocusedMs = useMemo(() => {
+      return completedTasks.reduce((acc, task) => {
+          const taskTime = (task.focusSessions || []).reduce((sessionAcc, session) => {
+              return sessionAcc + (new Date(session.endTime).getTime() - new Date(session.startTime).getTime());
+          }, 0);
+          return acc + taskTime;
+      }, 0);
+  }, [completedTasks]);
+
+  const totalOnTimeTasks = useMemo(() => {
+      return completedTasks.filter(t => {
+          if (!t.dueDate) return true;
+          if (!t.updatedAt) return false;
+          const completion = new Date(t.updatedAt).getTime();
+          const due = new Date(t.dueDate + 'T23:59:59').getTime();
+          return completion <= due;
+      }).length;
+  }, [completedTasks]);
+
   const onTimePercentage = totalTasksCompleted > 0 ? Math.round((totalOnTimeTasks / totalTasksCompleted) * 100) : 0;
 
   const getTaskExecutionTime = (task: Task) => {
     return (task.focusSessions || []).reduce((acc, s) => acc + (new Date(s.endTime).getTime() - new Date(s.startTime).getTime()), 0);
+  };
+
+  const exportToPDF = () => {
+    setIsExporting(true);
+    try {
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.width;
+
+        // Header
+        doc.setFontSize(22);
+        doc.setTextColor(63, 81, 181); // Primary color
+        doc.text('Reporte de Eficiencia y Productividad', pageWidth / 2, 20, { align: 'center' });
+
+        // Congratulatory message
+        doc.setFontSize(16);
+        doc.setTextColor(34, 197, 94); // Emerald color
+        doc.setFont('helvetica', 'bolditalic');
+        doc.text('¡Muchas felicidades por el gran avance en tus objetivos!', pageWidth / 2, 32, { align: 'center' });
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100);
+        doc.setFontSize(10);
+        doc.text(`Generado el: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth / 2, 40, { align: 'center' });
+        doc.text(`Filtro aplicado: ${taskFilter === 'me' ? 'Mis Tareas' : taskFilter === 'all' ? 'Todo el Equipo' : 'Usuario Específico'}`, pageWidth / 2, 45, { align: 'center' });
+
+        // Summary section
+        doc.setDrawColor(200);
+        doc.line(14, 52, pageWidth - 14, 52);
+
+        doc.setFontSize(14);
+        doc.setTextColor(0);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Resumen General de Rendimiento', 14, 62);
+        
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`- Tareas Completadas: ${totalTasksCompleted}`, 20, 72);
+        doc.text(`- Puntualidad en Entregas: ${onTimePercentage}% (${totalOnTimeTasks} de ${totalTasksCompleted} a tiempo)`, 20, 78);
+        doc.text(`- Tiempo Total de Enfoque: ${formatDuration(totalTimeFocusedMs)}`, 20, 84);
+        doc.text(`- Ratio de Eficiencia Promedio: ${totalTasksCompleted > 0 ? formatDuration(totalTimeFocusedMs / totalTasksCompleted) : '0m'} por tarea`, 20, 90);
+
+        // List of tasks
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Auditoría Detallada de Tareas Finalizadas', 14, 105);
+
+        const tableData = completedTasks.map(task => {
+            const timeUsed = getTaskExecutionTime(task);
+            const isLate = task.dueDate && task.updatedAt && new Date(task.updatedAt).getTime() > new Date(task.dueDate + 'T23:59:59').getTime();
+            return [
+                task.title,
+                task.client || 'Sin Proyecto',
+                task.updatedAt ? format(new Date(task.updatedAt), 'dd/MM/yy HH:mm') : 'N/A',
+                formatDuration(timeUsed),
+                isLate ? 'FUERA DE PLAZO' : 'A TIEMPO'
+            ];
+        });
+
+        autoTable(doc, {
+            startY: 110,
+            head: [['Tarea / Descripción', 'Proyecto', 'Finalizada el', 'Tiempo Invertido', 'Cumplimiento']],
+            body: tableData.length > 0 ? tableData : [['No hay tareas registradas', '-', '-', '-', '-']],
+            theme: 'striped',
+            headStyles: { fillColor: [63, 81, 181], fontSize: 9, halign: 'center' },
+            bodyStyles: { fontSize: 8 },
+            columnStyles: {
+                0: { cellWidth: 70 },
+                1: { cellWidth: 35 },
+                2: { cellWidth: 30, halign: 'center' },
+                3: { cellWidth: 30, halign: 'center' },
+                4: { cellWidth: 25, halign: 'center' },
+            },
+        });
+
+        doc.save(`Reporte_Eficiencia_${format(new Date(), 'yyyyMMdd_HHmm')}.pdf`);
+    } catch (err) {
+        console.error("Error generating PDF:", err);
+    } finally {
+        setIsExporting(false);
+    }
   };
 
   return (
@@ -166,10 +266,22 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
             <h2 className="text-2xl font-bold">Análisis de Eficiencia</h2>
             <p className="text-muted-foreground">Métricas de cumplimiento y tiempo invertido en tareas completadas.</p>
         </div>
-        <div className="bg-muted p-1 rounded-lg">
-          <Button variant={period === 'day' ? 'secondary' : 'ghost'} size="sm" onClick={() => setPeriod('day')}>Día</Button>
-          <Button variant={period === 'week' ? 'secondary' : 'ghost'} size="sm" onClick={() => setPeriod('week')}>Semana</Button>
-          <Button variant={period === 'month' ? 'secondary' : 'ghost'} size="sm" onClick={() => setPeriod('month')}>Mes</Button>
+        <div className="flex flex-wrap items-center gap-4">
+            <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={exportToPDF} 
+                disabled={isExporting || completedTasks.length === 0}
+                className="gap-2 border-primary text-primary hover:bg-primary/5 h-9"
+            >
+                {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                Exportar Reporte PDF
+            </Button>
+            <div className="bg-muted p-1 rounded-lg flex h-9">
+              <Button variant={period === 'day' ? 'secondary' : 'ghost'} size="sm" onClick={() => setPeriod('day')}>Día</Button>
+              <Button variant={period === 'week' ? 'secondary' : 'ghost'} size="sm" onClick={() => setPeriod('week')}>Semana</Button>
+              <Button variant={period === 'month' ? 'secondary' : 'ghost'} size="sm" onClick={() => setPeriod('month')}>Mes</Button>
+            </div>
         </div>
       </div>
       
@@ -181,7 +293,7 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
             </CardHeader>
             <CardContent>
                 <div className="text-3xl font-bold">{totalTasksCompleted}</div>
-                <p className="text-xs text-muted-foreground mt-1">En el período seleccionado</p>
+                <p className="text-xs text-muted-foreground mt-1">Total de logros alcanzados</p>
             </CardContent>
         </Card>
         <Card className={cn("border-l-4", onTimePercentage >= 80 ? "border-l-emerald-500" : "border-l-amber-500")}>
@@ -191,7 +303,7 @@ export default function AnalyticsView({ taskFilter }: AnalyticsViewProps) {
             </CardHeader>
             <CardContent>
                 <div className="text-3xl font-bold">{onTimePercentage}%</div>
-                <p className="text-xs text-muted-foreground mt-1">{totalOnTimeTasks} de {totalTasksCompleted} entregadas a tiempo</p>
+                <p className="text-xs text-muted-foreground mt-1">{totalOnTimeTasks} de {totalTasksCompleted} a tiempo</p>
             </CardContent>
         </Card>
         <Card className="border-l-4 border-l-accent">
