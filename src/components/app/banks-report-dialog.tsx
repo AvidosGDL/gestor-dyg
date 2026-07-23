@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, FileText, Calendar as CalendarIcon, CheckSquare, Square } from 'lucide-react';
+import { Loader2, FileText, Calendar as CalendarIcon, CheckSquare, Square, FileSpreadsheet } from 'lucide-react';
 import { format, parseISO, isWithinInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useFirestore } from '@/firebase';
@@ -16,6 +16,7 @@ import { collection, query, getDocs, orderBy, where } from 'firebase/firestore';
 import type { BankAccount, BankTransaction } from '@/lib/types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 interface BanksReportDialogProps {
   isOpen: boolean;
@@ -47,7 +48,7 @@ export default function BanksReportDialog({ isOpen, onOpenChange, bankAccounts }
     }
 
     setIsGenerating(true);
-    toast({ title: 'Generando reporte...', description: 'Consultando movimientos de los bancos seleccionados.' });
+    toast({ title: 'Generando reporte PDF...', description: 'Consultando movimientos de los bancos seleccionados.' });
 
     try {
       const doc = new jsPDF();
@@ -130,7 +131,7 @@ export default function BanksReportDialog({ isOpen, onOpenChange, bankAccounts }
       }
 
       doc.save(`Reporte_Bancos_${startDate}_a_${endDate}.pdf`);
-      toast({ title: 'Reporte generado', description: 'El archivo PDF se ha descargado correctamente.' });
+      toast({ title: 'Reporte PDF generado', description: 'El archivo se ha descargado correctamente.' });
       onOpenChange(false);
     } catch (error: any) {
       console.error(error);
@@ -140,11 +141,95 @@ export default function BanksReportDialog({ isOpen, onOpenChange, bankAccounts }
     }
   };
 
+  const generateExcel = async () => {
+    if (selectedBankIds.length === 0) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Selecciona al menos un banco.' });
+      return;
+    }
+
+    setIsGenerating(true);
+    toast({ title: 'Generando reporte Excel...', description: 'Consultando y procesando movimientos.' });
+
+    try {
+      const allReportData = [];
+
+      for (const bankId of selectedBankIds) {
+        const bank = bankAccounts.find(b => b.id === bankId);
+        if (!bank) continue;
+
+        // Fetch transactions for this bank
+        const transactionsRef = collection(firestore, `banks/${bankId}/transactions`);
+        const q = query(transactionsRef, orderBy('date', 'asc'));
+        const snap = await getDocs(q);
+        
+        const allTransactions = snap.docs.map(d => ({ id: d.id, ...d.data() } as BankTransaction));
+        
+        // Filter by date range
+        const periodTxs = allTransactions.filter(tx => {
+            const txDate = parseISO(tx.date);
+            return isWithinInterval(txDate, {
+                start: parseISO(startDate + 'T00:00:00'),
+                end: parseISO(endDate + 'T23:59:59')
+            });
+        });
+
+        const identifier = bank.accountNumber || bank.clabe || bank.cardNumber || 'N/A';
+
+        periodTxs.forEach(tx => {
+          allReportData.push({
+            'Fecha': format(parseISO(tx.date), 'dd/MM/yyyy'),
+            'Empresa': bank.companyName,
+            'Banco': bank.bankName,
+            'Identificador de Cuenta': identifier,
+            'Descripción': tx.description,
+            'Tipo': tx.type === 'ingreso' ? 'Ingreso' : 'Egreso',
+            'Monto': tx.amount,
+            'Categorías': tx.categories?.join(', ') || '',
+            'Usuario': tx.createdBy || 'Sistema'
+          });
+        });
+      }
+
+      if (allReportData.length === 0) {
+        toast({ title: 'Sin movimientos', description: 'No se encontraron transacciones en el periodo seleccionado para los bancos elegidos.' });
+        setIsGenerating(false);
+        return;
+      }
+
+      const worksheet = XLSX.utils.json_to_sheet(allReportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Movimientos Bancarios");
+      
+      // Fix column widths for better manageability
+      const wscols = [
+        { wch: 12 }, // Fecha
+        { wch: 25 }, // Empresa
+        { wch: 20 }, // Banco
+        { wch: 22 }, // Identificador
+        { wch: 45 }, // Descripción
+        { wch: 12 }, // Tipo
+        { wch: 15 }, // Monto
+        { wch: 30 }, // Categorías
+        { wch: 20 }  // Usuario
+      ];
+      worksheet['!cols'] = wscols;
+
+      XLSX.writeFile(workbook, `Gestor_DyG_Reporte_Bancos_${startDate}_a_${endDate}.xlsx`);
+      toast({ title: 'Reporte Excel generado', description: 'El archivo se ha descargado correctamente.' });
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error(error);
+      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo generar el archivo Excel.' });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Generar Reporte PDF</DialogTitle>
+          <DialogTitle>Generar Reporte de Movimientos</DialogTitle>
           <DialogDescription>
             Selecciona el periodo y las cuentas bancarias que deseas incluir en el reporte detallado.
           </DialogDescription>
@@ -189,12 +274,18 @@ export default function BanksReportDialog({ isOpen, onOpenChange, bankAccounts }
           </div>
         </div>
 
-        <DialogFooter className="pt-4 border-t">
+        <DialogFooter className="pt-4 border-t gap-2 sm:gap-0">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={generatePDF} disabled={isGenerating}>
-            {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-            Generar Reporte PDF
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={generateExcel} disabled={isGenerating} className="gap-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50">
+                {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+                Exportar Excel
+            </Button>
+            <Button onClick={generatePDF} disabled={isGenerating} className="gap-2">
+                {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                Generar PDF
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
