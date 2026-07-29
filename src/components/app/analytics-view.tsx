@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval, isWithinInterval, subDays, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { TrendingUp, CheckCircle2, Clock, CalendarCheck, Zap, AlertTriangle, FileText, Download } from 'lucide-react';
+import { TrendingUp, CheckCircle2, Clock, CalendarCheck, Zap, AlertTriangle, FileText, Download, Loader2 } from 'lucide-react';
 import { ChartContainer, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
