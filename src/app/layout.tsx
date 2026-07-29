@@ -16,7 +16,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Versión de sincronización de Chunks (Corrigiendo ChunkLoadError): 2024-07-17T06:00:00Z
+  // Versión de sincronización de Chunks (Corrigiendo ChunkLoadError): 2024-07-18T10:00:00Z
   return (
     <html lang="es" suppressHydrationWarning>
       <head>
