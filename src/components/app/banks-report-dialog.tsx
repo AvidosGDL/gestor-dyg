@@ -120,6 +120,14 @@ export default function BanksReportDialog({ isOpen, onOpenChange, bankAccounts }
           headStyles: { fillColor: [63, 81, 181] },
           margin: { left: 14, right: 14 },
           styles: { fontSize: 7 },
+          columnStyles: {
+            0: { cellWidth: 20 },
+            1: { cellWidth: 45 },
+            2: { cellWidth: 35 },
+            3: { cellWidth: 25 },
+            4: { cellWidth: 15 },
+            5: { cellWidth: 25, halign: 'right' },
+          },
           didDrawPage: (data) => {
             currentY = data.cursor ? data.cursor.y + 15 : 20;
           }

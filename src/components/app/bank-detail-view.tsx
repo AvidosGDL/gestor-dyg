@@ -238,7 +238,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                 <div className="bg-muted/30 p-4 rounded-xl space-y-4 border border-border">
                     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         <div className="space-y-1.5">
-                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Búsqueda / Categoría</Label>
+                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Búsqueda (Desc, Empresa, Factura)</Label>
                             <div className="relative">
                                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                                 <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Descripción, empresa o factura..." className="pl-8 h-8 text-xs" />
@@ -299,7 +299,9 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                         <TableRow>
                             {canReorder && <TableHead className="w-10"></TableHead>}
                             <TableHead>Fecha</TableHead>
-                            <TableHead>Descripción / Detalles</TableHead>
+                            <TableHead>Descripción / Categorías</TableHead>
+                            <TableHead>Empresa Rel.</TableHead>
+                            <TableHead>Factura / Ref.</TableHead>
                             <TableHead>Tipo</TableHead>
                             <TableHead className="text-right">Monto</TableHead>
                             <TableHead>Usuario</TableHead>
@@ -309,7 +311,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                     <TableBody>
                         {transactionsLoading && (
                             <TableRow>
-                                <TableCell colSpan={canReorder ? 7 : 6} className="text-center p-8">
+                                <TableCell colSpan={canReorder ? 9 : 8} className="text-center p-8">
                                     <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                                 </TableCell>
                             </TableRow>
@@ -350,25 +352,11 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                                 <TableCell>
                                     <div className="space-y-1">
                                         <div className="flex items-center gap-2">
-                                            <span className="font-medium">{tx.description}</span>
+                                            <span className="font-medium text-sm">{tx.description}</span>
                                             {tx.isAdjustment && (
                                                 <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-[9px] h-4 py-0 flex gap-1 items-center">
-                                                    <AlertCircle size={10} /> Pendiente de Conciliar
+                                                    <AlertCircle size={10} /> Pendiente
                                                 </Badge>
-                                            )}
-                                        </div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {tx.entityName && (
-                                                <div className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/50 px-1.5 rounded-sm">
-                                                    <Building2 size={10} />
-                                                    {tx.entityName}
-                                                </div>
-                                            )}
-                                            {tx.invoiceReference && (
-                                                <div className="flex items-center gap-1 text-[10px] text-primary/70 bg-primary/5 px-1.5 rounded-sm border border-primary/10">
-                                                    <FileText size={10} />
-                                                    {tx.invoiceReference}
-                                                </div>
                                             )}
                                         </div>
                                         {tx.categories && tx.categories.length > 0 && (
@@ -383,11 +371,29 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                                     </div>
                                 </TableCell>
                                 <TableCell>
-                                    <span className={`font-semibold ${tx.type === 'ingreso' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                    {tx.entityName ? (
+                                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/40 p-1 px-2 rounded-md border border-border/40 w-fit">
+                                            <Building2 size={12} />
+                                            <span className="truncate max-w-[120px]">{tx.entityName}</span>
+                                        </div>
+                                    ) : '-'}
+                                </TableCell>
+                                <TableCell>
+                                    {tx.invoiceReference ? (
+                                        <div className="flex items-center gap-1.5 text-[11px] text-primary/80 bg-primary/5 p-1 px-2 rounded-md border border-primary/10 w-fit">
+                                            <FileText size={12} />
+                                            <span className="truncate max-w-[100px] font-mono font-medium">{tx.invoiceReference}</span>
+                                        </div>
+                                    ) : '-'}
+                                </TableCell>
+                                <TableCell>
+                                    <span className={`text-xs font-semibold ${tx.type === 'ingreso' ? 'text-emerald-600' : 'text-rose-600'}`}>
                                         {tx.type === 'ingreso' ? 'Ingreso' : 'Egreso'}
                                     </span>
                                 </TableCell>
-                                <TableCell className="text-right font-mono font-bold">${(tx.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                <TableCell className="text-right font-mono font-bold text-sm">
+                                    ${(tx.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
                                 <TableCell>
                                     <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                                         <User size={10} />
@@ -429,7 +435,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                         ))}
                          {!transactionsLoading && sortedAndFilteredTransactions.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={canReorder ? 7 : 6} className="text-center h-24 text-muted-foreground">
+                                <TableCell colSpan={canReorder ? 9 : 8} className="text-center h-24 text-muted-foreground">
                                     {rawTransactions?.length === 0 ? 'No hay transacciones registradas.' : 'No se encontraron movimientos con los filtros aplicados.'}
                                 </TableCell>
                             </TableRow>
