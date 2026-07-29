@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -105,18 +106,20 @@ export default function BanksReportDialog({ isOpen, onOpenChange, bankAccounts }
         const tableData = periodTxs.map(tx => [
           format(parseISO(tx.date), 'dd/MM/yyyy'),
           tx.description,
+          tx.entityName || '-',
+          tx.invoiceReference || '-',
           tx.type === 'ingreso' ? 'Ingreso' : 'Egreso',
           `$${tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
         ]);
 
         autoTable(doc, {
           startY: currentY,
-          head: [['Fecha', 'Descripción', 'Tipo', 'Monto']],
-          body: tableData.length > 0 ? tableData : [['-', 'No hay movimientos en este periodo', '-', '-']],
+          head: [['Fecha', 'Descripción', 'Empresa Rel.', 'Factura', 'Tipo', 'Monto']],
+          body: tableData.length > 0 ? tableData : [['-', 'No hay movimientos en este periodo', '-', '-', '-', '-']],
           theme: 'striped',
           headStyles: { fillColor: [63, 81, 181] },
           margin: { left: 14, right: 14 },
-          styles: { fontSize: 8 },
+          styles: { fontSize: 7 },
           didDrawPage: (data) => {
             currentY = data.cursor ? data.cursor.y + 15 : 20;
           }
@@ -178,10 +181,12 @@ export default function BanksReportDialog({ isOpen, onOpenChange, bankAccounts }
         periodTxs.forEach(tx => {
           allReportData.push({
             'Fecha': format(parseISO(tx.date), 'dd/MM/yyyy'),
-            'Empresa': bank.companyName,
+            'Empresa Propietaria': bank.companyName,
             'Banco': bank.bankName,
             'Identificador de Cuenta': identifier,
             'Descripción': tx.description,
+            'Empresa Relacionada': tx.entityName || '',
+            'Factura / Referencia': tx.invoiceReference || '',
             'Tipo': tx.type === 'ingreso' ? 'Ingreso' : 'Egreso',
             'Monto': tx.amount,
             'Categorías': tx.categories?.join(', ') || '',
@@ -203,10 +208,12 @@ export default function BanksReportDialog({ isOpen, onOpenChange, bankAccounts }
       // Fix column widths for better manageability
       const wscols = [
         { wch: 12 }, // Fecha
-        { wch: 25 }, // Empresa
+        { wch: 25 }, // Empresa Prop
         { wch: 20 }, // Banco
         { wch: 22 }, // Identificador
-        { wch: 45 }, // Descripción
+        { wch: 40 }, // Descripción
+        { wch: 25 }, // Empresa Rel
+        { wch: 20 }, // Factura
         { wch: 12 }, // Tipo
         { wch: 15 }, // Monto
         { wch: 30 }, // Categorías

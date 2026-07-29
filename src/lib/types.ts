@@ -180,6 +180,8 @@ export interface BankTransaction {
   categories?: string[];
   sortOrder?: number;
   isAdjustment?: boolean;
+  entityName?: string; // New field: The company related to the transaction
+  invoiceReference?: string; // New field: Reference or Invoice ID
 }
 
 export interface Project {

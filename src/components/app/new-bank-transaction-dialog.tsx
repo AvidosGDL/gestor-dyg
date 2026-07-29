@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -15,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { DollarSign, Loader2, Calendar as CalendarIcon, Tag, X, Plus } from 'lucide-react';
+import { DollarSign, Loader2, Calendar as CalendarIcon, Tag, X, Plus, Building2, FileText } from 'lucide-react';
 import { useBanks } from '@/contexts/banks-context';
 import { useToast } from '@/hooks/use-toast';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
@@ -34,6 +35,8 @@ const transactionSchema = z.object({
   amount: z.coerce.number().min(0.01, 'El monto debe ser mayor a 0').max(999999999999.99),
   type: z.enum(['ingreso', 'egreso'], { required_error: 'Debes seleccionar un tipo de transacción.' }),
   categories: z.array(z.string()).optional(),
+  entityName: z.string().optional(),
+  invoiceReference: z.string().optional(),
 });
 
 type TransactionFormValues = z.infer<typeof transactionSchema>;
@@ -55,6 +58,8 @@ const defaultValues: TransactionFormValues = {
     amount: 0,
     type: 'egreso',
     categories: [],
+    entityName: '',
+    invoiceReference: '',
 };
 
 interface NewBankTransactionDialogProps {
@@ -79,6 +84,7 @@ export default function NewBankTransactionDialog({
   });
 
   const selectedCategories = form.watch('categories') || [];
+  const selectedType = form.watch('type');
 
   useEffect(() => {
     if(!isOpen) {
@@ -125,7 +131,7 @@ export default function NewBankTransactionDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-xl max-h-[95vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Agregar Nueva Transacción</DialogTitle>
           <DialogDescription>
@@ -251,12 +257,45 @@ export default function NewBankTransactionDialog({
               />
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="entityName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{selectedType === 'ingreso' ? 'Empresa / Cliente que deposita' : 'Empresa / Proveedor a pagar'}</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Building2 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        <Input {...field} className="pl-9" placeholder="Nombre opcional..." disabled={form.formState.isSubmitting} />
+                      </div>
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="invoiceReference"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Referencia / Factura</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <FileText size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        <Input {...field} className="pl-9" placeholder="ID de factura opcional..." disabled={form.formState.isSubmitting} />
+                      </div>
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <FormField
               control={form.control}
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Descripción</FormLabel>
+                  <FormLabel>Descripción de Concepto</FormLabel>
                   <FormControl>
                     <Textarea {...field} placeholder="Ej. Pago a proveedor, depósito de cliente..." disabled={form.formState.isSubmitting} />
                   </FormControl>

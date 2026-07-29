@@ -6,7 +6,7 @@ import { useBanks } from '@/contexts/banks-context';
 import type { BankAccount, BankTransaction } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit, Search, Filter, X, Tag, ExternalLink, Copy, Check, ArrowUp, ArrowDown, ChevronUp, ChevronDown, FileSpreadsheet, AlertCircle, Lightbulb } from 'lucide-react';
+import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit, Search, Filter, X, Tag, ExternalLink, Copy, Check, ArrowUp, ArrowDown, ChevronUp, ChevronDown, FileSpreadsheet, AlertCircle, Lightbulb, Building2, FileText } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
@@ -75,6 +75,8 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
     // 2. Aplicar filtros del usuario
     return sorted.filter(tx => {
         const matchesSearch = tx.description.toLowerCase().includes(search.toLowerCase()) || 
+                             (tx.entityName?.toLowerCase().includes(search.toLowerCase())) ||
+                             (tx.invoiceReference?.toLowerCase().includes(search.toLowerCase())) ||
                              (tx.categories?.some(c => c.toLowerCase().includes(search.toLowerCase())));
         const matchesType = typeFilter === 'all' || tx.type === typeFilter;
         const matchesUser = (tx.createdBy || '').toLowerCase().includes(userSearch.toLowerCase());
@@ -239,7 +241,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Búsqueda / Categoría</Label>
                             <div className="relative">
                                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                                <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Descripción o categoría..." className="pl-8 h-8 text-xs" />
+                                <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Descripción, empresa o factura..." className="pl-8 h-8 text-xs" />
                             </div>
                         </div>
                         <div className="space-y-1.5">
@@ -297,7 +299,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                         <TableRow>
                             {canReorder && <TableHead className="w-10"></TableHead>}
                             <TableHead>Fecha</TableHead>
-                            <TableHead>Descripción / Categorías</TableHead>
+                            <TableHead>Descripción / Detalles</TableHead>
                             <TableHead>Tipo</TableHead>
                             <TableHead className="text-right">Monto</TableHead>
                             <TableHead>Usuario</TableHead>
@@ -353,6 +355,20 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                                                 <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-[9px] h-4 py-0 flex gap-1 items-center">
                                                     <AlertCircle size={10} /> Pendiente de Conciliar
                                                 </Badge>
+                                            )}
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {tx.entityName && (
+                                                <div className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/50 px-1.5 rounded-sm">
+                                                    <Building2 size={10} />
+                                                    {tx.entityName}
+                                                </div>
+                                            )}
+                                            {tx.invoiceReference && (
+                                                <div className="flex items-center gap-1 text-[10px] text-primary/70 bg-primary/5 px-1.5 rounded-sm border border-primary/10">
+                                                    <FileText size={10} />
+                                                    {tx.invoiceReference}
+                                                </div>
                                             )}
                                         </div>
                                         {tx.categories && tx.categories.length > 0 && (
