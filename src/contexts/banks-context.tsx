@@ -1,8 +1,7 @@
-
 'use client';
 
 import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
-import type { BankAccount, BankTransaction, Attachment, UserProfile } from '@/lib/types';
+import type { BankAccount, BankTransaction, Attachment, UserProfile, HistoryDeletionAudit } from '@/lib/types';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import {
   collection,
@@ -20,7 +19,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
 
-type BankAccountFormValues = Omit<BankAccount, 'id' | 'currentBalance' | 'logoUrl'>;
+type BankAccountFormValues = Omit<BankAccount, 'id' | 'currentBalance' | 'logoUrl' | 'lastHistoryDeletion'>;
 
 interface BanksContextType {
   bankAccounts: BankAccount[];
@@ -34,6 +33,7 @@ interface BanksContextType {
   batchAddConciliatedTransactions: (bankAccountId: string, transactions: Omit<BankTransaction, 'id' | 'source' | 'attachments' | 'createdBy' | 'sortOrder'>[]) => Promise<void>;
   reconcileBalance: (bankAccountId: string, targetDate: string, targetBalance: number) => Promise<void>;
   swapTransactions: (bankAccountId: string, t1: BankTransaction, t2: BankTransaction) => Promise<void>;
+  clearTransactionHistory: (bankAccountId: string) => Promise<void>;
   loading: boolean;
 }
 
@@ -363,6 +363,45 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const clearTransactionHistory = async (bankAccountId: string) => {
+    if (!firestore || !collectionPath || !user) return;
+    const bankAccountRef = doc(firestore, collectionPath, bankAccountId);
+    const transactionsRef = collection(firestore, `${collectionPath}/${bankAccountId}/transactions`);
+    
+    try {
+      const bankAccountSnap = await getDoc(bankAccountRef);
+      if (!bankAccountSnap.exists()) throw new Error("La cuenta no existe.");
+      const accountData = bankAccountSnap.data() as BankAccount;
+
+      // Restablecer el saldo actual al inicial
+      const resetBalance = Number(accountData.initialBalance || 0);
+      const audit: HistoryDeletionAudit = {
+        deletedAt: new Date().toISOString(),
+        deletedBy: user.displayName || user.email || 'Desconocido',
+      };
+
+      const batch = writeBatch(firestore);
+      
+      // Obtener todas las transacciones para borrar
+      const transactionsSnap = await getDocs(transactionsRef);
+      transactionsSnap.forEach((txDoc) => {
+        batch.delete(txDoc.ref);
+      });
+
+      // Actualizar cuenta con auditoría y nuevo saldo
+      batch.update(bankAccountRef, {
+        currentBalance: resetBalance,
+        lastHistoryDeletion: audit,
+      });
+
+      await batch.commit();
+      toast({ title: 'Historial eliminado', description: 'Todas las transacciones han sido borradas y el saldo restablecido.' });
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error al limpiar historial', description: error.message });
+      throw error;
+    }
+  };
+
   const contextValue = {
     bankAccounts: bankAccounts || [],
     loading,
@@ -376,6 +415,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     batchAddConciliatedTransactions,
     reconcileBalance,
     swapTransactions,
+    clearTransactionHistory,
   };
 
   return <BanksContext.Provider value={contextValue}>{children}</BanksContext.Provider>;

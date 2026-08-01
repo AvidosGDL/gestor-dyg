@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -6,7 +5,7 @@ import { useBanks } from '@/contexts/banks-context';
 import type { BankAccount, BankTransaction } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit, Search, Filter, X, Tag, ExternalLink, Copy, Check, ArrowUp, ArrowDown, ChevronUp, ChevronDown, FileSpreadsheet, AlertCircle, Lightbulb, Building2, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit, Search, Filter, X, Tag, ExternalLink, Copy, Check, ArrowUp, ArrowDown, ChevronUp, ChevronDown, FileSpreadsheet, AlertCircle, Lightbulb, Building2, FileText, History } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
@@ -30,7 +29,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 
 export default function BankDetailView({ bankAccount, onBack }: { bankAccount: BankAccount, onBack: () => void }) {
   const firestore = useFirestore();
-  const { deleteBankTransaction, swapTransactions } = useBanks();
+  const { deleteBankTransaction, swapTransactions, clearTransactionHistory } = useBanks();
   const { toast } = useToast();
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -41,6 +40,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
   const [editingTransaction, setEditingTransaction] = useState<BankTransaction | null>(null);
   const [copied, setCopied] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   // Filtros
   const [search, setSearch] = useState('');
@@ -131,6 +131,13 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
     setIsMoving(false);
   };
 
+  const handleDeleteHistory = async () => {
+    try {
+      await clearTransactionHistory(bankAccount.id);
+      setDeleteConfirmText('');
+    } catch (e) {}
+  };
+
   const canReorder = search === '' && typeFilter === 'all' && startDate === '' && endDate === '' && userSearch === '' && minAmount === '' && maxAmount === '';
 
   return (
@@ -146,43 +153,81 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                     <p className="text-sm text-muted-foreground">{bankAccount.bankName} | Terminación: {displayIdentifier}</p>
                 </div>
             </div>
-            {(bankAccount.portalUrl || bankAccount.portalPasswordTip) && (
-                <div className="flex items-center gap-4 bg-muted/50 p-2 px-4 rounded-xl border border-border">
-                    <div className="flex flex-col items-end">
-                        <span className="text-[9px] uppercase font-bold text-muted-foreground">Acceso Directo</span>
-                        <div className="flex items-center gap-3 mt-1">
-                            {bankAccount.portalPasswordTip && (
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Badge variant="outline" className="h-7 cursor-help border-amber-200 bg-amber-50 text-amber-700 flex gap-1.5 px-2">
-                                                <Lightbulb size={12}/>
-                                                <span className="text-[10px]">Tip Contraseña</span>
-                                            </Badge>
-                                        </TooltipTrigger>
-                                        <TooltipContent className="bg-amber-50 text-amber-900 border-amber-200 max-w-[200px]">
-                                            <p className="text-xs font-medium">{bankAccount.portalPasswordTip}</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                            )}
-                            {bankAccount.portalUser && (
-                                <Button variant="secondary" size="sm" className="h-7 text-xs gap-1.5" onClick={() => copyToClipboard(bankAccount.portalUser!)}>
-                                    {copied ? <Check size={12} className="text-emerald-500"/> : <Copy size={12}/>}
-                                    <span className="font-mono">{bankAccount.portalUser}</span>
-                                </Button>
-                            )}
-                            {bankAccount.portalUrl && (
-                                <Button size="sm" className="h-7 gap-2" asChild>
-                                    <a href={bankAccount.portalUrl} target="_blank" rel="noopener noreferrer">
-                                        <ExternalLink size={14}/> Ir al Banco
-                                    </a>
-                                </Button>
-                            )}
+            <div className="flex items-center gap-4">
+                <AlertDialog onOpenChange={() => setDeleteConfirmText('')}>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8 text-xs gap-2 border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700">
+                            <Trash2 size={14} /> Limpiar Historial
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>¿Limpiar todo el historial?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Esta acción eliminará permanentemente **todas** las transacciones de esta cuenta y restablecerá el saldo al valor inicial. Esta operación no se puede deshacer.
+                                <br /><br />
+                                Para confirmar, escribe <strong className="text-foreground uppercase">BORRAR</strong> a continuación:
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <div className="py-4">
+                            <Input 
+                                value={deleteConfirmText} 
+                                onChange={(e) => setDeleteConfirmText(e.target.value)} 
+                                placeholder='Escribe "BORRAR"' 
+                                className="uppercase"
+                            />
+                        </div>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction 
+                                onClick={handleDeleteHistory}
+                                disabled={deleteConfirmText !== 'BORRAR'}
+                                className="bg-destructive hover:bg-destructive/90"
+                            >
+                                Confirmar Borrado Masivo
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+
+                {(bankAccount.portalUrl || bankAccount.portalPasswordTip) && (
+                    <div className="flex items-center gap-4 bg-muted/50 p-2 px-4 rounded-xl border border-border">
+                        <div className="flex flex-col items-end">
+                            <span className="text-[9px] uppercase font-bold text-muted-foreground">Acceso Directo</span>
+                            <div className="flex items-center gap-3 mt-1">
+                                {bankAccount.portalPasswordTip && (
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Badge variant="outline" className="h-7 cursor-help border-amber-200 bg-amber-50 text-amber-700 flex gap-1.5 px-2">
+                                                    <Lightbulb size={12}/>
+                                                    <span className="text-[10px]">Tip Contraseña</span>
+                                                </Badge>
+                                            </TooltipTrigger>
+                                            <TooltipContent className="bg-amber-50 text-amber-900 border-amber-200 max-w-[200px]">
+                                                <p className="text-xs font-medium">{bankAccount.portalPasswordTip}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                )}
+                                {bankAccount.portalUser && (
+                                    <Button variant="secondary" size="sm" className="h-7 text-xs gap-1.5" onClick={() => copyToClipboard(bankAccount.portalUser!)}>
+                                        {copied ? <Check size={12} className="text-emerald-500"/> : <Copy size={12}/>}
+                                        <span className="font-mono">{bankAccount.portalUser}</span>
+                                    </Button>
+                                )}
+                                {bankAccount.portalUrl && (
+                                    <Button size="sm" className="h-7 gap-2" asChild>
+                                        <a href={bankAccount.portalUrl} target="_blank" rel="noopener noreferrer">
+                                            <ExternalLink size={14}/> Ir al Banco
+                                        </a>
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -446,19 +491,49 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
             </CardContent>
         </Card>
 
-        <Card className="shrink-0">
-            <CardHeader className="py-4">
-                <CardTitle className="text-base">Conciliación Bancaria con IA</CardTitle>
-                <CardDescription className="text-xs">
-                    Sube tu estado de cuenta mensual en PDF para compararlo con las transacciones registradas y encontrar discrepancias.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="pb-4">
-                <Button size="sm" onClick={() => setIsConciliateOpen(true)}>
-                    <FileCheck2 className="mr-2 h-4 w-4"/> Iniciar Conciliación
-                </Button>
-            </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 shrink-0">
+            <Card>
+                <CardHeader className="py-4">
+                    <CardTitle className="text-base">Conciliación Bancaria con IA</CardTitle>
+                    <CardDescription className="text-xs">
+                        Sube tu estado de cuenta mensual en PDF para compararlo con las transacciones registradas y encontrar discrepancias.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="pb-4">
+                    <Button size="sm" onClick={() => setIsConciliateOpen(true)}>
+                        <FileCheck2 className="mr-2 h-4 w-4"/> Iniciar Conciliación
+                    </Button>
+                </CardContent>
+            </Card>
+
+            <Card className="bg-muted/10">
+                <CardHeader className="py-4">
+                    <CardTitle className="text-base flex items-center gap-2">
+                        <History size={16} /> Auditoría de Limpieza
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                        Último borrado masivo de historial realizado en esta cuenta.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="pb-4">
+                    {bankAccount.lastHistoryDeletion ? (
+                        <div className="space-y-1 text-xs">
+                            <p className="font-semibold text-rose-600 flex items-center gap-1.5">
+                                <AlertCircle size={14} /> Historial limpiado por seguridad
+                            </p>
+                            <p className="text-muted-foreground">
+                                <strong>Fecha:</strong> {format(new Date(bankAccount.lastHistoryDeletion.deletedAt), "PPP 'a las' HH:mm", { locale: es })}
+                            </p>
+                            <p className="text-muted-foreground">
+                                <strong>Usuario:</strong> {bankAccount.lastHistoryDeletion.deletedBy}
+                            </p>
+                        </div>
+                    ) : (
+                        <p className="text-xs text-muted-foreground italic">No se han realizado borrados masivos recientemente.</p>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
       </div>
 
       <NewBankTransactionDialog

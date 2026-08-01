@@ -1,4 +1,3 @@
-
 export type TaskStatus =
   | 'pendiente'
   | 'en-progreso'
@@ -152,6 +151,11 @@ export interface Investor {
   liquidationDate?: string | null;
 }
 
+export interface HistoryDeletionAudit {
+  deletedAt: string;
+  deletedBy: string;
+}
+
 export interface BankAccount {
   id: string;
   companyName: string;
@@ -166,6 +170,7 @@ export interface BankAccount {
   portalUrl?: string;
   portalUser?: string;
   portalPasswordTip?: string;
+  lastHistoryDeletion?: HistoryDeletionAudit;
 }
 
 export interface BankTransaction {
