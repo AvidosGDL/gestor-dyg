@@ -20,6 +20,7 @@ import {
   History,
   Pencil,
   Send,
+  Repeat,
 } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus, TeamMember, EditLogEntry, UserProfile } from '@/lib/types';
@@ -215,7 +216,20 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
           </div>
         )}
         <div className="grid grid-cols-[1fr_auto] items-start gap-x-2">
-            <div></div>
+            <div>
+              {task.isRecurring && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Repeat size={14} className="text-primary mb-1" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">Tarea Recurrente ({task.recurrenceConfig?.frequency})</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </div>
              
             <div className="flex gap-1 justify-self-end">
                 {task.status !== 'completado' ? (

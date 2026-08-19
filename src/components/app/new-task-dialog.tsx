@@ -23,18 +23,24 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useTasks } from '@/contexts/tasks-context';
-import { DollarSign, Users, Calendar as CalendarIcon, Loader2, Paperclip, X } from 'lucide-react';
+import { DollarSign, Users, Calendar as CalendarIcon, Loader2, Paperclip, X, Repeat } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Task, TeamMember, UserProfile } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, getDoc, query, where, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc } from 'firebase/firestore';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
 import { Calendar } from '../ui/calendar';
 import { Textarea } from '../ui/textarea';
+import { Switch } from '../ui/switch';
+import { Label } from '../ui/label';
+
+const recurrenceConfigSchema = z.object({
+  frequency: z.enum(['daily', 'weekly', 'monthly', 'yearly']),
+  interval: z.coerce.number().min(1),
+});
 
 const taskSchema = z.object({
   title: z.string().min(1, 'El título es requerido'),
@@ -47,6 +53,8 @@ const taskSchema = z.object({
   description: z.string().optional(),
   value: z.coerce.number().min(0),
   probability: z.coerce.number().min(0).max(100),
+  isRecurring: z.boolean().default(false),
+  recurrenceConfig: recurrenceConfigSchema.optional().nullable(),
 });
 
 type TaskFormValues = z.infer<typeof taskSchema>;
@@ -62,6 +70,11 @@ const defaultValues: Partial<TaskFormValues> = {
   description: '',
   value: 0,
   probability: 50,
+  isRecurring: false,
+  recurrenceConfig: {
+    frequency: 'monthly',
+    interval: 1,
+  },
 };
 
 interface NewTaskDialogProps {
@@ -85,6 +98,8 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
     resolver: zodResolver(taskSchema),
     defaultValues,
   });
+
+  const watchIsRecurring = form.watch('isRecurring');
 
   const myTeamCollectionPath = useMemo(() => {
     return user ? `users/${user.uid}/teamMembers` : null;
@@ -117,9 +132,6 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
             setBossProfiles(profiles);
           }
         }
-      } else {
-        setUserProfile(null);
-        setBossProfiles([]);
       }
     }
     if (open) {
@@ -178,7 +190,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Agregar Nueva Tarea</DialogTitle>
           <DialogDescription>
@@ -186,7 +198,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-6 pl-1">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pr-6 pl-1">
             <FormField
               control={form.control}
               name="title"
@@ -344,6 +356,66 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                 )}
               />
             </div>
+
+            <div className="p-4 bg-muted/30 rounded-xl border border-dashed border-primary/20 space-y-4">
+                <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                        <Label className="text-sm font-bold flex items-center gap-2">
+                            <Repeat size={16} className="text-primary"/>
+                            Configurar Repetición
+                        </Label>
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">Generar nueva tarea automáticamente al completar esta</p>
+                    </div>
+                    <FormField
+                        control={form.control}
+                        name="isRecurring"
+                        render={({ field }) => (
+                            <FormControl>
+                                <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                />
+                            </FormControl>
+                        )}
+                    />
+                </div>
+
+                {watchIsRecurring && (
+                    <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                        <FormField
+                            control={form.control}
+                            name="recurrenceConfig.frequency"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-xs">Frecuencia</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger></FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="daily">Diaria</SelectItem>
+                                            <SelectItem value="weekly">Semanal</SelectItem>
+                                            <SelectItem value="monthly">Mensual</SelectItem>
+                                            <SelectItem value="yearly">Anual</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="recurrenceConfig.interval"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-xs">Cada cuántos (Intervalo)</FormLabel>
+                                    <FormControl>
+                                        <Input type="number" {...field} className="h-8 text-xs" />
+                                    </FormControl>
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                )}
+            </div>
+
             <FormField
               control={form.control}
               name="delegateToData"

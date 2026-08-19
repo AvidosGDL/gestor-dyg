@@ -6,6 +6,13 @@ export type TaskStatus =
 export type TaskPriority = 'low' | 'medium' | 'high';
 export type DelegationStatus = 'pending' | 'accepted' | 'rejected' | null;
 
+export type RecurrenceFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+export interface RecurrenceConfig {
+  frequency: RecurrenceFrequency;
+  interval: number;
+}
+
 export interface FocusSession {
   startTime: string; // ISO 8601 string
   endTime: string;   // ISO 8601 string
@@ -57,6 +64,8 @@ export interface Task {
   lastOwnerUpdateTimestamp?: string; // ISO 8601 string for when the owner last interacted
   createdAt?: string; // ISO 8601 string for creation date
   editHistory?: EditLogEntry[];
+  isRecurring?: boolean;
+  recurrenceConfig?: RecurrenceConfig;
 }
 
 export interface TeamMember {

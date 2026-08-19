@@ -24,7 +24,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useTasks } from '@/contexts/tasks-context';
-import { DollarSign, Users, Paperclip, X, Timer, Play, Square, History, Clock, Calendar as CalendarIcon, Eye, Download, Loader2, ArrowRight, PlusCircle, UserCircle } from 'lucide-react';
+import { DollarSign, Users, Paperclip, X, Timer, Play, Square, History, Clock, Calendar as CalendarIcon, Eye, Download, Loader2, ArrowRight, PlusCircle, UserCircle, Repeat } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Task, TaskStatus, FocusSession, TeamMember, Attachment, EditLogEntry, UserProfile } from '@/lib/types';
@@ -40,12 +40,18 @@ import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebas
 import { collection, doc, getDoc } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Calendar } from '../ui/calendar';
+import { Switch } from '../ui/switch';
 
 const fileSchema = z.object({
   name: z.string(),
   type: z.string(),
   size: z.number(),
   url: z.string(),
+});
+
+const recurrenceConfigSchema = z.object({
+  frequency: z.enum(['daily', 'weekly', 'monthly', 'yearly']),
+  interval: z.coerce.number().min(1),
 });
 
 const taskSchema = z.object({
@@ -61,6 +67,8 @@ const taskSchema = z.object({
   probability: z.coerce.number().min(0).max(100),
   completionComment: z.string().optional(),
   attachments: z.array(fileSchema).optional(),
+  isRecurring: z.boolean().default(false),
+  recurrenceConfig: recurrenceConfigSchema.optional().nullable(),
 });
 
 type TaskFormValues = z.infer<typeof taskSchema>;
@@ -121,6 +129,8 @@ export default function EditTaskDialog({ open, onOpenChange, task }: { open: boo
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskSchema),
   });
+
+  const watchIsRecurring = form.watch('isRecurring');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
@@ -263,6 +273,8 @@ export default function EditTaskDialog({ open, onOpenChange, task }: { open: boo
             dueDate: task.dueDate ? task.dueDate.split('T')[0] : undefined,
             completionComment: task.completionComment || '',
             attachments: task.attachments || [],
+            isRecurring: task.isRecurring || false,
+            recurrenceConfig: task.recurrenceConfig || { frequency: 'monthly', interval: 1 },
         });
         setAttachedFiles([]); 
         setIsUploading(false);
@@ -339,7 +351,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: { open: boo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex justify-between items-start">
             <div>
@@ -367,7 +379,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: { open: boo
           </div>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[65vh] overflow-y-auto pr-6 pl-1 pt-4 border-t">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pr-6 pl-1 pt-4 border-t">
             <FormField
               control={form.control}
               name="title"
@@ -485,6 +497,66 @@ export default function EditTaskDialog({ open, onOpenChange, task }: { open: boo
                 )}
               />
             </div>
+
+            <div className="p-4 bg-muted/30 rounded-xl border border-dashed border-primary/20 space-y-4">
+                <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                        <Label className="text-sm font-bold flex items-center gap-2">
+                            <Repeat size={16} className="text-primary"/>
+                            Configurar Repetición
+                        </Label>
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">Generar nueva tarea automáticamente al completar esta</p>
+                    </div>
+                    <FormField
+                        control={form.control}
+                        name="isRecurring"
+                        render={({ field }) => (
+                            <FormControl>
+                                <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                />
+                            </FormControl>
+                        )}
+                    />
+                </div>
+
+                {watchIsRecurring && (
+                    <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                        <FormField
+                            control={form.control}
+                            name="recurrenceConfig.frequency"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-xs">Frecuencia</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value || 'monthly'}>
+                                        <FormControl><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger></FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="daily">Diaria</SelectItem>
+                                            <SelectItem value="weekly">Semanal</SelectItem>
+                                            <SelectItem value="monthly">Mensual</SelectItem>
+                                            <SelectItem value="yearly">Anual</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="recurrenceConfig.interval"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-xs">Cada cuántos (Intervalo)</FormLabel>
+                                    <FormControl>
+                                        <Input type="number" {...field} className="h-8 text-xs" />
+                                    </FormControl>
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                )}
+            </div>
+
              <FormField
               control={form.control}
               name="delegateToData"

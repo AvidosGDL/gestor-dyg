@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useMemo } from 'react';
-import type { Task, TeamMember, Attachment, EditLogEntry, ChangeDetail } from '@/lib/types';
+import type { Task, TeamMember, Attachment, EditLogEntry, ChangeDetail, RecurrenceConfig } from '@/lib/types';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import {
   collection,
@@ -23,6 +23,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
 import { User } from 'firebase/auth';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { addDays, addWeeks, addMonths, addYears, parseISO, format } from 'date-fns';
 
 
 interface TasksContextType {
@@ -69,6 +70,30 @@ async function sendDelegationEmail(firestore: any, user: User, task: Partial<Tas
         console.error('Error calling sendEmailTask:', emailError);
         return { success: false, error: emailError };
     }
+}
+
+function calculateNextOccurrenceDate(currentDateStr: string, config: RecurrenceConfig): string {
+    const currentDate = parseISO(currentDateStr);
+    let nextDate: Date;
+
+    switch (config.frequency) {
+        case 'daily':
+            nextDate = addDays(currentDate, config.interval);
+            break;
+        case 'weekly':
+            nextDate = addWeeks(currentDate, config.interval);
+            break;
+        case 'monthly':
+            nextDate = addMonths(currentDate, config.interval);
+            break;
+        case 'yearly':
+            nextDate = addYears(currentDate, config.interval);
+            break;
+        default:
+            nextDate = addMonths(currentDate, 1);
+    }
+
+    return format(nextDate, 'yyyy-MM-dd');
 }
 
 
@@ -131,6 +156,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       updatedAt: new Date().toISOString(),
       editHistory: [],
       attachments: [],
+      isRecurring: taskData.isRecurring || false,
+      recurrenceConfig: taskData.recurrenceConfig || null,
     };
     
     if (isDelegating && newTask.delegatedByName === (user.displayName || 'un administrador')) {
@@ -276,6 +303,33 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
     try {
         await updateDoc(docRef, finalData);
+        
+        // RECURRENCE LOGIC: If a recurring task is completed, generate next one
+        if (finalData.status === 'completado' && existingTask.isRecurring && existingTask.recurrenceConfig) {
+            const nextDueDate = calculateNextOccurrenceDate(existingTask.dueDate || format(new Date(), 'yyyy-MM-dd'), existingTask.recurrenceConfig);
+            
+            const nextTaskData = {
+                title: existingTask.title,
+                client: existingTask.client,
+                progress: 0,
+                priority: existingTask.priority,
+                dueDate: nextDueDate,
+                status: 'pendiente',
+                description: existingTask.description,
+                value: existingTask.value,
+                probability: existingTask.probability,
+                isRecurring: true,
+                recurrenceConfig: existingTask.recurrenceConfig,
+                delegateToData: existingTask.delegateToEmail && existingTask.delegateToId ? `${existingTask.delegateToEmail}|${existingTask.delegateToId}` : 'none'
+            };
+
+            await addTask(nextTaskData, user, []);
+            toast({
+                title: "Serie recurrente activa",
+                description: `Se ha generado la siguiente tarea para el ${format(parseISO(nextDueDate), 'dd/MM/yyyy')}.`
+            });
+        }
+
     } catch (error: any) {
         console.error("Error al actualizar Firestore:", error);
         toast({
