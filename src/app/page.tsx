@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -95,12 +94,12 @@ function Dashboard() {
 
 
   return (
-    <TasksProvider>
-      <ProspectsProvider>
-        <HistoryProvider>
-          <ChatProvider>
-            <InvestorsProvider>
-              <BanksProvider>
+    <BanksProvider>
+      <TasksProvider>
+        <ProspectsProvider>
+          <HistoryProvider>
+            <ChatProvider>
+              <InvestorsProvider>
                 <ProjectsProvider>
                   <SupportProvider>
                   {isImpersonating && (
@@ -190,12 +189,12 @@ function Dashboard() {
                   </SidebarProvider>
                   </SupportProvider>
                 </ProjectsProvider>
-              </BanksProvider>
-            </InvestorsProvider>
-          </ChatProvider>
-        </HistoryProvider>
-      </ProspectsProvider>
-    </TasksProvider>
+              </InvestorsProvider>
+            </ChatProvider>
+          </HistoryProvider>
+        </ProspectsProvider>
+      </TasksProvider>
+    </BanksProvider>
   );
 }
 
