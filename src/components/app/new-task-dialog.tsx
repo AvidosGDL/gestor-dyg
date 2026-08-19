@@ -23,7 +23,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useTasks } from '@/contexts/tasks-context';
-import { DollarSign, Users, Calendar as CalendarIcon, Loader2, Paperclip, X, Repeat } from 'lucide-react';
+import { DollarSign, Users, Calendar as CalendarIcon, Loader2, Paperclip, X, Repeat, Landmark, ArrowRightLeft } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Task, TeamMember, UserProfile } from '@/lib/types';
@@ -36,6 +36,7 @@ import { Calendar } from '../ui/calendar';
 import { Textarea } from '../ui/textarea';
 import { Switch } from '../ui/switch';
 import { Label } from '../ui/label';
+import { useBanks } from '@/contexts/banks-context';
 
 const recurrenceConfigSchema = z.object({
   frequency: z.enum(['daily', 'weekly', 'monthly', 'yearly']),
@@ -55,6 +56,8 @@ const taskSchema = z.object({
   probability: z.coerce.number().min(0).max(100),
   isRecurring: z.boolean().default(false),
   recurrenceConfig: recurrenceConfigSchema.optional().nullable(),
+  linkedBankAccountId: z.string().optional().nullable(),
+  financialMovementType: z.enum(['ingreso', 'egreso']).optional().nullable(),
 });
 
 type TaskFormValues = z.infer<typeof taskSchema>;
@@ -75,17 +78,21 @@ const defaultValues: Partial<TaskFormValues> = {
     frequency: 'monthly',
     interval: 1,
   },
+  linkedBankAccountId: null,
+  financialMovementType: null,
 };
 
 interface NewTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  defaultLinkedBankId?: string;
 }
 
-export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps) {
+export default function NewTaskDialog({ open, onOpenChange, defaultLinkedBankId }: NewTaskDialogProps) {
   const { addTask } = useTasks();
   const { user } = useUser();
   const firestore = useFirestore();
+  const { bankAccounts } = useBanks();
   const { toast } = useToast();
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -96,10 +103,15 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
 
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskSchema),
-    defaultValues,
+    defaultValues: {
+        ...defaultValues,
+        linkedBankAccountId: defaultLinkedBankId || null,
+        financialMovementType: defaultLinkedBankId ? 'egreso' : null,
+    },
   });
 
   const watchIsRecurring = form.watch('isRecurring');
+  const watchLinkedBank = form.watch('linkedBankAccountId');
 
   const myTeamCollectionPath = useMemo(() => {
     return user ? `users/${user.uid}/teamMembers` : null;
@@ -183,10 +195,14 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
 
   useEffect(() => {
     if (!open) {
-      form.reset(defaultValues);
+      form.reset({
+          ...defaultValues,
+          linkedBankAccountId: defaultLinkedBankId || null,
+          financialMovementType: defaultLinkedBankId ? 'egreso' : null,
+      });
       setAttachedFiles([]);
     }
-  }, [open, form]);
+  }, [open, form, defaultLinkedBankId]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -194,7 +210,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
         <DialogHeader>
           <DialogTitle>Agregar Nueva Tarea</DialogTitle>
           <DialogDescription>
-            Rellena los detalles de la nueva tarea o pendiente.
+            Rellena los detalles de la nueva tarea. Puedes programar repeticiones y vincularla a una cuenta bancaria.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -207,7 +223,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                   <FormLabel>Tarea</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Ej. Revisar el diseño del landing page"
+                      placeholder="Ej. Pago de Renta Oficina"
                       rows={2}
                       {...field}
                     />
@@ -222,7 +238,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                 name="client"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Proyecto / Cliente</FormLabel>
+                    <FormLabel>Proyecto / Cliente / Proveedor</FormLabel>
                     <FormControl>
                       <div className="relative">
                         <Users size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -255,14 +271,14 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                 name="value"
                 render={({ field: { onChange, value, ...restField } }) => (
                   <FormItem>
-                    <FormLabel>Potencial del Negocio ($)</FormLabel>
+                    <FormLabel>Potencial / Monto Financiero ($)</FormLabel>
                     <FormControl>
                       <div className="relative">
                         <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                         <Input
                           type="text"
-                          placeholder="Valor en USD"
-                          className="pl-9"
+                          placeholder="Valor del negocio o pago"
+                          className="pl-9 font-bold"
                           value={value.toLocaleString('en-US')}
                           onChange={(e) => {
                             const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
@@ -324,7 +340,7 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                 name="dueDate"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Fecha Límite (aaaa-mm-dd)</FormLabel>
+                    <FormLabel>Fecha Límite</FormLabel>
                     <div className="flex gap-2">
                       <FormControl>
                         <Input
@@ -355,6 +371,67 @@ export default function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps
                   </FormItem>
                 )}
               />
+            </div>
+
+            {/* SECCIÓN DE VÍNCULO BANCARIO */}
+            <div className="p-4 bg-blue-500/5 rounded-xl border border-dashed border-blue-500/30 space-y-4">
+                <div className="flex items-center gap-2">
+                    <Landmark size={18} className="text-blue-600"/>
+                    <Label className="text-sm font-bold">Vínculo Financiero</Label>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="linkedBankAccountId"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-xs">Cuenta Bancaria Asociada</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value || 'none'}>
+                                    <FormControl>
+                                        <SelectTrigger className="h-8 text-xs">
+                                            <SelectValue placeholder="No vincular"/>
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="none">No vincular a banco</SelectItem>
+                                        {bankAccounts.map(acc => (
+                                            <SelectItem key={acc.id} value={acc.id}>{acc.companyName} ({acc.bankName})</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </FormItem>
+                        )}
+                    />
+
+                    {watchLinkedBank && watchLinkedBank !== 'none' && (
+                        <FormField
+                            control={form.control}
+                            name="financialMovementType"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-xs">Tipo de Movimiento</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value || 'egreso'}>
+                                        <FormControl>
+                                            <SelectTrigger className="h-8 text-xs">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="egreso">Egreso (Pago)</SelectItem>
+                                            <SelectItem value="ingreso">Ingreso (Cobro)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </FormItem>
+                            )}
+                        />
+                    )}
+                </div>
+                {watchLinkedBank && watchLinkedBank !== 'none' && (
+                    <p className="text-[10px] text-blue-700 bg-blue-100/50 p-2 rounded border border-blue-200">
+                        Al completar esta tarea, se generará un movimiento <b>"En Proceso"</b> en el banco. El saldo real no cambiará hasta que valides con el comprobante.
+                    </p>
+                )}
             </div>
 
             <div className="p-4 bg-muted/30 rounded-xl border border-dashed border-primary/20 space-y-4">

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useMemo } from 'react';
-import type { Task, TeamMember, Attachment, EditLogEntry, ChangeDetail, RecurrenceConfig } from '@/lib/types';
+import type { Task, TeamMember, Attachment, EditLogEntry, ChangeDetail, RecurrenceConfig, BankTransaction } from '@/lib/types';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import {
   collection,
@@ -24,12 +24,13 @@ import { useToast } from '@/hooks/use-toast';
 import { User } from 'firebase/auth';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { addDays, addWeeks, addMonths, addYears, parseISO, format } from 'date-fns';
+import { useBanks } from './banks-context';
 
 
 interface TasksContextType {
   tasks: Task[];
-  addTask: (taskData: Partial<Omit<Task, 'id' | 'ownerId'>>, user: User | null, files: File[]) => void;
-  updateTask: (id: string, updatedData: Partial<Omit<Task, 'id'>>, user: User | null, newAttachments?: Attachment[]) => void;
+  addTask: (taskData: Partial<Omit<Task, 'id' | 'ownerId'>>, user: User | null, files: File[]) => Promise<void>;
+  updateTask: (id: string, updatedData: Partial<Omit<Task, 'id'>>, user: User | null, newAttachments?: Attachment[]) => Promise<void>;
   bulkUpdateTasks: (updates: { id: string, changes: Partial<Task> }[], user: User | null) => void;
   deleteTask: (id: string) => void;
   setTasks: (tasks: Task[]) => void;
@@ -101,6 +102,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
+  const { addBankTransaction } = useBanks();
 
   const tasksCollectionRef = useMemoFirebase(() => {
     return firestore ? collection(firestore, 'tasks') : null;
@@ -158,6 +160,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       attachments: [],
       isRecurring: taskData.isRecurring || false,
       recurrenceConfig: taskData.recurrenceConfig || null,
+      linkedBankAccountId: taskData.linkedBankAccountId || null,
+      financialMovementType: taskData.financialMovementType || null,
     };
     
     if (isDelegating && newTask.delegatedByName === (user.displayName || 'un administrador')) {
@@ -304,6 +308,31 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     try {
         await updateDoc(docRef, finalData);
         
+        // FINANCIAL INTEGRATION LOGIC: If a task with a linked bank account is completed
+        if (finalData.status === 'completado' && (existingTask.linkedBankAccountId || finalData.linkedBankAccountId) && (existingTask.financialMovementType || finalData.financialMovementType)) {
+            const bankId = finalData.linkedBankAccountId || existingTask.linkedBankAccountId;
+            const moveType = finalData.financialMovementType || existingTask.financialMovementType;
+            const amount = finalData.value || existingTask.value;
+
+            if (bankId && moveType && amount > 0) {
+                const transactionData: Omit<BankTransaction, 'id' | 'source' | 'createdBy' | 'sortOrder'> = {
+                    date: new Date().toISOString(),
+                    description: `[AUTOMÁTICO] Tarea: ${finalData.title || existingTask.title}`,
+                    amount: amount,
+                    type: moveType as 'ingreso' | 'egreso',
+                    entityName: finalData.client || existingTask.client || 'Vínculo Tarea',
+                };
+
+                // Create transaction with PENDING status (does not affect balance)
+                await addBankTransaction(bankId, transactionData, { validationStatus: 'pending' });
+                
+                toast({
+                    title: "Movimiento generado en banco",
+                    description: "El cargo/abono aparece como 'En Proceso' en la cuenta bancaria hasta que subas el comprobante.",
+                });
+            }
+        }
+
         // RECURRENCE LOGIC: If a recurring task is completed, generate next one
         if (finalData.status === 'completado' && existingTask.isRecurring && existingTask.recurrenceConfig) {
             const nextDueDate = calculateNextOccurrenceDate(existingTask.dueDate || format(new Date(), 'yyyy-MM-dd'), existingTask.recurrenceConfig);
@@ -320,7 +349,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
                 probability: existingTask.probability,
                 isRecurring: true,
                 recurrenceConfig: existingTask.recurrenceConfig,
-                delegateToData: existingTask.delegateToEmail && existingTask.delegateToId ? `${existingTask.delegateToEmail}|${existingTask.delegateToId}` : 'none'
+                delegateToData: existingTask.delegateToEmail && existingTask.delegateToId ? `${existingTask.delegateToEmail}|${existingTask.delegateToId}` : 'none',
+                linkedBankAccountId: existingTask.linkedBankAccountId || null,
+                financialMovementType: existingTask.financialMovementType || null,
             };
 
             await addTask(nextTaskData, user, []);

@@ -24,7 +24,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useTasks } from '@/contexts/tasks-context';
-import { DollarSign, Users, Paperclip, X, Timer, Play, Square, History, Clock, Calendar as CalendarIcon, Eye, Download, Loader2, ArrowRight, PlusCircle, UserCircle, Repeat } from 'lucide-react';
+import { DollarSign, Users, Paperclip, X, Timer, Play, Square, History, Clock, Calendar as CalendarIcon, Eye, Download, Loader2, ArrowRight, PlusCircle, UserCircle, Repeat, Landmark } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Task, TaskStatus, FocusSession, TeamMember, Attachment, EditLogEntry, UserProfile } from '@/lib/types';
@@ -41,6 +41,7 @@ import { collection, doc, getDoc } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Calendar } from '../ui/calendar';
 import { Switch } from '../ui/switch';
+import { useBanks } from '@/contexts/banks-context';
 
 const fileSchema = z.object({
   name: z.string(),
@@ -69,6 +70,8 @@ const taskSchema = z.object({
   attachments: z.array(fileSchema).optional(),
   isRecurring: z.boolean().default(false),
   recurrenceConfig: recurrenceConfigSchema.optional().nullable(),
+  linkedBankAccountId: z.string().optional().nullable(),
+  financialMovementType: z.enum(['ingreso', 'egreso']).optional().nullable(),
 });
 
 type TaskFormValues = z.infer<typeof taskSchema>;
@@ -124,6 +127,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: { open: boo
   const { updateTask } = useTasks();
   const { user } = useUser();
   const firestore = useFirestore();
+  const { bankAccounts } = useBanks();
   const { toast } = useToast();
 
   const form = useForm<TaskFormValues>({
@@ -131,6 +135,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: { open: boo
   });
 
   const watchIsRecurring = form.watch('isRecurring');
+  const watchLinkedBank = form.watch('linkedBankAccountId');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
@@ -275,6 +280,8 @@ export default function EditTaskDialog({ open, onOpenChange, task }: { open: boo
             attachments: task.attachments || [],
             isRecurring: task.isRecurring || false,
             recurrenceConfig: task.recurrenceConfig || { frequency: 'monthly', interval: 1 },
+            linkedBankAccountId: task.linkedBankAccountId || null,
+            financialMovementType: task.financialMovementType || null,
         });
         setAttachedFiles([]); 
         setIsUploading(false);
@@ -333,7 +340,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: { open: boo
         delegateToId: delegateToId === 'none' || delegateToId === 'undefined' ? null : delegateToId,
       };
 
-      updateTask(task.id, finalData, user, newAttachments);
+      await updateTask(task.id, finalData, user, newAttachments);
       onOpenChange(false);
     } catch (error) {
         console.error("Error al actualizar tarea:", error);
@@ -356,7 +363,7 @@ export default function EditTaskDialog({ open, onOpenChange, task }: { open: boo
           <div className="flex justify-between items-start">
             <div>
               <DialogTitle>Editar Tarea</DialogTitle>
-              <DialogDescription>Modifica los detalles de la tarea.</DialogDescription>
+              <DialogDescription>Modifica los detalles y vínculos de la tarea.</DialogDescription>
             </div>
             <div className="flex items-center gap-4">
               <div className="flex flex-col items-center">
@@ -426,13 +433,13 @@ export default function EditTaskDialog({ open, onOpenChange, task }: { open: boo
                 name="value"
                 render={({ field: { onChange, value, ...restField } }) => (
                   <FormItem>
-                    <FormLabel>Potencial ($)</FormLabel>
+                    <FormLabel>Potencial / Monto Financiero ($)</FormLabel>
                     <FormControl>
                       <div className="relative">
                         <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                         <Input
                           type="text"
-                          className="pl-9"
+                          className="pl-9 font-bold"
                           value={value ? value.toLocaleString('en-US') : '0'}
                           onChange={(e) => {
                             const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
@@ -496,6 +503,67 @@ export default function EditTaskDialog({ open, onOpenChange, task }: { open: boo
                   </FormItem>
                 )}
               />
+            </div>
+
+            {/* SECCIÓN DE VÍNCULO BANCARIO */}
+            <div className="p-4 bg-blue-500/5 rounded-xl border border-dashed border-blue-500/30 space-y-4">
+                <div className="flex items-center gap-2">
+                    <Landmark size={18} className="text-blue-600"/>
+                    <Label className="text-sm font-bold">Vínculo Financiero</Label>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="linkedBankAccountId"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-xs">Cuenta Bancaria Asociada</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value || 'none'} disabled={!isOwner}>
+                                    <FormControl>
+                                        <SelectTrigger className="h-8 text-xs">
+                                            <SelectValue placeholder="No vincular"/>
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="none">No vincular a banco</SelectItem>
+                                        {bankAccounts.map(acc => (
+                                            <SelectItem key={acc.id} value={acc.id}>{acc.companyName} ({acc.bankName})</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </FormItem>
+                        )}
+                    />
+
+                    {watchLinkedBank && watchLinkedBank !== 'none' && (
+                        <FormField
+                            control={form.control}
+                            name="financialMovementType"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-xs">Tipo de Movimiento</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value || 'egreso'} disabled={!isOwner}>
+                                        <FormControl>
+                                            <SelectTrigger className="h-8 text-xs">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="egreso">Egreso (Pago)</SelectItem>
+                                            <SelectItem value="ingreso">Ingreso (Cobro)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </FormItem>
+                            )}
+                        />
+                    )}
+                </div>
+                {watchLinkedBank && watchLinkedBank !== 'none' && (
+                    <p className="text-[10px] text-blue-700 bg-blue-100/50 p-2 rounded border border-blue-200">
+                        Al completar, se creará un movimiento <b>"En Proceso"</b>. No afectará saldos hasta que subas el comprobante en la sección de Bancos.
+                    </p>
+                )}
             </div>
 
             <div className="p-4 bg-muted/30 rounded-xl border border-dashed border-primary/20 space-y-4">

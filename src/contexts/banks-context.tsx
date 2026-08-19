@@ -26,9 +26,10 @@ interface BanksContextType {
   addBankAccount: (bankAccountData: BankAccountFormValues, logoFile: File | null) => Promise<void>;
   updateBankAccount: (id: string, bankAccountData: BankAccountFormValues, logoFile: File | null) => Promise<void>;
   deleteBankAccount: (id: string) => void;
-  addBankTransaction: (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source' | 'createdBy' | 'sortOrder'>) => void;
+  addBankTransaction: (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source' | 'createdBy' | 'sortOrder'>, options?: { validationStatus?: 'pending' | 'processed' }) => Promise<string | null>;
   updateBankTransaction: (bankAccountId: string, transactionId: string, updatedData: Partial<BankTransaction>) => Promise<void>;
   deleteBankTransaction: (bankAccountId: string, transaction: BankTransaction) => void;
+  validateBankTransaction: (bankAccountId: string, transactionId: string, attachments: Attachment[]) => Promise<void>;
   batchAddBankTransactions: (bankAccountId: string, transactionsWithFiles: { data: Omit<BankTransaction, 'id' | 'attachments' | 'source' | 'createdBy' | 'sortOrder'>, file: File }[]) => Promise<void>;
   batchAddConciliatedTransactions: (bankAccountId: string, transactions: Omit<BankTransaction, 'id' | 'source' | 'attachments' | 'createdBy' | 'sortOrder'>[]) => Promise<void>;
   reconcileBalance: (bankAccountId: string, targetDate: string, targetBalance: number) => Promise<void>;
@@ -133,36 +134,47 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const addBankTransaction = async (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source' | 'createdBy' | 'sortOrder'>) => {
-    if (!firestore || !collectionPath) return;
+  const addBankTransaction = async (bankAccountId: string, transactionData: Omit<BankTransaction, 'id' | 'source' | 'createdBy' | 'sortOrder'>, options?: { validationStatus?: 'pending' | 'processed' }): Promise<string | null> => {
+    if (!firestore || !collectionPath) return null;
     const bankAccountRef = doc(firestore, collectionPath, bankAccountId);
     const transactionsCollectionRef = collection(firestore, `${collectionPath}/${bankAccountId}/transactions`);
     
+    const validationStatus = options?.validationStatus || 'processed';
+
     try {
         const bankAccountSnap = await getDoc(bankAccountRef);
         if (!bankAccountSnap.exists()) throw new Error("La cuenta no existe.");
         const currentAccountData = bankAccountSnap.data() as BankAccount;
         
         const amount = Number(transactionData.amount);
-        const newBalance = transactionData.type === 'ingreso' 
-            ? Number(currentAccountData.currentBalance) + amount 
-            : Number(currentAccountData.currentBalance) - amount;
-
+        
         const batch = writeBatch(firestore);
         const newTransactionRef = doc(transactionsCollectionRef);
         
         batch.set(newTransactionRef, {
             ...transactionData,
-            source: 'manual',
+            source: transactionData.source || 'manual',
             createdBy: user?.displayName || user?.email || 'Desconocido',
             sortOrder: Date.now(),
+            validationStatus: validationStatus
         });
         
-        batch.update(bankAccountRef, { currentBalance: newBalance });
+        // Solo impacta el saldo si no es pendiente
+        if (validationStatus === 'processed') {
+            const newBalance = transactionData.type === 'ingreso' 
+                ? Number(currentAccountData.currentBalance) + amount 
+                : Number(currentAccountData.currentBalance) - amount;
+            batch.update(bankAccountRef, { currentBalance: newBalance });
+        }
+
         await batch.commit();
-        toast({ title: 'Transacción agregada' });
+        if (validationStatus === 'processed') {
+            toast({ title: 'Transacción agregada' });
+        }
+        return newTransactionRef.id;
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
+        return null;
     }
   };
 
@@ -184,21 +196,34 @@ export function BanksProvider({ children }: { children: ReactNode }) {
         
         const batch = writeBatch(firestore);
         
-        // Revertimos impacto anterior
-        let balanceAfterRevert = oldTransData.type === 'ingreso' 
-            ? Number(bankData.currentBalance) - Number(oldTransData.amount)
-            : Number(bankData.currentBalance) + Number(oldTransData.amount);
-            
-        // Aplicamos impacto nuevo
-        const newAmount = updatedData.amount !== undefined ? Number(updatedData.amount) : Number(oldTransData.amount);
-        const newType = updatedData.type || oldTransData.type;
+        // Si el estado anterior era procesado, revertimos su impacto
+        const wasProcessed = !oldTransData.validationStatus || oldTransData.validationStatus === 'processed';
         
-        let finalBalance = newType === 'ingreso' 
-            ? balanceAfterRevert + newAmount
-            : balanceAfterRevert - newAmount;
+        let balanceAfterRevert = Number(bankData.currentBalance);
+        if (wasProcessed) {
+            balanceAfterRevert = oldTransData.type === 'ingreso' 
+                ? Number(bankData.currentBalance) - Number(oldTransData.amount)
+                : Number(bankData.currentBalance) + Number(oldTransData.amount);
+        }
             
+        // Aplicamos impacto nuevo solo si el nuevo estado es procesado
+        const newStatus = updatedData.validationStatus || oldTransData.validationStatus || 'processed';
+        const isNowProcessed = newStatus === 'processed';
+
         batch.update(transactionRef, updatedData);
-        batch.update(bankAccountRef, { currentBalance: finalBalance });
+
+        if (isNowProcessed) {
+            const newAmount = updatedData.amount !== undefined ? Number(updatedData.amount) : Number(oldTransData.amount);
+            const newType = updatedData.type || oldTransData.type;
+            
+            let finalBalance = newType === 'ingreso' 
+                ? balanceAfterRevert + newAmount
+                : balanceAfterRevert - newAmount;
+            batch.update(bankAccountRef, { currentBalance: finalBalance });
+        } else if (wasProcessed) {
+            // Pasó de procesado a pendiente (poco común pero posible)
+            batch.update(bankAccountRef, { currentBalance: balanceAfterRevert });
+        }
         
         await batch.commit();
         toast({ title: 'Transacción actualizada' });
@@ -216,17 +241,66 @@ export function BanksProvider({ children }: { children: ReactNode }) {
         if (!bankAccountSnap.exists()) throw new Error("La cuenta no existe.");
         const currentAccountData = bankAccountSnap.data() as BankAccount;
         
-        const newBalance = transaction.type === 'ingreso' 
-            ? Number(currentAccountData.currentBalance) - Number(transaction.amount) 
-            : Number(currentAccountData.currentBalance) + Number(transaction.amount);
-            
+        const isProcessed = !transaction.validationStatus || transaction.validationStatus === 'processed';
+        
         const batch = writeBatch(firestore);
         batch.delete(transactionRef);
-        batch.update(bankAccountRef, { currentBalance: newBalance });
+
+        if (isProcessed) {
+            const newBalance = transaction.type === 'ingreso' 
+                ? Number(currentAccountData.currentBalance) - Number(transaction.amount) 
+                : Number(currentAccountData.currentBalance) + Number(transaction.amount);
+            batch.update(bankAccountRef, { currentBalance: newBalance });
+        }
+
         await batch.commit();
         toast({ title: 'Transacción eliminada' });
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
+    }
+  };
+
+  const validateBankTransaction = async (bankAccountId: string, transactionId: string, attachments: Attachment[]) => {
+    if (!firestore || !collectionPath) return;
+    const bankAccountRef = doc(firestore, collectionPath, bankAccountId);
+    const transactionRef = doc(firestore, `${collectionPath}/${bankAccountId}/transactions`, transactionId);
+
+    try {
+        const [bankSnap, transSnap] = await Promise.all([
+            getDoc(bankAccountRef),
+            getDoc(transactionRef)
+        ]);
+
+        if (!bankSnap.exists() || !transSnap.exists()) throw new Error("Datos no encontrados.");
+        
+        const bankData = bankSnap.data() as BankAccount;
+        const transaction = transSnap.data() as BankTransaction;
+
+        if (transaction.validationStatus === 'processed') {
+            toast({ title: 'La transacción ya está validada' });
+            return;
+        }
+
+        const batch = writeBatch(firestore);
+        
+        // Actualizar transacción
+        batch.update(transactionRef, {
+            validationStatus: 'processed',
+            attachments: attachments
+        });
+
+        // Actualizar saldo
+        const amount = Number(transaction.amount);
+        const newBalance = transaction.type === 'ingreso'
+            ? Number(bankData.currentBalance) + amount
+            : Number(bankData.currentBalance) - amount;
+        
+        batch.update(bankAccountRef, { currentBalance: newBalance });
+
+        await batch.commit();
+        toast({ title: '¡Validación Exitosa!', description: 'El comprobante ha sido guardado y el saldo actualizado.' });
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Error al validar', description: error.message });
     }
   };
 
@@ -260,7 +334,8 @@ export function BanksProvider({ children }: { children: ReactNode }) {
                 source: 'import_file', 
                 attachments: [{ name: file.name, type: file.type, size: file.size, url: downloadURL }], 
                 createdBy: user?.displayName || user?.email || 'Desconocido',
-                sortOrder: Date.now() + (counter++) 
+                sortOrder: Date.now() + (counter++),
+                validationStatus: 'processed'
             };
             batch.set(newTransactionRef, finalTransactionData);
         });
@@ -298,7 +373,8 @@ export function BanksProvider({ children }: { children: ReactNode }) {
                 ...txData, 
                 source: 'import_file', 
                 createdBy: user?.displayName || user?.email || 'Desconocido',
-                sortOrder: Date.now() + (counter++)
+                sortOrder: Date.now() + (counter++),
+                validationStatus: 'processed'
             });
         });
         
@@ -337,6 +413,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
             isAdjustment: true,
             createdBy: user.displayName || user.email || 'Sistema',
             sortOrder: Date.now(),
+            validationStatus: 'processed'
         });
         
         batch.update(bankAccountRef, { currentBalance: targetBalance });
@@ -411,6 +488,7 @@ export function BanksProvider({ children }: { children: ReactNode }) {
     addBankTransaction,
     updateBankTransaction,
     deleteBankTransaction,
+    validateBankTransaction,
     batchAddBankTransactions,
     batchAddConciliatedTransactions,
     reconcileBalance,

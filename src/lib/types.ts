@@ -66,6 +66,9 @@ export interface Task {
   editHistory?: EditLogEntry[];
   isRecurring?: boolean;
   recurrenceConfig?: RecurrenceConfig;
+  // Financial linking
+  linkedBankAccountId?: string | null;
+  financialMovementType?: 'ingreso' | 'egreso' | null;
 }
 
 export interface TeamMember {
@@ -196,6 +199,7 @@ export interface BankTransaction {
   isAdjustment?: boolean;
   entityName?: string; // New field: The company related to the transaction
   invoiceReference?: string; // New field: Reference or Invoice ID
+  validationStatus?: 'processed' | 'pending'; // New field for linked movements
 }
 
 export interface Project {

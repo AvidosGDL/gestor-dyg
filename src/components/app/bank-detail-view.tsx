@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useBanks } from '@/contexts/banks-context';
-import type { BankAccount, BankTransaction } from '@/lib/types';
+import type { BankAccount, BankTransaction, Attachment } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit, Search, Filter, X, Tag, ExternalLink, Copy, Check, ArrowUp, ArrowDown, ChevronUp, ChevronDown, FileSpreadsheet, AlertCircle, Lightbulb, Building2, FileText, History } from 'lucide-react';
+import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit, Search, Filter, X, Tag, ExternalLink, Copy, Check, ArrowUp, ArrowDown, ChevronUp, ChevronDown, FileSpreadsheet, AlertCircle, Lightbulb, Building2, FileText, History, CheckCircle2, Clock } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
@@ -25,11 +25,13 @@ import { Label } from '../ui/label';
 import ImportBankExcelDialog from './import-bank-excel-dialog';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import NewTaskDialog from './new-task-dialog';
 
 
 export default function BankDetailView({ bankAccount, onBack }: { bankAccount: BankAccount, onBack: () => void }) {
   const firestore = useFirestore();
-  const { deleteBankTransaction, swapTransactions, clearTransactionHistory } = useBanks();
+  const { deleteBankTransaction, swapTransactions, clearTransactionHistory, validateBankTransaction } = useBanks();
   const { toast } = useToast();
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -37,10 +39,14 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
   const [isConciliateOpen, setIsConciliateOpen] = useState(false);
   const [isReconcileBalanceOpen, setIsReconcileBalanceOpen] = useState(false);
   const [isEditBankOpen, setIsEditBankOpen] = useState(false);
+  const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<BankTransaction | null>(null);
+  const [validatingTransaction, setValidatingTransaction] = useState<BankTransaction | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const validationFileInputRef = useRef<HTMLInputElement>(null);
 
   // Filtros
   const [search, setSearch] = useState('');
@@ -136,6 +142,42 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
       await clearTransactionHistory(bankAccount.id);
       setDeleteConfirmText('');
     } catch (e) {}
+  };
+
+  const handleValidateClick = (tx: BankTransaction) => {
+    setValidatingTransaction(tx);
+    setTimeout(() => validationFileInputRef.current?.click(), 100);
+  };
+
+  const handleValidationFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !validatingTransaction) return;
+
+    setIsValidating(true);
+    toast({ title: 'Procesando validación...', description: 'Subiendo comprobante y actualizando saldos.' });
+
+    try {
+        const storage = getStorage();
+        const fileRef = storageRef(storage, `bank_attachments/${bankAccount.id}/${validatingTransaction.id}/${Date.now()}_${file.name}`);
+        const snapshot = await uploadBytes(fileRef, file);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+
+        const newAttachment: Attachment = {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            url: downloadURL,
+        };
+
+        await validateBankTransaction(bankAccount.id, validatingTransaction.id, [newAttachment]);
+        setValidatingTransaction(null);
+    } catch (error: any) {
+        console.error("Error al validar:", error);
+        toast({ variant: 'destructive', title: 'Error de validación', description: error.message });
+    } finally {
+        setIsValidating(false);
+        if (validationFileInputRef.current) validationFileInputRef.current.value = '';
+    }
   };
 
   const canReorder = search === '' && typeFilter === 'all' && startDate === '' && endDate === '' && userSearch === '' && minAmount === '' && maxAmount === '';
@@ -242,6 +284,9 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
             </CardHeader>
             <CardContent>
               <p className="text-4xl font-bold">${(bankAccount.currentBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1.5">
+                  <CheckCircle2 size={12} className="text-emerald-500"/> Este saldo solo incluye transacciones validadas.
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -268,6 +313,9 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                         <CardDescription>Lista de ingresos y egresos de la cuenta.</CardDescription>
                     </div>
                     <div className="flex flex-wrap gap-2 justify-end">
+                        <Button variant="outline" size="sm" onClick={() => setIsNewTaskOpen(true)} className="gap-2 border-primary text-primary hover:bg-primary/5">
+                            <Clock className="h-4 w-4"/> Programar Pago Recurrente
+                        </Button>
                         <Button variant="outline" size="sm" onClick={() => setIsImportExcelOpen(true)} className="gap-2">
                             <FileSpreadsheet className="h-4 w-4 text-emerald-600"/> Importar Excel
                         </Button>
@@ -330,7 +378,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                         <div className="text-xs text-muted-foreground font-medium flex items-center gap-4">
                             <div className="flex items-center gap-1.5">
                                 <div className="w-2.5 h-2.5 rounded-full bg-amber-500/20 border border-amber-500" />
-                                <span className="text-[10px]">Ajuste Pendiente</span>
+                                <span className="text-[10px]">Ajuste Pendiente / En Proceso</span>
                             </div>
                             <span>Mostrando {sortedAndFilteredTransactions.length} de {rawTransactions?.length || 0} movimientos</span>
                         </div>
@@ -344,7 +392,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                         <TableRow>
                             {canReorder && <TableHead className="w-10"></TableHead>}
                             <TableHead>Fecha</TableHead>
-                            <TableHead>Descripción / Categorías</TableHead>
+                            <TableHead>Descripción / Estatus</TableHead>
                             <TableHead>Empresa Rel.</TableHead>
                             <TableHead>Factura / Ref.</TableHead>
                             <TableHead>Tipo</TableHead>
@@ -361,12 +409,15 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                                 </TableCell>
                             </TableRow>
                         )}
-                        {!transactionsLoading && sortedAndFilteredTransactions.map((tx, idx) => (
+                        {!transactionsLoading && sortedAndFilteredTransactions.map((tx, idx) => {
+                            const isPending = tx.validationStatus === 'pending';
+                            return (
                             <TableRow 
                                 key={tx.id} 
                                 className={cn(
                                     "group transition-colors", 
-                                    tx.isAdjustment ? "bg-amber-500/5 hover:bg-amber-500/10 border-l-4 border-l-amber-500" : ""
+                                    tx.isAdjustment ? "bg-amber-500/5 hover:bg-amber-500/10 border-l-4 border-l-amber-500" : "",
+                                    isPending ? "bg-blue-500/5 hover:bg-blue-500/10 opacity-80" : ""
                                 )}
                             >
                                 {canReorder && (
@@ -396,11 +447,16 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                                 <TableCell className="whitespace-nowrap">{formatDateSafely(tx.date)}</TableCell>
                                 <TableCell>
                                     <div className="space-y-1">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex flex-wrap items-center gap-2">
                                             <span className="font-medium text-sm">{tx.description}</span>
+                                            {isPending && (
+                                                <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300 text-[9px] h-4 py-0 flex gap-1 items-center animate-pulse">
+                                                    <Clock size={10} /> En Proceso
+                                                </Badge>
+                                            )}
                                             {tx.isAdjustment && (
                                                 <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-[9px] h-4 py-0 flex gap-1 items-center">
-                                                    <AlertCircle size={10} /> Pendiente
+                                                    <AlertCircle size={10} /> Ajuste Manual
                                                 </Badge>
                                             )}
                                         </div>
@@ -447,9 +503,22 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                                 </TableCell>
                                 <TableCell className="text-right">
                                     <div className="flex justify-end gap-1">
-                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => setEditingTransaction(tx)}>
-                                            <Edit size={14} />
-                                        </Button>
+                                        {isPending ? (
+                                            <Button 
+                                                variant="default" 
+                                                size="sm" 
+                                                className="h-7 text-[10px] px-2 gap-1.5 bg-blue-600 hover:bg-blue-700"
+                                                onClick={() => handleValidateClick(tx)}
+                                                disabled={isValidating}
+                                            >
+                                                {isValidating && validatingTransaction?.id === tx.id ? <Loader2 size={10} className="animate-spin"/> : <Upload size={10} />}
+                                                Validar
+                                            </Button>
+                                        ) : (
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => setEditingTransaction(tx)}>
+                                                <Edit size={14} />
+                                            </Button>
+                                        )}
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
                                                 <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive">
@@ -460,7 +529,8 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                                                 <AlertDialogHeader>
                                                     <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                                                     <AlertDialogDescription>
-                                                        Esta acción eliminará la transacción permanentemente y reajustará el saldo de la cuenta.
+                                                        Esta acción eliminará la transacción permanentemente.
+                                                        {!isPending && " El saldo de la cuenta se reajustará automáticamente."}
                                                     </AlertDialogDescription>
                                                 </AlertDialogHeader>
                                                 <AlertDialogFooter>
@@ -477,7 +547,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                                     </div>
                                 </TableCell>
                             </TableRow>
-                        ))}
+                        )})}
                          {!transactionsLoading && sortedAndFilteredTransactions.length === 0 && (
                             <TableRow>
                                 <TableCell colSpan={canReorder ? 9 : 8} className="text-center h-24 text-muted-foreground">
@@ -490,6 +560,15 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                 </div>
             </CardContent>
         </Card>
+
+        {/* Input oculto para validación rápida */}
+        <input 
+            type="file" 
+            ref={validationFileInputRef} 
+            className="hidden" 
+            accept="image/*,.pdf" 
+            onChange={handleValidationFileChange}
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 shrink-0">
             <Card>
@@ -567,6 +646,13 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
         onOpenChange={setIsEditBankOpen}
         bankAccount={bankAccount}
        />
+       {isNewTaskOpen && (
+           <NewTaskDialog
+               open={isNewTaskOpen}
+               onOpenChange={setIsNewTaskOpen}
+               defaultLinkedBankId={bankAccount.id}
+           />
+       )}
        {editingTransaction && (
            <EditBankTransactionDialog 
                 isOpen={!!editingTransaction}
