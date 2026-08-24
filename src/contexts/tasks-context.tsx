@@ -102,21 +102,32 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
-  const { addBankTransaction } = useBanks();
+  const { addBankTransaction, bankAccounts } = useBanks();
 
   const tasksCollectionRef = useMemoFirebase(() => {
     return firestore ? collection(firestore, 'tasks') : null;
   }, [firestore]);
 
+  // IDs of bank accounts the current user can see
+  const accessibleBankIds = useMemo(() => bankAccounts.map(b => b.id), [bankAccounts]);
+
   const tasksQuery = useMemoFirebase(() => {
     if (!user || !tasksCollectionRef) return null;
-    return query(tasksCollectionRef, 
-      or(
-        where('ownerId', '==', user.uid),
-        where('delegateToId', '==', user.uid)
-      )
-    );
-  }, [user, tasksCollectionRef]);
+    
+    // Base filters: Mine or delegated to me
+    const filters = [
+      where('ownerId', '==', user.uid),
+      where('delegateToId', '==', user.uid)
+    ];
+
+    // Shared visibility: If task is linked to a bank I can see
+    if (accessibleBankIds.length > 0) {
+      // Chunking or limiting might be needed for 'in' if > 30, but usually fits
+      filters.push(where('linkedBankAccountId', 'in', accessibleBankIds.slice(0, 30)));
+    }
+
+    return query(tasksCollectionRef, or(...filters));
+  }, [user, tasksCollectionRef, accessibleBankIds]);
 
   const {
     data: tasks,

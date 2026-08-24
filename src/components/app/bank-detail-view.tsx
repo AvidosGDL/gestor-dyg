@@ -5,11 +5,11 @@ import { useBanks } from '@/contexts/banks-context';
 import type { BankAccount, BankTransaction, Attachment } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit, Search, Filter, X, Tag, ExternalLink, Copy, Check, ArrowUp, ArrowDown, ChevronUp, ChevronDown, FileSpreadsheet, AlertCircle, Lightbulb, Building2, FileText, History, CheckCircle2, Clock } from 'lucide-react';
+import { ArrowLeft, Plus, Upload, Loader2, Trash2, FileCheck2, User, Info, Scale, Edit, Search, Filter, X, Tag, ExternalLink, Copy, Check, ArrowUp, ArrowDown, ChevronUp, ChevronDown, FileSpreadsheet, AlertCircle, Lightbulb, Building2, FileText, History, CheckCircle2, Clock, CalendarClock, TrendingDown, TrendingUp } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
-import { format, startOfDay, endOfDay } from 'date-fns';
+import { format, startOfDay, endOfDay, isPast, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import NewBankTransactionDialog from './new-bank-transaction-dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -27,11 +27,13 @@ import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import NewTaskDialog from './new-task-dialog';
+import { useTasks } from '@/contexts/tasks-context';
 
 
 export default function BankDetailView({ bankAccount, onBack }: { bankAccount: BankAccount, onBack: () => void }) {
   const firestore = useFirestore();
   const { deleteBankTransaction, swapTransactions, clearTransactionHistory, validateBankTransaction } = useBanks();
+  const { tasks } = useTasks();
   const { toast } = useToast();
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -60,7 +62,17 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
   const transactionsPath = useMemo(() => `banks/${bankAccount.id}/transactions`, [bankAccount.id]);
   const transactionsRef = useMemoFirebase(() => collection(firestore, transactionsPath), [firestore, transactionsPath]);
   
-  const { data: rawTransactions, isLoading: transactionsLoading, error } = useCollection<BankTransaction>(transactionsRef);
+  const { data: rawTransactions, isLoading: transactionsLoading } = useCollection<BankTransaction>(transactionsRef);
+
+  // Pending tasks (Scheduled Movements) linked to this bank
+  const scheduledTasks = useMemo(() => {
+    return tasks.filter(t => t.linkedBankAccountId === bankAccount.id && t.status !== 'completado')
+      .sort((a, b) => {
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        return parseISO(a.dueDate).getTime() - parseISO(b.dueDate).getTime();
+      });
+  }, [tasks, bankAccount.id]);
 
   // Ordenamiento y filtrado en memoria (Cliente)
   const sortedAndFilteredTransactions = useMemo(() => {
@@ -184,7 +196,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
 
   return (
     <>
-      <div className="h-full flex flex-col p-2 space-y-4">
+      <div className="h-full flex flex-col p-2 space-y-4 overflow-y-auto">
         <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
                 <Button variant="outline" size="icon" onClick={onBack} className="h-8 w-8">
@@ -305,7 +317,57 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
           </Card>
         </div>
 
-        <Card className="flex-1 flex flex-col overflow-hidden">
+        {/* Sección de Movimientos Programados (Shared Visibility from Tasks) */}
+        {scheduledTasks.length > 0 && (
+          <Card className="border-blue-200 bg-blue-50/10">
+            <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <CardTitle className="text-base flex items-center gap-2 text-blue-800">
+                            <CalendarClock size={18} />
+                            Movimientos Programados (Pendientes)
+                        </CardTitle>
+                        <CardDescription className="text-xs text-blue-600/70">Tareas vinculadas a esta cuenta que aún no se han completado.</CardDescription>
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent className="pt-2">
+                <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-blue-200">
+                    {scheduledTasks.map(task => {
+                        const isOverdue = task.dueDate && isPast(parseISO(task.dueDate)) && format(parseISO(task.dueDate), 'yyyy-MM-dd') !== format(new Date(), 'yyyy-MM-dd');
+                        return (
+                            <div key={task.id} className="min-w-[280px] bg-white border border-blue-100 rounded-xl p-3 shadow-sm flex flex-col justify-between">
+                                <div>
+                                    <div className="flex justify-between items-start mb-2">
+                                        <Badge variant={task.financialMovementType === 'ingreso' ? 'outline' : 'secondary'} className={cn(
+                                            "text-[9px] uppercase font-bold",
+                                            task.financialMovementType === 'ingreso' ? "border-emerald-200 text-emerald-700 bg-emerald-50" : "bg-rose-50 text-rose-700 border-rose-200"
+                                        )}>
+                                            {task.financialMovementType === 'ingreso' ? <TrendingUp size={10} className="mr-1"/> : <TrendingDown size={10} className="mr-1"/>}
+                                            {task.financialMovementType === 'ingreso' ? 'Cobro' : 'Pago'}
+                                        </Badge>
+                                        {task.dueDate && (
+                                            <span className={cn("text-[10px] font-bold", isOverdue ? "text-rose-600" : "text-muted-foreground")}>
+                                                {formatDateSafely(task.dueDate)}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <h4 className="text-xs font-bold text-slate-800 line-clamp-2 mb-1">{task.title}</h4>
+                                    <p className="text-[10px] text-muted-foreground font-medium">{task.client || 'Sin Empresa Rel.'}</p>
+                                </div>
+                                <div className="mt-4 flex items-center justify-between border-t border-blue-50 pt-2">
+                                    <span className="font-mono font-bold text-sm text-blue-900">${task.value.toLocaleString('en-US')}</span>
+                                    <Badge variant="outline" className="text-[9px] h-5 bg-slate-50">{task.status}</Badge>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card className="flex-1 flex flex-col overflow-hidden min-h-[500px]">
             <CardHeader className="pb-2 shrink-0">
                 <div className="flex flex-row items-center justify-between mb-4">
                     <div>
@@ -385,7 +447,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
                     </div>
                 </div>
             </CardHeader>
-            <CardContent className="flex-1 overflow-hidden pt-4">
+            <CardContent className="flex-1 overflow-hidden pt-4 pb-12">
                 <div className="border rounded-lg h-full overflow-y-auto">
                 <Table>
                     <TableHeader className="sticky top-0 bg-muted z-10 shadow-sm">
@@ -570,7 +632,7 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
             onChange={handleValidationFileChange}
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 shrink-0">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 shrink-0 pb-12">
             <Card>
                 <CardHeader className="py-4">
                     <CardTitle className="text-base">Conciliación Bancaria con IA</CardTitle>

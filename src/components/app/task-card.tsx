@@ -21,6 +21,7 @@ import {
   Pencil,
   Send,
   Repeat,
+  Landmark,
 } from 'lucide-react';
 import { useTasks } from '@/contexts/tasks-context';
 import type { Task, TaskStatus, TeamMember, EditLogEntry, UserProfile } from '@/lib/types';
@@ -37,6 +38,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { useBanks } from '@/contexts/banks-context';
 
 interface TaskCardProps {
   task: Task;
@@ -74,6 +76,7 @@ const formatFocusTime = (milliseconds: number) => {
 export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: TaskCardProps) {
   const { deleteTask, updateTask } = useTasks();
   const { user } = useUser();
+  const { bankAccounts } = useBanks();
   const firestore = useFirestore();
   const { toast } = useToast();
   const [confirmationText, setConfirmationText] = useState('');
@@ -121,6 +124,11 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
     return delegate?.name || null;
   }, [task.delegateToId, members, ownerProfile]);
 
+  const linkedBank = useMemo(() => {
+    if (!task.linkedBankAccountId) return null;
+    return bankAccounts.find(acc => acc.id === task.linkedBankAccountId);
+  }, [task.linkedBankAccountId, bankAccounts]);
+
   const creatorIsOwner = ownerProfile && task.ownerId === ownerProfile.uid;
   const creatorName = creatorIsOwner ? ownerProfile.name : (members?.find(m => m.uid === task.ownerId)?.name || task.delegatedByName || user?.displayName || 'Desconocido');
 
@@ -136,53 +144,6 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
     updateTask(task.id, { status: 'completado', progress: 100 }, user);
   }
   
-  const handleSendDelegationEmail = async () => {
-    if (!firestore || !user || !task.delegateToId || !task.delegateToEmail) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Faltan datos para enviar el correo.' });
-      return;
-    }
-    
-    setIsSendingEmail(true);
-    toast({ title: 'Enviando notificación...' });
-
-    try {
-      const functions = getFunctions();
-      const sendEmailFunction = httpsCallable(functions, 'sendEmailTask');
-
-      const delegateUserDoc = await getDoc(doc(firestore, 'users', task.delegateToId));
-      const delegateName = delegateUserDoc.data()?.name || 'un miembro del equipo';
-
-      const delegatorName = task.delegatedByName || user?.displayName || 'un administrador';
-
-      const payload = {
-        to: task.delegateToEmail,
-        delegateName: delegateName,
-        taskId: task.id,
-        taskTitle: task.title,
-        delegatorName: delegatorName,
-        taskUrl: `https://gestor.fiscalflow.mx/?task=${task.id}`,
-        delegateId: task.delegateToId
-      };
-      
-      await sendEmailFunction(payload);
-
-      toast({
-        title: "Notificación enviada",
-        description: `Se ha notificado a ${delegateName} sobre la tarea.`,
-      });
-    } catch (emailError: any) {
-      console.error('Error calling sendEmailTask:', emailError);
-      toast({
-        variant: "destructive",
-        title: "Error al notificar",
-        description: emailError.message || "No se pudo enviar el correo de notificación.",
-      });
-    } finally {
-      setIsSendingEmail(false);
-    }
-  };
-
-
   const totalFocusTimeMs = React.useMemo(() => {
     if (!task.focusSessions) return 0;
     return task.focusSessions.reduce((total, session) => {
@@ -216,18 +177,36 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
           </div>
         )}
         <div className="grid grid-cols-[1fr_auto] items-start gap-x-2">
-            <div>
+            <div className="flex flex-wrap gap-1 mb-1">
               {task.isRecurring && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Repeat size={14} className="text-primary mb-1" />
+                      <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 h-5 px-1.5">
+                        <Repeat size={10} className="mr-1" />
+                        <span className="text-[9px] uppercase font-bold">Recurrente</span>
+                      </Badge>
                     </TooltipTrigger>
                     <TooltipContent>
                       <p className="text-xs">Tarea Recurrente ({task.recurrenceConfig?.frequency})</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
+              )}
+              {linkedBank && (
+                 <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 h-5 px-1.5">
+                                <Landmark size={10} className="mr-1" />
+                                <span className="text-[9px] uppercase font-bold">{linkedBank.bankName}</span>
+                            </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p className="text-xs">Vinculado a: {linkedBank.companyName}</p>
+                        </TooltipContent>
+                    </Tooltip>
+                 </TooltipProvider>
               )}
             </div>
              
@@ -292,7 +271,7 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
           </div>
            <div>
             <div className="flex justify-between items-center mb-1">
-              <span className="text-muted-foreground flex items-center gap-1"><DollarSign size={12} /> Potencial</span>
+              <span className="text-muted-foreground flex items-center gap-1"><DollarSign size={12} /> {task.linkedBankAccountId ? 'Monto' : 'Potencial'}</span>
               <span className="font-bold text-foreground text-right">
                 ${task.value.toLocaleString()}
               </span>
@@ -301,20 +280,6 @@ export default function TaskCard({ task, setActiveTaskForPomodoro, onEdit }: Tas
               <div
                 className={`h-full ${getPotentialColor(task.value)}`}
                 style={{ width: `${Math.min((task.value / 20000) * 100, 100)}%` }}
-              ></div>
-            </div>
-          </div>
-           <div>
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-muted-foreground flex items-center gap-1">Probabilidad</span>
-              <span className="font-bold text-foreground text-right">
-                {task.probability}%
-              </span>
-            </div>
-            <div className="w-full bg-border h-1.5 rounded-full overflow-hidden">
-              <div
-                className={`h-full ${getProgressColor(task.probability)}`}
-                style={{ width: `${task.probability}%` }}
               ></div>
             </div>
           </div>
