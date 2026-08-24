@@ -146,6 +146,14 @@ export interface InvestmentTransaction {
   dueDate?: string; // ISO 8601 string
 }
 
+export interface InvestmentUsage {
+  id: string;
+  date: string; // ISO 8601 string
+  amount: number;
+  description: string;
+  attachments: Attachment[];
+}
+
 export interface Investor {
   id: string;
   name: string;
@@ -158,6 +166,7 @@ export interface Investor {
   paymentMethod: string;
   status: 'Activa' | 'Liquidada';
   transactions?: InvestmentTransaction[];
+  fundUsage?: InvestmentUsage[]; // Track where the money was spent/invested
   paymentType: 'mensual' | 'pago_unico';
   monthlyPaymentDay?: number | null;
   liquidationDate?: string | null;

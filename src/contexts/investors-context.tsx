@@ -1,8 +1,7 @@
-
 'use client';
 
 import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
-import type { Investor, UserProfile } from '@/lib/types';
+import type { Investor, UserProfile, InvestmentUsage } from '@/lib/types';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import {
   collection,
@@ -75,7 +74,7 @@ export function InvestorsProvider({ children }: { children: ReactNode }) {
   const addInvestor = (investorData: Omit<Investor, 'id'>) => {
     if (!investorsCollectionRef) return;
     const processedData = processInvestorData(investorData);
-    addDoc(investorsCollectionRef, processedData).catch(async (serverError) => {
+    addDoc(investorsCollectionRef, { ...processedData, fundUsage: [] }).catch(async (serverError) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ path: investorsCollectionRef.path, operation: 'create', requestResourceData: processedData }));
     });
   };
