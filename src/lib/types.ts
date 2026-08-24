@@ -161,6 +161,8 @@ export interface Investor {
   paymentType: 'mensual' | 'pago_unico';
   monthlyPaymentDay?: number | null;
   liquidationDate?: string | null;
+  receivingBankName?: string;
+  receivingClabe?: string;
 }
 
 export interface HistoryDeletionAudit {

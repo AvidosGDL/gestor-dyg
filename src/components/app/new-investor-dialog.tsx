@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { DollarSign, Loader2, Percent, Paperclip, X, Info } from 'lucide-react';
+import { DollarSign, Loader2, Percent, Paperclip, X, Info, Landmark } from 'lucide-react';
 import { useInvestors } from '@/contexts/investors-context';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select';
@@ -39,6 +39,8 @@ const investorSchema = z.object({
   paymentMethod: z.string().min(1, 'El método de pago es requerido'),
   status: z.enum(['Activa', 'Liquidada']),
   paymentType: z.enum(['mensual', 'pago_unico'], { required_error: 'Debes seleccionar un tipo de pago.' }),
+  receivingBankName: z.string().min(1, 'El banco receptor es requerido'),
+  receivingClabe: z.string().length(18, 'La CLABE debe tener exactamente 18 dígitos'),
 });
 
 
@@ -54,6 +56,8 @@ const defaultValues: Partial<InvestorFormValues> = {
     interestRate: 0,
     paymentMethod: 'Transferencia',
     status: 'Activa',
+    receivingBankName: '',
+    receivingClabe: '',
 };
 
 interface NewInvestorDialogProps {
@@ -263,7 +267,7 @@ export default function NewInvestorDialog({
                         field.onChange(isNaN(num) ? 0 : num);
                       }}
                       onBlur={() => {
-                        const num = parseFloat(displayAmount.replace(/,/g, ''));
+                        const num = parseFloat(displayBalance.replace(/,/g, ''));
                         if (!isNaN(num)) {
                           setDisplayAmount(num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
                         } else {
@@ -295,8 +299,38 @@ export default function NewInvestorDialog({
                 )}
               />
           </div>
+
+          <div className="space-y-4 pt-4 border-t">
+              <h4 className="text-sm font-bold flex items-center gap-2 text-primary">
+                  <Landmark size={18} /> Datos Bancarios para Pagos
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                      control={form.control}
+                      name="receivingBankName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Banco Destino</FormLabel>
+                          <FormControl><Input {...field} placeholder="Ej. BBVA, Santander..." disabled={form.formState.isSubmitting} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                  />
+                  <FormField
+                      control={form.control}
+                      name="receivingClabe"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Cuenta CLABE (18 dígitos)</FormLabel>
+                          <FormControl><Input {...field} maxLength={18} placeholder="000000000000000000" disabled={form.formState.isSubmitting} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                  />
+              </div>
+          </div>
           
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 pt-4 border-t">
             <FormField
                 control={form.control}
                 name="paymentMethod"

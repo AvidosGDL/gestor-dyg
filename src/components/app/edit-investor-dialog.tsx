@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { DollarSign, Loader2, Percent, Trash2, Repeat, CalendarClock, Info, Upload, Eye, Download } from 'lucide-react';
+import { DollarSign, Loader2, Percent, Trash2, Repeat, CalendarClock, Info, Upload, Eye, Download, Landmark, FileText } from 'lucide-react';
 import { useInvestors } from '@/contexts/investors-context';
 import { useToast } from '@/hooks/use-toast';
 import type { Investor, InvestmentTransaction, Attachment } from '@/lib/types';
@@ -29,6 +29,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Alert, AlertDescription } from '../ui/alert';
 import { cn } from '@/lib/utils';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 
 const transactionSchema = z.object({
@@ -58,6 +60,8 @@ const investorSchema = z.object({
   status: z.enum(['Activa', 'Liquidada']),
   transactions: z.array(transactionSchema).optional(),
   paymentType: z.enum(['mensual', 'pago_unico'], { required_error: 'Debes seleccionar un tipo de pago.' }),
+  receivingBankName: z.string().min(1, 'El banco receptor es requerido'),
+  receivingClabe: z.string().length(18, 'La CLABE debe tener exactamente 18 dígitos'),
 });
 
 
@@ -142,6 +146,8 @@ export default function EditInvestorDialog({
         ...investor,
         investmentDate: investor.investmentDate ? investor.investmentDate.split('T')[0] : '',
         transactions: investor.transactions || [],
+        receivingBankName: investor.receivingBankName || '',
+        receivingClabe: investor.receivingClabe || '',
       });
       setDeleteConfirmation('');
       setDisplayAmount(investor.investmentAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
@@ -189,6 +195,105 @@ export default function EditInvestorDialog({
         setUploadingMonth(null);
     }
   }
+
+  const generatePeriodPDF = async (dueDate: Date, status: string) => {
+    toast({ title: 'Generando Estado de Cuenta...' });
+    
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
+    
+    // Header Logo
+    const logoUrl = 'https://firebasestorage.googleapis.com/v0/b/studio-8033020115-912ac.firebasestorage.app/o/public%2Flogo%20DyG.jpeg?alt=media&token=578d1bd8-b8a4-47b6-a97f-e7731dc39bf1';
+    try {
+        doc.addImage(logoUrl, 'JPEG', 14, 10, 25, 25);
+    } catch (e) {}
+
+    // Title
+    doc.setFontSize(18);
+    doc.setTextColor(63, 81, 181);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ESTADO DE CUENTA DE INVERSIÓN', pageWidth - 14, 20, { align: 'right' });
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Periodo: ${format(dueDate, 'MMMM yyyy', { locale: es })}`.toUpperCase(), pageWidth - 14, 26, { align: 'right' });
+    doc.text(`Fecha de Emisión: ${format(new Date(), 'dd/MM/yyyy')}`, pageWidth - 14, 31, { align: 'right' });
+
+    // Investor Data Box
+    doc.setFillColor(245, 245, 250);
+    doc.rect(14, 45, pageWidth - 28, 40, 'F');
+    
+    doc.setFontSize(11);
+    doc.setTextColor(0);
+    doc.setFont('helvetica', 'bold');
+    doc.text('DATOS DEL INVERSIONISTA', 20, 53);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Nombre: ${investor.name}`, 20, 60);
+    doc.text(`Email: ${investor.email || 'N/A'}`, 20, 65);
+    doc.text(`Teléfono: ${investor.phone || 'N/A'}`, 20, 70);
+    doc.text(`Método de Pago: ${investor.paymentMethod}`, 20, 75);
+
+    // Investment Summary
+    doc.setFont('helvetica', 'bold');
+    doc.text('RESUMEN DE INVERSIÓN', 120, 53);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Capital: $${investor.investmentAmount.toLocaleString('en-US')}`, 120, 60);
+    doc.text(`Tasa Anual: ${investor.interestRate}%`, 120, 65);
+    doc.text(`Plazo: ${investor.investmentTerm} meses`, 120, 70);
+    doc.text(`Inicio: ${format(parseISO(investor.investmentDate), 'dd/MM/yyyy')}`, 120, 75);
+
+    // Payment Details Table
+    const tableData = [
+        ['Concepto', 'Monto'],
+        [`Interés Mensual (${format(dueDate, 'MMMM', { locale: es })})`, `$${monthlyInterestAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`],
+        ['Retención / Otros', '$0.00'],
+        ['TOTAL NETO A PAGAR', `$${monthlyInterestAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`]
+    ];
+
+    autoTable(doc, {
+        startY: 95,
+        head: [['Detalle del Periodo', 'Cálculo']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { fillColor: [63, 81, 181] },
+        columnStyles: {
+            0: { fontStyle: 'bold' },
+            1: { halign: 'right' }
+        }
+    });
+
+    let currentY = (doc as any).lastAutoTable.finalY + 15;
+
+    // Banking Details for Disbursement
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('DATOS PARA DISPERSIÓN DE FONDOS', 14, currentY);
+    
+    currentY += 7;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Institución Bancaria: ${investor.receivingBankName || 'N/A'}`, 14, currentY);
+    currentY += 5;
+    doc.text(`Cuenta CLABE (18 dígitos): ${investor.receivingClabe || 'N/A'}`, 14, currentY);
+
+    currentY += 15;
+    // Status Badge
+    doc.setFillColor(status === 'Pagado' ? 220 : 255, status === 'Pagado' ? 250 : 230, status === 'Pagado' ? 220 : 230);
+    doc.rect(14, currentY, 50, 10, 'F');
+    doc.setTextColor(status === 'Pagado' ? 30 : 150, status === 'Pagado' ? 100 : 50, 50);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`ESTATUS: ${status.toUpperCase()}`, 18, currentY + 7);
+
+    // Footer Info
+    doc.setTextColor(150);
+    doc.setFontSize(8);
+    doc.text('Este documento es un comprobante informativo del periodo. Los rendimientos están sujetos a los términos del contrato firmado.', pageWidth / 2, 280, { align: 'center' });
+
+    doc.save(`EdoCuenta_${investor.name.replace(/\s/g, '_')}_${format(dueDate, 'yyyyMM')}.pdf`);
+  };
 
   const handleDeleteInvestor = () => {
     deleteInvestor(investor.id);
@@ -309,7 +414,7 @@ export default function EditInvestorDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Plazo de Inversión</FormLabel>
-                     <Select onValueChange={(val) => field.onChange(Number(val))} defaultValue={String(field.value)}>
+                     <Select onValueChange={(val) => field.onChange(Number(val))} value={String(field.value)}>
                         <FormControl>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                         </FormControl>
@@ -378,12 +483,43 @@ export default function EditInvestorDialog({
                   )}
                 />
             </div>
+
+            <div className="space-y-4 pt-4 border-t">
+                <h4 className="text-sm font-bold flex items-center gap-2 text-primary">
+                    <Landmark size={18} /> Datos Bancarios para Pagos
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="receivingBankName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Banco Destino</FormLabel>
+                            <FormControl><Input {...field} placeholder="Ej. BBVA, Santander..." /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="receivingClabe"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Cuenta CLABE (18 dígitos)</FormLabel>
+                            <FormControl><Input {...field} maxLength={18} placeholder="000000000000000000" /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                    />
+                </div>
+            </div>
+
             <FormField
               control={form.control}
               name="paymentMethod"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Método de Pago</FormLabel>
+                <FormItem className="pt-4 border-t">
+                  <FormLabel>Método de Pago Original</FormLabel>
                   <FormControl><Input {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -431,18 +567,23 @@ export default function EditInvestorDialog({
 
             {paymentType === 'mensual' && (
                 <div className="space-y-4 pt-4 border-t">
-                    <Label className="text-base font-semibold">Calendario de Pagos de Intereses</Label>
+                    <Label className="text-base font-semibold">Calendario de Pagos de Intereses (Corrida Financiera)</Label>
                     <div className="space-y-3">
                     {paymentSchedule.map(({ dueDate, status, transaction }) => (
-                      <div key={dueDate.toISOString()} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg text-sm">
+                      <div key={dueDate.toISOString()} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg text-sm border border-border">
                         <div className="flex-1">
-                          <p className="font-semibold text-foreground">
-                            Vencimiento: {format(dueDate, "dd 'de' MMMM, yyyy", { locale: es })}
-                          </p>
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="font-semibold text-foreground">
+                                Vencimiento: {format(dueDate, "dd 'de' MMMM, yyyy", { locale: es })}
+                            </p>
+                            <span className="font-mono font-bold text-primary text-base">
+                                ${monthlyInterestAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
                           <div className='flex items-center gap-2 mt-1'>
                             <span
                                 className={cn(
-                                'px-2 py-0.5 rounded-full text-xs font-medium',
+                                'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase',
                                 status === 'Pagado' && 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300',
                                 status === 'Pendiente' && 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300',
                                 status === 'Vencido' && 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300',
@@ -451,15 +592,15 @@ export default function EditInvestorDialog({
                                 {status}
                             </span>
                             {status === 'Pagado' && transaction?.date && (
-                                <span className="text-xs text-muted-foreground">
-                                    (Pagado el {format(parseISO(transaction.date), 'dd/MM/yyyy')})
+                                <span className="text-[10px] text-muted-foreground italic">
+                                    (Pago registrado el {format(parseISO(transaction.date), 'dd/MM/yyyy')})
                                 </span>
                             )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                            {uploadingMonth?.getTime() === dueDate.getTime() ? (
-                             <Button size="sm" disabled><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Subiendo...</Button>
+                             <Button size="sm" disabled className="h-8"><Loader2 className="mr-2 h-3 w-3 animate-spin"/> Subiendo...</Button>
                            ) : status !== 'Pagado' ? (
                             <>
                                 <input
@@ -469,21 +610,21 @@ export default function EditInvestorDialog({
                                     onChange={(e) => handleUploadProof(e, dueDate)}
                                     accept="image/*,.pdf"
                                 />
-                                <Button asChild size="sm" variant="outline">
+                                <Button asChild size="sm" variant="outline" className="h-8 text-[11px] gap-1.5">
                                     <label htmlFor={`file-upload-${dueDate.toISOString()}`}>
-                                    <Upload className="mr-2 h-4 w-4"/> Subir Comprobante
+                                    <Upload className="h-3.5 w-3.5"/> Registrar Pago
                                     </label>
                                 </Button>
                             </>
                            ) : (
                                 transaction?.attachments?.[0] && (
-                                    <Button size="sm" variant="secondary" onClick={() => window.open(transaction.attachments![0].url, '_blank')}>
-                                    <Eye className="mr-2 h-4 w-4"/> Ver Comprobante
+                                    <Button size="sm" variant="secondary" className="h-8 text-[11px] gap-1.5" onClick={() => window.open(transaction.attachments![0].url, '_blank')}>
+                                    <Eye className="h-3.5 w-3.5"/> Comprobante
                                     </Button>
                                 )
                            )}
-                            <Button size="sm" variant="ghost" disabled>
-                                <Download className="mr-2 h-4 w-4"/> Edo. Cuenta
+                            <Button size="sm" variant="ghost" className="h-8 text-[11px] gap-1.5 border border-primary/20 hover:bg-primary/5" onClick={() => generatePeriodPDF(dueDate, status)}>
+                                <FileText className="h-3.5 w-3.5 text-primary"/> Edo. Cuenta
                             </Button>
                         </div>
                       </div>
