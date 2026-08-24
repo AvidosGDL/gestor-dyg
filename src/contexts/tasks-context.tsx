@@ -122,8 +122,10 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
     // Shared visibility: If task is linked to a bank I can see
     if (accessibleBankIds.length > 0) {
-      // Chunking or limiting might be needed for 'in' if > 30, but usually fits
-      filters.push(where('linkedBankAccountId', 'in', accessibleBankIds.slice(0, 30)));
+      // The total number of disjunctions in an OR query is limited to 30.
+      // 1 (owner) + 1 (delegate) + 28 (bank IDs) = 30.
+      // Using slice(0, 28) to ensure we don't crash when user has many banks.
+      filters.push(where('linkedBankAccountId', 'in', accessibleBankIds.slice(0, 28)));
     }
 
     return query(tasksCollectionRef, or(...filters));
