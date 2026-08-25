@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -180,7 +181,7 @@ export default function EditInvestorDialog({
       setDeleteConfirmation('');
       setDisplayAmount(investor.investmentAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
     }
-  }, [isOpen, investor, form]);
+  }, [isOpen, investor.id]); // Solo re-sincronizar si cambia el ID o se abre, para no perder cambios locales al teclear
 
   const handleUploadProof = async (event: React.ChangeEvent<HTMLInputElement>, dueDate: Date) => {
     const file = event.target.files?.[0];
@@ -213,7 +214,8 @@ export default function EditInvestorDialog({
         };
         
         const updatedTransactions = [...(investor.transactions || []), newTransaction];
-        updateInvestor(investor.id, { transactions: updatedTransactions });
+        await updateInvestor(investor.id, { transactions: updatedTransactions });
+        form.setValue('transactions', updatedTransactions);
 
         toast({ title: '¡Éxito!', description: 'Comprobante subido y pago registrado.' });
     } catch (error) {
@@ -248,7 +250,8 @@ export default function EditInvestorDialog({
         };
 
         const updatedUsage = [...(investor.fundUsage || []), newUsage];
-        updateInvestor(investor.id, { fundUsage: updatedUsage });
+        await updateInvestor(investor.id, { fundUsage: updatedUsage });
+        form.setValue('fundUsage', updatedUsage);
 
         toast({ title: 'Registro guardado' });
         setShowUsageForm(false);
@@ -818,6 +821,7 @@ export default function EditInvestorDialog({
                                                 <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => {
                                                     const updatedUsage = investor.fundUsage?.filter(u => u.id !== usage.id);
                                                     updateInvestor(investor.id, { fundUsage: updatedUsage });
+                                                    form.setValue('fundUsage', updatedUsage);
                                                 }}>
                                                     <Trash2 size={14}/>
                                                 </Button>
@@ -889,3 +893,4 @@ export default function EditInvestorDialog({
     </Dialog>
   );
 }
+
