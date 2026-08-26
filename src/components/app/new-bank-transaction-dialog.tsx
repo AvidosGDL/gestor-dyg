@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -113,7 +112,9 @@ export default function NewBankTransactionDialog({
 
   const onSubmit: SubmitHandler<TransactionFormValues> = async (data) => {
     try {
-      addBankTransaction(bankAccountId, data);
+      // Normalización CDMX: Guardamos a mediodía local para evitar saltos de día por desfase UTC
+      const dateToSave = new Date(data.date + 'T12:00:00').toISOString();
+      await addBankTransaction(bankAccountId, { ...data, date: dateToSave });
 
       toast({
         title: 'Transacción Agregada',
@@ -187,6 +188,7 @@ export default function NewBankTransactionDialog({
                             disabled={form.formState.isSubmitting}
                           >
                             {field.value ? (
+                              // Visualización forzada: Usamos mediodía para evitar saltos en el calendario del UI
                               format(new Date(field.value + 'T12:00:00'), "PPP", { locale: es })
                             ) : (
                               <span>Seleccionar fecha</span>

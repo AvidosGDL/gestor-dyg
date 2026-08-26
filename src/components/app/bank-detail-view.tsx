@@ -99,9 +99,10 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
         const matchesType = typeFilter === 'all' || tx.type === typeFilter;
         const matchesUser = (tx.createdBy || '').toLowerCase().includes(userSearch.toLowerCase());
         
-        const txDate = new Date(tx.date.includes('T') ? tx.date : tx.date + 'T12:00:00');
-        const matchesDate = (!startDate || txDate >= startOfDay(new Date(startDate + 'T00:00:00'))) &&
-                          (!endDate || txDate <= endOfDay(new Date(endDate + 'T23:59:59')));
+        // Fix para filtros de fecha: Normalizamos a mediodía local para evitar desfases
+        const txDate = new Date(tx.date.split('T')[0] + 'T12:00:00');
+        const matchesDate = (!startDate || txDate >= startOfDay(new Date(startDate + 'T12:00:00'))) &&
+                          (!endDate || txDate <= endOfDay(new Date(endDate + 'T12:00:00')));
                           
         const matchesAmount = (!minAmount || tx.amount >= Number(minAmount)) &&
                             (!maxAmount || tx.amount <= Number(maxAmount));
@@ -131,9 +132,15 @@ export default function BankDetailView({ bankAccount, onBack }: { bankAccount: B
   };
 
   const formatDateSafely = (dateStr: string) => {
+    if (!dateStr) return 'N/A';
     try {
-      const date = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T12:00:00');
-      return format(date, 'dd/MM/yyyy');
+      // Extraemos solo la parte de la fecha YYYY-MM-DD para evitar saltos de zona horaria por el offset UTC
+      const datePart = dateStr.split('T')[0];
+      const [year, month, day] = datePart.split('-');
+      if (year && month && day) {
+        return `${day}/${month}/${year}`;
+      }
+      return dateStr;
     } catch (e) {
       return dateStr;
     }

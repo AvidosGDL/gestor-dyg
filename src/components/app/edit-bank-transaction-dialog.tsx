@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -104,7 +103,9 @@ export default function EditBankTransactionDialog({
 
   const onSubmit: SubmitHandler<TransactionFormValues> = async (data) => {
     try {
-      await updateBankTransaction(bankAccountId, transaction.id, data);
+      // Normalización CDMX: Al editar, aseguramos que la fecha se guarde a mediodía local
+      const dateToSave = new Date(data.date + 'T12:00:00').toISOString();
+      await updateBankTransaction(bankAccountId, transaction.id, { ...data, date: dateToSave });
       onOpenChange(false);
     } catch (error: any) {
       toast({
