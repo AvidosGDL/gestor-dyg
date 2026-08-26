@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -16,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { DollarSign, Loader2, Percent, Trash2, Repeat, CalendarClock, Info, Upload, Eye, Download, Landmark, FileText, Briefcase, Plus, Check, FileUp } from 'lucide-react';
+import { DollarSign, Loader2, Percent, Trash2, Repeat, CalendarClock, Info, Upload, Eye, Download, Landmark, FileText, Briefcase, Plus, Check, FileUp, ShieldCheck } from 'lucide-react';
 import { useInvestors } from '@/contexts/investors-context';
 import { useToast } from '@/hooks/use-toast';
 import type { Investor, InvestmentTransaction, Attachment, InvestmentUsage } from '@/lib/types';
@@ -34,6 +33,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Switch } from '../ui/switch';
 
 
 const transactionSchema = z.object({
@@ -55,6 +55,7 @@ const usageSchema = z.object({
     date: z.string().min(1, "La fecha es requerida"),
     amount: z.coerce.number().min(0.01, "El monto debe ser mayor a 0"),
     description: z.string().min(1, "La descripción es requerida"),
+    isToRecover: z.boolean().default(false),
 });
 
 const investorSchema = z.object({
@@ -110,6 +111,7 @@ export default function EditInvestorDialog({
           date: new Date().toISOString().split('T')[0],
           amount: 0,
           description: '',
+          isToRecover: false,
       }
   });
 
@@ -118,6 +120,10 @@ export default function EditInvestorDialog({
   
   const totalInvestedUsage = React.useMemo(() => {
     return (investor.fundUsage || []).reduce((sum, u) => sum + u.amount, 0);
+  }, [investor.fundUsage]);
+
+  const totalToRecoverUsage = React.useMemo(() => {
+    return (investor.fundUsage || []).filter(u => u.isToRecover).reduce((sum, u) => sum + u.amount, 0);
   }, [investor.fundUsage]);
 
   const summary = React.useMemo(() => {
@@ -181,7 +187,7 @@ export default function EditInvestorDialog({
       setDeleteConfirmation('');
       setDisplayAmount(investor.investmentAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
     }
-  }, [isOpen, investor.id]); // Solo re-sincronizar si cambia el ID o se abre, para no perder cambios locales al teclear
+  }, [isOpen, investor]); // Usar 'investor' completo para detectar cambios de Firestore
 
   const handleUploadProof = async (event: React.ChangeEvent<HTMLInputElement>, dueDate: Date) => {
     const file = event.target.files?.[0];
@@ -247,6 +253,7 @@ export default function EditInvestorDialog({
             amount: values.amount,
             description: values.description,
             attachments: uploadedAttachments,
+            isToRecover: values.isToRecover,
         };
 
         const updatedUsage = [...(investor.fundUsage || []), newUsage];
@@ -714,7 +721,7 @@ export default function EditInvestorDialog({
 
             <TabsContent value="usage">
                 <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <Card className="bg-primary/5 border-primary/20">
                             <CardContent className="p-4">
                                 <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Capital Recibido</p>
@@ -723,8 +730,14 @@ export default function EditInvestorDialog({
                         </Card>
                         <Card className="bg-amber-50 border-amber-200">
                             <CardContent className="p-4">
-                                <p className="text-[10px] font-bold uppercase text-amber-700 mb-1">Capital Asignado</p>
-                                <p className="text-2xl font-bold text-amber-900">${totalInvestedUsage.toLocaleString()}</p>
+                                <p className="text-[10px] font-bold uppercase text-amber-700 mb-1">Asignado (Gasto)</p>
+                                <p className="text-2xl font-bold text-amber-900">${(totalInvestedUsage - totalToRecoverUsage).toLocaleString()}</p>
+                            </CardContent>
+                        </Card>
+                        <Card className="bg-blue-50 border-blue-200">
+                            <CardContent className="p-4">
+                                <p className="text-[10px] font-bold uppercase text-blue-700 mb-1">Por Recuperar</p>
+                                <p className="text-2xl font-bold text-blue-900">${totalToRecoverUsage.toLocaleString()}</p>
                             </CardContent>
                         </Card>
                         <Card className={cn(
@@ -732,7 +745,7 @@ export default function EditInvestorDialog({
                             (investor.investmentAmount - totalInvestedUsage) > 0 ? "bg-emerald-50 border-emerald-200" : "bg-rose-50 border-rose-200"
                         )}>
                             <CardContent className="p-4">
-                                <p className="text-[10px] font-bold uppercase mb-1">Remanente en Caja</p>
+                                <p className="text-[10px] font-bold uppercase mb-1">Remanente Caja</p>
                                 <p className="text-2xl font-bold">${(investor.investmentAmount - totalInvestedUsage).toLocaleString()}</p>
                             </CardContent>
                         </Card>
@@ -753,7 +766,7 @@ export default function EditInvestorDialog({
                                 <CardTitle className="text-sm">Registrar Inversión o Gasto de este Capital</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     <div className="space-y-2">
                                         <Label className="text-xs">Fecha</Label>
                                         <Input type="date" {...usageForm.register('date')} />
@@ -766,10 +779,17 @@ export default function EditInvestorDialog({
                                         </div>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label className="text-xs">Comprobante de Transferencia</Label>
+                                        <Label className="text-xs">Tipo de Movimiento</Label>
+                                        <div className="flex items-center gap-2 h-10 px-1">
+                                            <Switch onCheckedChange={(val) => usageForm.setValue('isToRecover', val)} />
+                                            <span className="text-xs font-bold text-primary">¿Es por recuperar?</span>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-xs">Comprobante</Label>
                                         <div className="flex items-center gap-2">
                                             <Button type="button" variant="outline" size="sm" className="w-full gap-2 text-xs" onClick={() => usageFileInputRef.current?.click()}>
-                                                <FileUp size={14}/> {usageFiles.length > 0 ? `${usageFiles.length} archivo(s)` : 'Subir Comprobante'}
+                                                <FileUp size={14}/> {usageFiles.length > 0 ? `${usageFiles.length} archivo(s)` : 'Subir'}
                                             </Button>
                                             <input 
                                                 type="file" 
@@ -782,7 +802,7 @@ export default function EditInvestorDialog({
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-xs">Detalle / Destino de la Inversión</Label>
+                                    <Label className="text-xs">Detalle / Destino de la Inversión (¿A quién se le dio?)</Label>
                                     <Input placeholder="Ej. Pago a constructora X para proyecto Y..." {...usageForm.register('description')} />
                                 </div>
                                 <div className="flex justify-end gap-2 pt-2">
@@ -799,6 +819,7 @@ export default function EditInvestorDialog({
                                 <tr className="text-left">
                                     <th className="p-3 font-bold">Fecha</th>
                                     <th className="p-3 font-bold">Destino / Detalle</th>
+                                    <th className="p-3 font-bold">Tipo</th>
                                     <th className="p-3 font-bold text-right">Monto</th>
                                     <th className="p-3 font-bold text-right">Evidencia</th>
                                 </tr>
@@ -808,6 +829,15 @@ export default function EditInvestorDialog({
                                     <tr key={usage.id} className="hover:bg-muted/30">
                                         <td className="p-3 whitespace-nowrap">{format(parseISO(usage.date), 'dd/MM/yyyy')}</td>
                                         <td className="p-3">{usage.description}</td>
+                                        <td className="p-3">
+                                            {usage.isToRecover ? (
+                                                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 gap-1">
+                                                    <ShieldCheck size={10}/> Por Recuperar
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="outline" className="bg-slate-50 text-slate-600">Gasto</Badge>
+                                            )}
+                                        </td>
                                         <td className="p-3 text-right font-mono font-bold">${usage.amount.toLocaleString()}</td>
                                         <td className="p-3 text-right">
                                             <div className="flex justify-end gap-2">
@@ -831,7 +861,7 @@ export default function EditInvestorDialog({
                                 ))}
                                 {(!investor.fundUsage || investor.fundUsage.length === 0) && (
                                     <tr>
-                                        <td colSpan={4} className="p-12 text-center text-muted-foreground italic">No se ha registrado el uso de este capital todavía.</td>
+                                        <td colSpan={5} className="p-12 text-center text-muted-foreground italic">No se ha registrado el uso de este capital todavía.</td>
                                     </tr>
                                 )}
                             </tbody>
@@ -893,4 +923,3 @@ export default function EditInvestorDialog({
     </Dialog>
   );
 }
-

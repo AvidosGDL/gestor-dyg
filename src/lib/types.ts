@@ -152,6 +152,7 @@ export interface InvestmentUsage {
   amount: number;
   description: string;
   attachments: Attachment[];
+  isToRecover?: boolean;
 }
 
 export interface Investor {
