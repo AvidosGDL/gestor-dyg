@@ -32,7 +32,8 @@ import {
     Briefcase,
     Eye,
     Filter,
-    X
+    X,
+    Users
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '../ui/badge';
