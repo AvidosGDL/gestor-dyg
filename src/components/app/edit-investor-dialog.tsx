@@ -20,6 +20,7 @@ import { useInvestors } from '@/contexts/investors-context';
 import { useToast } from '@/hooks/use-toast';
 import type { Investor, InvestmentTransaction, Attachment, InvestmentUsage } from '@/lib/types';
 import { ScrollArea } from '../ui/scroll-area';
+import { Badge } from '../ui/badge';
 import { format, addMonths, getDate, isPast, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select';
