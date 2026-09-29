@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { ReactNode } from 'react';
@@ -108,34 +109,51 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     return firestore ? collection(firestore, 'tasks') : null;
   }, [firestore]);
 
-  // IDs of bank accounts the current user can see
+  // IDs de cuentas bancarias accesibles para visibilidad compartida financiera
   const accessibleBankIds = useMemo(() => bankAccounts.map(b => b.id), [bankAccounts]);
 
-  const tasksQuery = useMemoFirebase(() => {
+  // Miembros de mi equipo para visibilidad de gestión (Boss View)
+  const myTeamCollectionRef = useMemoFirebase(() => {
+    return (user && firestore) ? collection(firestore, `users/${user.uid}/teamMembers`) : null;
+  }, [user, firestore]);
+  const { data: members } = useCollection<TeamMember>(myTeamCollectionRef);
+  const teamMemberIds = useMemo(() => members?.map(m => m.uid).filter(Boolean) || [], [members]);
+
+  // CONSULTA 1: Tareas Personales y Financieras
+  const personalTasksQuery = useMemoFirebase(() => {
     if (!user || !tasksCollectionRef) return null;
     
-    // Base filters: Mine or delegated to me
     const filters = [
       where('ownerId', '==', user.uid),
       where('delegateToId', '==', user.uid)
     ];
 
-    // Shared visibility: If task is linked to a bank I can see
     if (accessibleBankIds.length > 0) {
-      // The total number of disjunctions in an OR query is limited to 30.
-      // 1 (owner) + 1 (delegate) + 28 (bank IDs) = 30.
-      // Using slice(0, 28) to ensure we don't crash when user has many banks.
       filters.push(where('linkedBankAccountId', 'in', accessibleBankIds.slice(0, 28)));
     }
 
     return query(tasksCollectionRef, or(...filters));
   }, [user, tasksCollectionRef, accessibleBankIds]);
 
-  const {
-    data: tasks,
-    loading,
-    setData: setTasksState,
-  } = useCollection<Task>(tasksQuery);
+  // CONSULTA 2: Tareas de Gestión (lo que mi equipo está haciendo)
+  const teamTasksQuery = useMemoFirebase(() => {
+    if (!user || !tasksCollectionRef || teamMemberIds.length === 0) return null;
+    
+    // Traer tareas donde cualquier miembro de mi equipo actual es el delegado
+    // Esto asegura que si cambio de jefe a alguien, el nuevo jefe vea sus tareas de inmediato
+    return query(tasksCollectionRef, where('delegateToId', 'in', teamMemberIds.slice(0, 30)));
+  }, [user, tasksCollectionRef, teamMemberIds]);
+
+  const { data: personalTasks, loading: personalLoading } = useCollection<Task>(personalTasksQuery);
+  const { data: teamTasks, loading: teamLoading } = useCollection<Task>(teamTasksQuery);
+
+  // Fusión de tareas evitando duplicados por ID
+  const allTasksMerged = useMemo(() => {
+    const map = new Map<string, Task>();
+    (personalTasks || []).forEach(t => map.set(t.id, t));
+    (teamTasks || []).forEach(t => map.set(t.id, t));
+    return Array.from(map.values());
+  }, [personalTasks, teamTasks]);
 
   const addTask = async (taskData: any, user: User | null, files: File[] = []) => {
     if (!tasksCollectionRef || !user || !firestore) return;
@@ -148,7 +166,6 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     if (isDelegating) {
         const [email, id] = taskData.delegateToData.split('|');
         delegateToEmail = email;
-        // Protection against "undefined" string
         delegateToId = (id && id !== 'undefined') ? id : null;
     }
     
@@ -187,11 +204,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
 
     try {
-      // Step 1: Create the task document to get an ID.
       const docRef = await addDoc(tasksCollectionRef, newTask);
       const taskId = docRef.id;
 
-      // Step 2: If there are files, upload them now that we have a taskId.
       let newAttachments: Attachment[] = [];
       if (files.length > 0) {
         const storage = getStorage();
@@ -207,12 +222,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
           };
         });
         newAttachments = await Promise.all(uploadPromises);
-
-        // Step 3: Update the task document with the attachment URLs.
         await updateDoc(docRef, { attachments: newAttachments });
       }
 
-      // Step 4: Handle delegation email if necessary.
       if (isDelegating && newTask.delegateToId) {
         const emailResult = await sendDelegationEmail(firestore, user, newTask, taskId);
         if (emailResult.success) {
@@ -220,26 +232,15 @@ export function TasksProvider({ children }: { children: ReactNode }) {
                 title: "Notificación enviada",
                 description: `Se ha notificado a ${emailResult.delegateName} sobre la nueva tarea.`,
             });
-        } else {
-            throw emailResult.error; // Throw to be caught by the outer catch block
         }
       }
     } catch (error: any) {
-      if (error.code && error.message) { // Likely a Firebase error from sendDelegationEmail
-        console.error('[addTask] Error calling sendEmailTask:', error);
-        toast({
-            variant: "destructive",
-            title: "Error al notificar",
-            description: "La tarea se creó, pero no se pudo enviar el correo. " + error.message,
-        });
-      } else { // Firestore permission error or other issue
         const permissionError = new FirestorePermissionError({
           path: tasksCollectionRef.path,
           operation: 'create',
           requestResourceData: newTask,
         });
         errorEmitter.emit('permission-error', permissionError);
-      }
     }
   };
 
@@ -248,10 +249,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     const docRef = doc(firestore, tasksCollectionRef.path, id);
     
     const taskSnap = await getDoc(docRef);
-    if (!taskSnap.exists()) {
-        console.error("Task to update does not exist:", id);
-        return;
-    }
+    if (!taskSnap.exists()) return;
     const existingTask = taskSnap.data() as Task;
     
     const changes: ChangeDetail[] = [];
@@ -284,11 +282,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       finalData.updatedAt = new Date().toISOString();
     }
 
-    // CRITICAL FIX: Sanitización para evitar valores 'undefined' que Firestore rechaza
     Object.keys(finalData).forEach(key => {
-      if (finalData[key] === undefined) {
-        delete finalData[key];
-      }
+      if (finalData[key] === undefined) delete finalData[key];
     });
 
     let shouldSendEmail = false;
@@ -302,9 +297,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         const userProfileRef = doc(firestore, `users/${user.uid}`);
         const userProfileSnap = await getDoc(userProfileRef);
         finalData.delegatedByName = userProfileSnap.exists() ? userProfileSnap.data().name : user.displayName;
-        
         shouldSendEmail = true;
-
       } 
       else if (newEmail === 'none' || newEmail === null) {
         finalData.delegatedByName = null;
@@ -312,17 +305,13 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         finalData.delegateToEmail = null;
         finalData.delegateToId = null;
       }
-      else if (newEmail === oldEmail) {
-        finalData.delegationStatus = existingTask.delegationStatus;
-      }
     }
 
 
     try {
         await updateDoc(docRef, finalData);
         
-        // FINANCIAL INTEGRATION LOGIC: If a task with a linked bank account is completed
-        if (finalData.status === 'completado' && (existingTask.linkedBankAccountId || finalData.linkedBankAccountId) && (existingTask.financialMovementType || finalData.financialMovementType)) {
+        if (finalData.status === 'completado' && (existingTask.linkedBankAccountId || finalData.linkedBankAccountId)) {
             const bankId = finalData.linkedBankAccountId || existingTask.linkedBankAccountId;
             const moveType = finalData.financialMovementType || existingTask.financialMovementType;
             const amount = finalData.value || existingTask.value;
@@ -335,21 +324,12 @@ export function TasksProvider({ children }: { children: ReactNode }) {
                     type: moveType as 'ingreso' | 'egreso',
                     entityName: finalData.client || existingTask.client || 'Vínculo Tarea',
                 };
-
-                // Create transaction with PENDING status (does not affect balance)
                 await addBankTransaction(bankId, transactionData, { validationStatus: 'pending' });
-                
-                toast({
-                    title: "Movimiento generado en banco",
-                    description: "El cargo/abono aparece como 'En Proceso' en la cuenta bancaria hasta que subas el comprobante.",
-                });
             }
         }
 
-        // RECURRENCE LOGIC: If a recurring task is completed, generate next one
         if (finalData.status === 'completado' && existingTask.isRecurring && existingTask.recurrenceConfig) {
             const nextDueDate = calculateNextOccurrenceDate(existingTask.dueDate || format(new Date(), 'yyyy-MM-dd'), existingTask.recurrenceConfig);
-            
             const nextTaskData = {
                 title: existingTask.title,
                 client: existingTask.client,
@@ -366,22 +346,10 @@ export function TasksProvider({ children }: { children: ReactNode }) {
                 linkedBankAccountId: existingTask.linkedBankAccountId || null,
                 financialMovementType: existingTask.financialMovementType || null,
             };
-
             await addTask(nextTaskData, user, []);
-            toast({
-                title: "Serie recurrente activa",
-                description: `Se ha generado la siguiente tarea para el ${format(parseISO(nextDueDate), 'dd/MM/yyyy')}.`
-            });
         }
 
     } catch (error: any) {
-        console.error("Error al actualizar Firestore:", error);
-        toast({
-            variant: "destructive",
-            title: "Error al actualizar tarea",
-            description: error.message || "No se pudo guardar la tarea en la base de datos.",
-        });
-        
         if (error.code === 'permission-denied') {
             const permissionError = new FirestorePermissionError({
                 path: docRef.path,
@@ -390,57 +358,32 @@ export function TasksProvider({ children }: { children: ReactNode }) {
             });
             errorEmitter.emit('permission-error', permissionError);
         }
-        return; // Detener flujo si falla Firestore
+        return;
     }
 
-    // Solo intentar enviar notificación si Firestore se actualizó correctamente
     if (shouldSendEmail) {
         try {
             const taskWithUpdates = { ...existingTask, ...finalData };
-            const emailResult = await sendDelegationEmail(firestore, user, taskWithUpdates, id);
-
-            if (emailResult.success) {
-                toast({
-                    title: "Notificación enviada",
-                    description: `Se ha notificado a ${emailResult.delegateName} sobre la tarea delegada.`,
-                });
-            } else {
-                 throw emailResult.error;
-            }
+            await sendDelegationEmail(firestore, user, taskWithUpdates, id);
         } catch (emailError: any) {
             console.error('[updateTask] Error calling sendEmailTask:', emailError);
-            toast({
-                variant: "destructive",
-                title: "Error al notificar",
-                description: "La tarea se guardó, pero no se pudo enviar el correo de notificación. " + emailError.message,
-            });
         }
     }
   };
 
   const bulkUpdateTasks = async (updates: { id: string, changes: Partial<Task> }[], user: User | null) => {
     if (!firestore || !tasksCollectionRef || !user) return;
-    
     const batch = writeBatch(firestore);
-
     updates.forEach(update => {
         const docRef = doc(firestore, tasksCollectionRef.path, update.id);
         const sanitizedChanges = { ...update.changes };
         Object.keys(sanitizedChanges).forEach(key => {
-          if ((sanitizedChanges as any)[key] === undefined) {
-            delete (sanitizedChanges as any)[key];
-          }
+          if ((sanitizedChanges as any)[key] === undefined) delete (sanitizedChanges as any)[key];
         });
         batch.update(docRef, sanitizedChanges);
     });
-
     batch.commit().catch(async (serverError) => {
-      const permissionError = new FirestorePermissionError({
-        path: tasksCollectionRef.path,
-        operation: 'update',
-        requestResourceData: {info: 'Bulk update operation failed'},
-      });
-      errorEmitter.emit('permission-error', permissionError);
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ path: tasksCollectionRef.path, operation: 'update' }));
     });
   };
 
@@ -451,57 +394,34 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
     try {
         const taskDoc = await getDoc(taskToDeleteRef);
-        if (!taskDoc.exists()) {
-            throw new Error("La tarea no existe.");
-        }
-        
+        if (!taskDoc.exists()) throw new Error("La tarea no existe.");
         const taskData = taskDoc.data();
-
         const batch = writeBatch(firestore);
         batch.set(deletedTaskRef, taskData);
         batch.delete(taskToDeleteRef);
-        
         await batch.commit();
-
-        toast({
-            title: 'Tarea archivada',
-            description: 'La tarea ha sido movida al histórico.',
-        });
+        toast({ title: 'Tarea archivada' });
     } catch (error: any) {
-        console.error("Error al mover la tarea: ", error);
         if (error.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({
-                path: taskToDeleteRef.path,
-                operation: 'delete',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        } else {
-            toast({
-                variant: "destructive",
-                title: "Error al archivar",
-                description: "No se pudo mover la tarea. " + error.message,
-            });
+            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: taskToDeleteRef.path, operation: 'delete' }));
         }
     }
   };
 
 
   const setTasks = (newTasks: Task[]) => {
-    if (!firestore || !tasksCollectionRef) return;
-    if (setTasksState) {
-        setTasksState(newTasks);
-    }
+    if (setTasksState) setTasksState(newTasks);
   };
 
   const contextValue = useMemo(() => ({
-    tasks: tasks || [],
-    loading,
+    tasks: allTasksMerged,
+    loading: personalLoading || teamLoading,
     setTasks,
     addTask,
     updateTask,
     bulkUpdateTasks,
     deleteTask,
-  }), [tasks, loading]);
+  }), [allTasksMerged, personalLoading, teamLoading]);
 
   return (
     <TasksContext.Provider value={contextValue}>{children}</TasksContext.Provider>
@@ -510,8 +430,6 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
 export function useTasks() {
   const context = useContext(TasksContext);
-  if (context === undefined) {
-    throw new Error('useTasks must be used within a TasksProvider');
-  }
+  if (context === undefined) throw new Error('useTasks must be used within a TasksProvider');
   return context;
 }

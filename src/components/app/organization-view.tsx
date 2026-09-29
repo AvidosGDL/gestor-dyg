@@ -59,35 +59,52 @@ export default function OrganizationView() {
   }, [allUsers, searchTerm]);
 
   const handleUpdateTeams = async (targetUser: UserProfile, ownerIds: string[]) => {
-    if (!firestore) return;
+    if (!firestore || !targetUser) return;
     setIsAssigning(true);
+    const targetUid = targetUser.uid || (targetUser as any).id;
+    
     try {
         const batch = writeBatch(firestore);
-        const userRef = doc(firestore, 'users', targetUser.uid);
-        batch.update(userRef, { ownerIds: ownerIds, ownerId: ownerIds[0] || null });
-        const oldOwnerIds = targetUser.ownerIds || (targetUser.ownerId ? [targetUser.ownerId] : []);
+        const userRef = doc(firestore, 'users', targetUid);
+        
+        // Actualizar el perfil del subordinado con sus nuevos jefes
+        batch.update(userRef, { 
+          ownerIds: ownerIds, 
+          ownerId: ownerIds[0] || null 
+        });
+
+        const oldOwnerIds = Array.isArray(targetUser.ownerIds) 
+          ? targetUser.ownerIds 
+          : (targetUser.ownerId ? [targetUser.ownerId] : []);
+        
         const removedBosses = oldOwnerIds.filter(id => !ownerIds.includes(id));
         const addedBosses = ownerIds.filter(id => !oldOwnerIds.includes(id));
+
+        // Eliminar del equipo de los jefes anteriores
         for (const bossId of removedBosses) {
-            batch.delete(doc(firestore, `users/${bossId}/teamMembers`, targetUser.uid));
+            batch.delete(doc(firestore, `users/${bossId}/teamMembers`, targetUid));
         }
+
+        // Agregar al equipo de los nuevos jefes
         for (const bossId of addedBosses) {
-            const memberRef = doc(firestore, `users/${bossId}/teamMembers`, targetUser.uid);
+            const memberRef = doc(firestore, `users/${bossId}/teamMembers`, targetUid);
             batch.set(memberRef, {
-                id: targetUser.uid,
-                uid: targetUser.uid,
+                id: targetUid,
+                uid: targetUid,
                 name: targetUser.name,
                 email: targetUser.email,
                 role: targetUser.role || 'Miembro',
                 avatarUrl: targetUser.avatarUrl,
-                phone: targetUser.phone,
+                phone: targetUser.phone || '',
                 authType: 'email'
             });
         }
+
         await batch.commit();
-        toast({ title: '¡Éxito!', description: `La jerarquía de ${targetUser.name} ha sido actualizada.` });
+        toast({ title: '¡Estructura Actualizada!', description: `La jerarquía de ${targetUser.name} ha sido guardada correctamente.` });
         setSelectedUserForTeams(null);
     } catch (error: any) {
+        console.error("Error al actualizar equipos:", error);
         toast({ variant: 'destructive', title: 'Error', description: error.message });
     } finally {
         setIsAssigning(false);
@@ -99,7 +116,7 @@ export default function OrganizationView() {
     const userRef = doc(firestore, 'users', targetUid);
     try {
         await updateDoc(userRef, { [field]: !currentVal });
-        toast({ title: 'Permiso actualizado', description: 'El cambio se aplicará en el próximo inicio de sesión o recarga.' });
+        toast({ title: 'Permiso actualizado' });
     } catch (e) {
         toast({ variant: 'destructive', title: 'Error', description: 'No se pudo actualizar el permiso.' });
     }
@@ -291,31 +308,84 @@ function AdminEditUserDialog({ user, onClose, onSave }: any) {
 }
 
 function AssignBossDialog({ user, allUsers, onClose, onSave, isProcessing }: any) {
-  const [currentBossIds, setCurrentBossIds] = useState<string[]>(user.ownerIds || (user.ownerId ? [user.ownerId] : []));
-  const leaders = useMemo(() => allUsers.filter((u: any) => (u.uid || u.id) !== user.uid && u.isTeamLeader), [allUsers, user.uid]);
+  // Aseguramos que currentBossIds sea SIEMPRE un arreglo, incluso si el dato en Firestore es null o corrupto
+  const [currentBossIds, setCurrentBossIds] = useState<string[]>(() => {
+    if (Array.isArray(user?.ownerIds)) return user.ownerIds;
+    if (user?.ownerId) return [user.ownerId];
+    return [];
+  });
+
+  const leaders = useMemo(() => {
+    const userUid = user?.uid || (user as any)?.id;
+    return allUsers.filter((u: any) => {
+      const uUid = u.uid || u.id;
+      return uUid !== userUid && u.isTeamLeader;
+    });
+  }, [allUsers, user]);
 
   const toggleBoss = (bossId: string) => {
-    if (currentBossIds.includes(bossId)) setCurrentBossIds(prev => prev.filter(id => id !== bossId));
-    else if (currentBossIds.length < 2) setCurrentBossIds(prev => [...prev, bossId]);
+    // Protección: Si currentBossIds no es arreglo por algún motivo, lo reiniciamos
+    const safeBossIds = Array.isArray(currentBossIds) ? currentBossIds : [];
+    
+    if (safeBossIds.includes(bossId)) {
+        setCurrentBossIds(prev => prev.filter(id => id !== bossId));
+    } else {
+        if (safeBossIds.length < 2) {
+            setCurrentBossIds(prev => [...(Array.isArray(prev) ? prev : []), bossId]);
+        } else {
+            // Opcional: mostrar toast de límite si se desea
+        }
+    }
+  };
+
+  const isSelected = (bossId: string) => {
+    return Array.isArray(currentBossIds) && currentBossIds.includes(bossId);
   };
 
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Asignar Jefes para {user.name}</DialogTitle></DialogHeader>
-        <div className="grid grid-cols-1 gap-2 my-4 max-h-60 overflow-y-auto">
-            {leaders.map((boss: any) => (
-                <div key={boss.id} onClick={() => toggleBoss(boss.id)} className={cn("p-3 border rounded-md cursor-pointer flex items-center justify-between", currentBossIds.includes(boss.id) ? "border-primary bg-primary/5" : "hover:bg-muted")}>
-                    <span>{boss.name}</span>
-                    {currentBossIds.includes(boss.id) && <Star className="h-4 w-4 fill-primary text-primary" />}
-                </div>
-            ))}
+        <DialogHeader>
+            <DialogTitle>Asignar Jefes para {user?.name}</DialogTitle>
+            <DialogDescription>Selecciona hasta 2 líderes que podrán asignar y ver las tareas de este usuario.</DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-1 gap-2 my-4 max-h-60 overflow-y-auto pr-2">
+            {leaders.map((boss: any) => {
+                const bossId = boss.uid || boss.id;
+                const active = isSelected(bossId);
+                return (
+                    <div 
+                        key={bossId} 
+                        onClick={() => toggleBoss(bossId)} 
+                        className={cn(
+                            "p-3 border rounded-md cursor-pointer flex items-center justify-between transition-colors", 
+                            active ? "border-primary bg-primary/5 shadow-sm" : "hover:bg-muted"
+                        )}
+                    >
+                        <div className="flex items-center gap-3">
+                            <Avatar className="h-6 w-6">
+                                <AvatarImage src={boss.avatarUrl} />
+                                <AvatarFallback>{boss.name?.[0]}</AvatarFallback>
+                            </Avatar>
+                            <span className="text-sm font-medium">{boss.name}</span>
+                        </div>
+                        {active && <Star className="h-4 w-4 fill-primary text-primary" />}
+                    </div>
+                );
+            })}
+            {leaders.length === 0 && (
+                <p className="text-center py-6 text-xs text-muted-foreground italic">No hay líderes marcados disponibles.</p>
+            )}
         </div>
         <DialogFooter>
-            <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-            <Button onClick={() => onSave(user, currentBossIds)} disabled={isProcessing}>Guardar</Button>
+            <Button variant="ghost" onClick={onClose} disabled={isProcessing}>Cancelar</Button>
+            <Button onClick={() => onSave(user, currentBossIds)} disabled={isProcessing}>
+                {isProcessing ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
+                Guardar Cambios
+            </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
+
