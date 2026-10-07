@@ -365,7 +365,13 @@ function AdminNewUserDialog({ isOpen, onClose, leaders }: { isOpen: boolean, onC
             onClose();
         } catch (error: any) {
             console.error("Registration error:", error);
-            toast({ variant: 'destructive', title: 'Error al registrar', description: error.message || 'Error interno al procesar el registro.' });
+            // Mostrar mensaje de error específico si viene del servidor
+            const errorMessage = error.message || 'Error inesperado al registrar el usuario.';
+            toast({ 
+                variant: 'destructive', 
+                title: 'Error de Registro', 
+                description: errorMessage 
+            });
         }
     };
 
@@ -377,11 +383,26 @@ function AdminNewUserDialog({ isOpen, onClose, leaders }: { isOpen: boolean, onC
                     <DialogDescription>Completa los datos del nuevo miembro y define su jerarquía inicial.</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-4">
-                    <div className="space-y-2"><Label>Nombre Completo</Label><Input {...register('name')} placeholder="Ej. Juan Pérez" /></div>
-                    <div className="space-y-2"><Label>Correo Electrónico</Label><Input type="email" {...register('email')} placeholder="usuario@fiscalflow.mx" /></div>
+                    <div className="space-y-2">
+                        <Label>Nombre Completo</Label>
+                        <Input {...register('name')} placeholder="Ej. Juan Pérez" />
+                        {errors.name && <p className="text-[10px] text-destructive">{errors.name.message}</p>}
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Correo Electrónico</Label>
+                        <Input type="email" {...register('email')} placeholder="usuario@fiscalflow.mx" />
+                        {errors.email && <p className="text-[10px] text-destructive">{errors.email.message}</p>}
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2"><Label>Rol / Cargo</Label><Input {...register('role')} placeholder="Contador..." /></div>
-                        <div className="space-y-2"><Label>Teléfono</Label><Input {...register('phone')} placeholder="+52..." /></div>
+                        <div className="space-y-2">
+                            <Label>Rol / Cargo</Label>
+                            <Input {...register('role')} placeholder="Contador..." />
+                            {errors.role && <p className="text-[10px] text-destructive">{errors.role.message}</p>}
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Teléfono</Label>
+                            <Input {...register('phone')} placeholder="+52..." />
+                        </div>
                     </div>
                     
                     <div className="space-y-2">
@@ -415,8 +436,11 @@ function AdminNewUserDialog({ isOpen, onClose, leaders }: { isOpen: boolean, onC
                     <DialogFooter className="pt-4 border-t">
                         <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
                         <Button type="submit" disabled={isSubmitting}>
-                            {isSubmitting ? <Loader2 size={16} className="animate-spin mr-2"/> : <Send size={16} className="mr-2"/>}
-                            Dar de Alta
+                            {isSubmitting ? (
+                                <><Loader2 size={16} className="animate-spin mr-2"/> Procesando...</>
+                            ) : (
+                                <><Send size={16} className="mr-2"/> Dar de Alta</>
+                            )}
                         </Button>
                     </DialogFooter>
                 </form>
