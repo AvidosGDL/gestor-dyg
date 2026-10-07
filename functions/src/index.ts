@@ -1,7 +1,6 @@
 import {HttpsError, onCall} from 'firebase-functions/v2/https';
 import {
   onDocumentCreated,
-  onDocumentUpdated,
 } from 'firebase-functions/v2/firestore';
 import * as admin from 'firebase-admin';
 import {Resend} from 'resend';
@@ -25,11 +24,17 @@ const FROM_EMAIL = 'Gestor D&G <gestor@fiscalflow.mx>';
 // FUNCIÓN REUTILIZABLE DE ENVÍO
 // ================================
 async function sendEmail(params: {to: string; subject: string; html: string}) {
-  const key = RESEND_API_KEY_SM.value();
+  let key = '';
+  try {
+    key = RESEND_API_KEY_SM.value();
+  } catch (e) {
+    console.error('Error accessing RESEND_API_KEY_SM secret:', e);
+    throw new HttpsError('failed-precondition', 'El secreto de la API no está configurado en el servidor.');
+  }
 
   if (!key || key.trim().length < 10) {
     console.error('Missing or invalid RESEND_API_KEY_SM secret at runtime.');
-    throw new HttpsError('failed-precondition', 'El secreto de la API no está configurado.');
+    throw new HttpsError('failed-precondition', 'La configuración de envío de correos no es válida.');
   }
 
   const resend = new Resend(key);
@@ -40,7 +45,10 @@ async function sendEmail(params: {to: string; subject: string; html: string}) {
       subject: params.subject,
       html: params.html,
     });
-    if (error) throw new HttpsError('internal', `Error from Resend: ${error.message}`);
+    if (error) {
+        console.error('Resend API Error:', error);
+        throw new HttpsError('internal', `Error de Resend: ${error.message}`);
+    }
     return {success: true, id: data?.id};
   } catch (err: any) {
     console.error('Error enviando correo:', err);
@@ -82,20 +90,31 @@ export const registerTeamMember = onCall(
     if (!request.auth) throw new HttpsError('unauthenticated', 'Requiere login.');
     
     const { email, name, role, inviterId, inviterName, password, phone } = request.data as any;
-    if (!email || !name || !role) throw new HttpsError('invalid-argument', 'Datos incompletos.');
+    if (!email || !name || !role) throw new HttpsError('invalid-argument', 'Datos incompletos (email, name, role).');
 
     try {
       // 1. Crear usuario en Firebase Auth
-      const userRecord = await admin.auth().createUser({
+      const authOptions: any = {
         email,
         displayName: name,
-        ...(password && { password }),
-        ...(phone && { phoneNumber: phone.startsWith('+') ? phone : `+52${phone}` })
-      }).catch(err => {
-          if (err.code === 'auth/email-already-exists') {
-              throw new HttpsError('already-exists', 'Este correo ya está registrado en el sistema.');
+      };
+
+      if (password && password.length >= 6) {
+          authOptions.password = password;
+      }
+
+      if (phone) {
+          const digits = phone.replace(/\D/g, '');
+          if (digits.length >= 10) {
+              authOptions.phoneNumber = phone.startsWith('+') ? phone : `+52${digits.slice(-10)}`;
           }
-          throw err;
+      }
+
+      const userRecord = await admin.auth().createUser(authOptions).catch(err => {
+          console.error("Auth creation error:", err);
+          if (err.code === 'auth/email-already-exists') throw new HttpsError('already-exists', 'Este correo ya está registrado.');
+          if (err.code === 'auth/invalid-phone-number') throw new HttpsError('invalid-argument', 'El número de teléfono es inválido para el sistema.');
+          throw new HttpsError('internal', `Error en Firebase Auth: ${err.message}`);
       });
 
       const uid = userRecord.uid;
@@ -108,14 +127,14 @@ export const registerTeamMember = onCall(
         role,
         phone: phone || '',
         avatarUrl: `https://api.dicebear.com/8.x/lorelei/svg?seed=${uid}`,
-        ownerIds: inviterId ? [inviterId] : [],
-        ownerId: inviterId || null,
+        ownerIds: inviterId && inviterId !== 'none' ? [inviterId] : [],
+        ownerId: inviterId && inviterId !== 'none' ? inviterId : null,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       };
       await admin.firestore().collection('users').doc(uid).set(userProfile);
 
-      // 3. Agregar a la subcolección teamMembers del invitador si existe
-      if (inviterId) {
+      // 3. Agregar a la subcolección teamMembers del invitador
+      if (inviterId && inviterId !== 'none') {
         await admin.firestore().collection('users').doc(inviterId).collection('teamMembers').doc(uid).set({
           id: uid,
           uid: uid,
@@ -128,26 +147,32 @@ export const registerTeamMember = onCall(
         });
       }
 
-      // 4. Lógica de acceso (Link vs Contraseña asignada)
+      // 4. Lógica de acceso
       if (!password) {
-        const actionCodeSettings = { url: 'https://gestor.fiscalflow.mx/login' };
-        const setupLink = await admin.auth().generatePasswordResetLink(email, actionCodeSettings);
+        try {
+            const actionCodeSettings = { url: 'https://gestor.fiscalflow.mx/login' };
+            const setupLink = await admin.auth().generatePasswordResetLink(email, actionCodeSettings);
 
-        const subject = `Bienvenido a Gestor D&G - Configura tu acceso`;
-        const html = `
-            <h1>Bienvenido al equipo, ${name}</h1>
-            <p>${inviterName} te ha dado de alta en la plataforma.</p>
-            <p>Para comenzar a trabajar, necesitas definir tu contraseña haciendo clic en el siguiente enlace:</p>
-            <p><a href="${setupLink}" style="padding: 10px 20px; background: #3f51b5; color: white; text-decoration: none; border-radius: 5px;">Definir mi Contraseña</a></p>
-            <br/>
-            <p>Una vez definida, podrás entrar con tu correo: <strong>${email}</strong></p>
-        `;
-        await sendEmail({ to: email, subject, html });
+            const subject = `Bienvenido a Gestor D&G - Configura tu acceso`;
+            const html = `
+                <h1>Bienvenido al equipo, ${name}</h1>
+                <p>${inviterName || 'Un Administrador'} te ha dado de alta en la plataforma.</p>
+                <p>Para comenzar, necesitas definir tu contraseña haciendo clic en el siguiente enlace:</p>
+                <p><a href="${setupLink}" style="padding: 10px 20px; background: #3f51b5; color: white; text-decoration: none; border-radius: 5px;">Definir mi Contraseña</a></p>
+                <br/>
+                <p>Tu usuario es: <strong>${email}</strong></p>
+            `;
+            await sendEmail({ to: email, subject, html });
+        } catch (linkError: any) {
+            console.error("Error generating reset link:", linkError);
+            // No bloqueamos el registro si falla el correo, pero avisamos.
+            return { success: true, uid, warning: 'Usuario creado pero no se pudo enviar el correo de bienvenida.' };
+        }
       } else {
         const subject = `Bienvenido a Gestor D&G - Tu cuenta está lista`;
         const html = `
             <h1>Hola ${name}, bienvenido al equipo</h1>
-            <p>${inviterName} ha creado tu acceso para Gestor D&G.</p>
+            <p>Se ha creado tu acceso para Gestor D&G.</p>
             <p>Puedes entrar ahora mismo con las siguientes credenciales:</p>
             <p><strong>Usuario:</strong> ${email}</p>
             <p><strong>Contraseña:</strong> (La asignada por tu administrador)</p>
@@ -159,9 +184,9 @@ export const registerTeamMember = onCall(
 
       return { success: true, uid };
     } catch (error: any) {
-      console.error('Error registering team member:', error);
+      console.error('Catastrophic error in registerTeamMember:', error);
       if (error instanceof HttpsError) throw error;
-      throw new HttpsError('internal', error.message || 'Error al registrar miembro.');
+      throw new HttpsError('internal', error.message || 'Error inesperado al registrar miembro.');
     }
   }
 );
@@ -172,9 +197,10 @@ export const registerTeamMember = onCall(
 export const deleteUserAccount = onCall(
     { region: 'us-central1' },
     async (request) => {
-        if (!request.auth || (request.auth.uid !== ADMIN_UID && !ADMIN_EMAILS.includes(request.auth.token.email || ''))) {
-            throw new HttpsError('permission-denied', 'Solo el administrador principal puede realizar esta acción.');
-        }
+        if (!request.auth) throw new HttpsError('unauthenticated', 'Requiere login.');
+        
+        const isAdmin = request.auth.uid === ADMIN_UID || ADMIN_EMAILS.includes(request.auth.token.email || '');
+        if (!isAdmin) throw new HttpsError('permission-denied', 'Solo administradores.');
 
         const { uid } = request.data as { uid: string };
         if (!uid) throw new HttpsError('invalid-argument', 'UID requerido.');
@@ -217,7 +243,7 @@ export const onSupportTicketCreated = onDocumentCreated(
     `;
 
     for (const email of ADMIN_EMAILS) {
-      await sendEmail({ to: email, subject, html }).catch(e => console.error("Error sending support email to admin", e));
+      await sendEmail({ to: email, subject, html }).catch(e => console.error("Error sending support email", e));
     }
   }
 );

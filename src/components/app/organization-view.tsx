@@ -39,7 +39,7 @@ const adminNewUserSchema = z.object({
     email: z.string().email('Correo no válido'),
     role: z.string().min(1, 'El rol es requerido'),
     phone: z.string().optional(),
-    bossId: z.string().optional(),
+    bossId: z.string().optional().nullable(),
     password: z.string().optional(),
     useLink: z.boolean().default(true),
 });
@@ -76,7 +76,8 @@ export default function OrganizationView() {
         await deleteFunction({ uid });
         toast({ title: 'Usuario eliminado', description: 'La cuenta y perfiles asociados han sido borrados.' });
     } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Error al borrar', description: error.message });
+        console.error("Delete error:", error);
+        toast({ variant: 'destructive', title: 'Error al borrar', description: error.message || 'Error interno del servidor.' });
     } finally {
         setIsProcessing(false);
     }
@@ -335,7 +336,7 @@ function AdminNewUserDialog({ isOpen, onClose, leaders }: { isOpen: boolean, onC
     const { toast } = useToast();
     const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<AdminNewUserValues>({
         resolver: zodResolver(adminNewUserSchema),
-        defaultValues: { useLink: true }
+        defaultValues: { useLink: true, bossId: null }
     });
 
     const useLink = watch('useLink');
@@ -345,7 +346,7 @@ function AdminNewUserDialog({ isOpen, onClose, leaders }: { isOpen: boolean, onC
             const functions = getFunctions();
             const registerFunction = httpsCallable(functions, 'registerTeamMember');
             
-            await registerFunction({
+            const result = await registerFunction({
                 email: data.email,
                 name: data.name,
                 role: data.role,
@@ -355,11 +356,16 @@ function AdminNewUserDialog({ isOpen, onClose, leaders }: { isOpen: boolean, onC
                 password: data.useLink ? null : data.password,
             });
 
-            toast({ title: 'Usuario Creado', description: data.useLink ? 'Se envió la liga de acceso al correo.' : 'Cuenta lista con la contraseña asignada.' });
+            const responseData = result.data as any;
+            if (responseData.warning) {
+                toast({ variant: 'default', title: 'Usuario Creado con Advertencia', description: responseData.warning });
+            } else {
+                toast({ title: 'Usuario Creado', description: data.useLink ? 'Se envió la liga de acceso al correo.' : 'Cuenta lista con la contraseña asignada.' });
+            }
             onClose();
         } catch (error: any) {
-            console.error("Error al registrar:", error);
-            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Error al procesar el registro.' });
+            console.error("Registration error:", error);
+            toast({ variant: 'destructive', title: 'Error al registrar', description: error.message || 'Error interno al procesar el registro.' });
         }
     };
 
@@ -380,7 +386,7 @@ function AdminNewUserDialog({ isOpen, onClose, leaders }: { isOpen: boolean, onC
                     
                     <div className="space-y-2">
                         <Label>Jefe Inmediato (Asignación Directa)</Label>
-                        <Select onValueChange={(v) => setValue('bossId', v)}>
+                        <Select onValueChange={(v) => setValue('bossId', v === 'none' ? null : v)}>
                             <SelectTrigger><SelectValue placeholder="Seleccionar jefe..."/></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="none">Sin jefe (Independiente)</SelectItem>
@@ -399,7 +405,7 @@ function AdminNewUserDialog({ isOpen, onClose, leaders }: { isOpen: boolean, onC
                                 <Label>Contraseña Manual</Label>
                                 <div className="relative">
                                     <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                                    <Input type="text" {...register('password')} className="pl-9" placeholder="Escribe la clave aquí..." />
+                                    <Input type="text" {...register('password')} className="pl-9" placeholder="Mínimo 6 caracteres..." />
                                 </div>
                                 <p className="text-[10px] text-muted-foreground italic">Deberás entregar esta clave manualmente al usuario.</p>
                             </div>
