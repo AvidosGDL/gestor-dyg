@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo, useRef } from 'react';
@@ -364,13 +365,17 @@ function AdminNewUserDialog({ isOpen, onClose, leaders }: { isOpen: boolean, onC
             }
             onClose();
         } catch (error: any) {
-            console.error("Registration error:", error);
-            // Mostrar mensaje de error específico si viene del servidor
-            const errorMessage = error.message || 'Error inesperado al registrar el usuario.';
+            console.error("Registration error details:", error);
+            // Captura mensaje más descriptivo si está disponible
+            let message = 'Error inesperado al registrar el usuario.';
+            if (error.code && error.message) {
+                message = `${error.message}`;
+            }
+            
             toast({ 
                 variant: 'destructive', 
                 title: 'Error de Registro', 
-                description: errorMessage 
+                description: message 
             });
         }
     };

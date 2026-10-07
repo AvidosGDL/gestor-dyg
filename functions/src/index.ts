@@ -12,7 +12,7 @@ const RESEND_API_KEY_SM = defineSecret('RESEND_API_KEY_SM');
 const ADMIN_UID = 'fKZUAAXTENPcUeEA4tUXFEV4xbr1';
 const ADMIN_EMAILS = ['gdldanny@gmail.com', 'Roger1996.developer@gmail.com'];
 
-// Initialize Firebase Admin SDK
+// Initialize Firebase Admin SDK once
 if (admin.apps.length === 0) {
     admin.initializeApp();
 }
@@ -85,7 +85,12 @@ export const registerTeamMember = onCall(
     const { email, name, role, inviterId, inviterName, password, phone } = request.data as any;
     if (!email || !name || !role) throw new HttpsError('invalid-argument', 'Datos incompletos (email, nombre y rol son obligatorios).');
 
-    const apiKey = RESEND_API_KEY_SM.value();
+    let apiKey = '';
+    try {
+        apiKey = RESEND_API_KEY_SM.value();
+    } catch (e) {
+        console.error("Secret RESEND_API_KEY_SM not available");
+    }
 
     try {
       // 2. Configurar opciones de Auth
@@ -99,7 +104,7 @@ export const registerTeamMember = onCall(
       }
 
       // Sanitización de teléfono para formato E.164
-      if (phone) {
+      if (phone && phone.trim() !== '') {
           const digits = phone.replace(/\D/g, '');
           if (digits.length >= 10) {
               authOptions.phoneNumber = phone.startsWith('+') ? phone : `+52${digits.slice(-10)}`;
@@ -148,7 +153,7 @@ export const registerTeamMember = onCall(
       }
 
       // 6. Lógica de bienvenida (Email)
-      if (!password) {
+      if (!password && apiKey) {
         try {
             const actionCodeSettings = { url: 'https://gestor.fiscalflow.mx/login' };
             const setupLink = await admin.auth().generatePasswordResetLink(email, actionCodeSettings);
@@ -168,9 +173,9 @@ export const registerTeamMember = onCall(
             await sendEmail({ to: email, subject, html }, apiKey);
         } catch (linkError: any) {
             console.error("Error generating reset link:", linkError);
-            return { success: true, uid, warning: 'Usuario creado, pero no se pudo enviar el correo de bienvenida. Solicita al usuario que use la opción "Olvidé mi contraseña".' };
+            return { success: true, uid, warning: 'Usuario creado, pero no se pudo enviar el correo de bienvenida automáticamente. Solicita al usuario que use la opción "Olvidé mi contraseña" en el login.' };
         }
-      } else {
+      } else if (apiKey) {
         const subject = `Tu cuenta en Gestor D&G está lista`;
         const html = `
             <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
@@ -184,14 +189,14 @@ export const registerTeamMember = onCall(
                 </div>
             </div>
         `;
-        await sendEmail({ to: email, subject, html }, apiKey);
+        await sendEmail({ to: email, subject, html }, apiKey).catch(e => console.error("Welcome email failed", e));
       }
 
       return { success: true, uid };
     } catch (error: any) {
       console.error('Catastrophic error in registerTeamMember:', error);
       if (error instanceof HttpsError) throw error;
-      throw new HttpsError('internal', error.message || 'Error inesperado al registrar miembro.');
+      throw new HttpsError('internal', `Fallo al registrar miembro: ${error.message}`);
     }
   }
 );
@@ -228,7 +233,7 @@ export const deleteUserAccount = onCall(
             return { success: true };
         } catch (error: any) {
             console.error('Error deleting user:', error);
-            throw new HttpsError('internal', error.message || 'Error al intentar eliminar la cuenta del usuario.');
+            throw new HttpsError('internal', `Error al intentar eliminar la cuenta del usuario: ${error.message}`);
         }
     }
 );
@@ -244,7 +249,13 @@ export const onSupportTicketCreated = onDocumentCreated(
     const ticket = snap.data();
     if (!ticket) return;
 
-    const apiKey = RESEND_API_KEY_SM.value();
+    let apiKey = '';
+    try {
+        apiKey = RESEND_API_KEY_SM.value();
+    } catch (e) {
+        console.error("Secret for support notification failed");
+        return;
+    }
 
     const { type, description, severity, creatorName, creatorEmail } = ticket;
     const subject = `[NUEVO TICKET] ${type === 'bug' ? 'BUG' : 'MEJORA'} - Prioridad ${severity}`;
@@ -271,7 +282,13 @@ export const sendEmailTask = onCall(
     if (!request.auth) throw new HttpsError('unauthenticated', 'Requiere login.');
     const {to, taskTitle, delegateName, taskUrl, delegatorName, delegateId} = request.data as any;
     
-    const apiKey = RESEND_API_KEY_SM.value();
+    let apiKey = '';
+    try {
+        apiKey = RESEND_API_KEY_SM.value();
+    } catch (e) {
+        throw new HttpsError('failed-precondition', 'Configuración de correo no disponible.');
+    }
+
     const subject = `Nueva tarea delegada: ${taskTitle.replace(/\n/g, ' ')}`;
     const html = `<h1>Se te ha delegado una nueva tarea</h1><p>Hola ${delegateName},</p><p>${delegatorName || 'Un administrador'} te ha delegado la tarea:</p><p><strong>${taskTitle}</strong></p>${taskUrl ? `<p>Detalles: <a href="${taskUrl}">${taskUrl}</a></p>` : ''}`;
     
