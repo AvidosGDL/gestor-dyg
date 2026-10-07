@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useMemo, useRef } from 'react';
@@ -11,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Search, Loader2, Star, StarOff, Users, Edit, ImageUp, ShieldCheck, Landmark, KanbanSquare, Trash2, UserPlus, Mail, Briefcase, Lock, Key } from 'lucide-react';
+import { Search, Loader2, Star, StarOff, Users, Edit, ImageUp, ShieldCheck, Landmark, KanbanSquare, Trash2, UserPlus, Mail, Briefcase, Lock, Key, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
