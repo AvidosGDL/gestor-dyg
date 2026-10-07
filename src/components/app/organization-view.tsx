@@ -312,7 +312,7 @@ export default function OrganizationView() {
         <AdminEditUserDialog
             user={selectedUserForEdit}
             onClose={() => setSelectedUserForEdit(null)}
-            onSave={async (uid, data) => {
+            onSave={async (uid: string, data: any) => {
                 await updateDoc(doc(firestore!, 'users', uid), data);
                 setSelectedUserForEdit(null);
                 toast({ title: 'Perfil guardado' });
@@ -358,7 +358,8 @@ function AdminNewUserDialog({ isOpen, onClose, leaders }: { isOpen: boolean, onC
             toast({ title: 'Usuario Creado', description: data.useLink ? 'Se envió la liga de acceso al correo.' : 'Cuenta lista con la contraseña asignada.' });
             onClose();
         } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Error', description: error.message });
+            console.error("Error al registrar:", error);
+            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Error al procesar el registro.' });
         }
     };
 
