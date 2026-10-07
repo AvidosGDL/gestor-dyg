@@ -143,15 +143,15 @@ export const registerTeamMember = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Requiere login.');
     
-    const { email, name, role, inviterId, inviterName } = request.data as any;
+    const { email, name, role, inviterId, inviterName, password } = request.data as any;
     if (!email || !name || !role) throw new HttpsError('invalid-argument', 'Datos incompletos.');
 
     try {
       // 1. Crear usuario en Firebase Auth
-      // Se crea sin contraseña, lo que obliga a usar el link de reseteo para definirla
       const userRecord = await admin.auth().createUser({
         email,
         displayName: name,
+        ...(password && { password }), // Asignar password si se provee
       });
 
       const uid = userRecord.uid;
@@ -163,42 +163,56 @@ export const registerTeamMember = onCall(
         email,
         role,
         avatarUrl: `https://api.dicebear.com/8.x/lorelei/svg?seed=${uid}`,
-        ownerIds: [inviterId],
-        ownerId: inviterId,
+        ownerIds: inviterId ? [inviterId] : [],
+        ownerId: inviterId || null,
       };
       await admin.firestore().collection('users').doc(uid).set(userProfile);
 
-      // 3. Agregar a la subcolección teamMembers del invitador
-      await admin.firestore().collection('users').doc(inviterId).collection('teamMembers').doc(uid).set({
-        id: uid,
-        uid: uid,
-        name,
-        email,
-        role,
-        avatarUrl: userProfile.avatarUrl,
-        authType: 'email'
-      });
+      // 3. Agregar a la subcolección teamMembers del invitador si existe
+      if (inviterId) {
+        await admin.firestore().collection('users').doc(inviterId).collection('teamMembers').doc(uid).set({
+          id: uid,
+          uid: uid,
+          name,
+          email,
+          role,
+          avatarUrl: userProfile.avatarUrl,
+          authType: 'email'
+        });
+      }
 
-      // 4. Generar liga para que el usuario defina su contraseña
-      const actionCodeSettings = {
-        url: 'https://gestor.fiscalflow.mx/login',
-      };
-      const setupLink = await admin.auth().generatePasswordResetLink(email, actionCodeSettings);
+      // 4. Lógica de acceso (Link vs Contraseña asignada)
+      if (!password) {
+        const actionCodeSettings = {
+            url: 'https://gestor.fiscalflow.mx/login',
+        };
+        const setupLink = await admin.auth().generatePasswordResetLink(email, actionCodeSettings);
 
-      // 5. Enviar correo con la liga
-      const subject = `Bienvenido a Gestor D&G - Configura tu acceso`;
-      const html = `
-        <h1>Bienvenido al equipo, ${name}</h1>
-        <p>${inviterName} te ha dado de alta en la plataforma.</p>
-        <p>Para comenzar a trabajar, necesitas definir tu contraseña haciendo clic en el siguiente enlace:</p>
-        <p><a href="${setupLink}" style="padding: 10px 20px; background: #3f51b5; color: white; text-decoration: none; border-radius: 5px;">Definir mi Contraseña</a></p>
-        <p>O copia y pega esta URL en tu navegador:</p>
-        <p>${setupLink}</p>
-        <br/>
-        <p>Una vez definida, podrás entrar con tu correo: <strong>${email}</strong></p>
-      `;
-
-      await sendEmail({ to: email, subject, html });
+        const subject = `Bienvenido a Gestor D&G - Configura tu acceso`;
+        const html = `
+            <h1>Bienvenido al equipo, ${name}</h1>
+            <p>${inviterName} te ha dado de alta en la plataforma.</p>
+            <p>Para comenzar a trabajar, necesitas definir tu contraseña haciendo clic en el siguiente enlace:</p>
+            <p><a href="${setupLink}" style="padding: 10px 20px; background: #3f51b5; color: white; text-decoration: none; border-radius: 5px;">Definir mi Contraseña</a></p>
+            <p>O copia y pega esta URL en tu navegador:</p>
+            <p>${setupLink}</p>
+            <br/>
+            <p>Una vez definida, podrás entrar con tu correo: <strong>${email}</strong></p>
+        `;
+        await sendEmail({ to: email, subject, html });
+      } else {
+        const subject = `Bienvenido a Gestor D&G - Tu cuenta está lista`;
+        const html = `
+            <h1>Hola ${name}, bienvenido al equipo</h1>
+            <p>${inviterName} ha creado tu acceso para Gestor D&G.</p>
+            <p>Puedes entrar ahora mismo con las siguientes credenciales:</p>
+            <p><strong>Usuario:</strong> ${email}</p>
+            <p><strong>Contraseña:</strong> (La que te asignó tu administrador)</p>
+            <br/>
+            <p><a href="https://gestor.fiscalflow.mx/login" style="padding: 10px 20px; background: #3f51b5; color: white; text-decoration: none; border-radius: 5px;">Acceder al Sistema</a></p>
+        `;
+        await sendEmail({ to: email, subject, html });
+      }
 
       return { success: true, uid };
     } catch (error: any) {
@@ -206,6 +220,43 @@ export const registerTeamMember = onCall(
       throw new HttpsError('internal', error.message || 'Error al registrar miembro.');
     }
   }
+);
+
+// ================================
+// ELIMINACIÓN DE USUARIO (ADMIN)
+// ================================
+export const deleteUserAccount = onCall(
+    { region: 'us-central1' },
+    async (request) => {
+        if (!request.auth || request.auth.uid !== ADMIN_UID) {
+            throw new HttpsError('permission-denied', 'Solo el administrador principal puede realizar esta acción.');
+        }
+
+        const { uid } = request.data as { uid: string };
+        if (!uid) throw new HttpsError('invalid-argument', 'UID requerido.');
+
+        try {
+            // 1. Eliminar de Firebase Auth
+            await admin.auth().deleteUser(uid);
+
+            // 2. Buscar dónde es miembro del equipo y eliminar
+            const db = admin.firestore();
+            const teamMembersQuery = await db.collectionGroup('teamMembers').where('uid', '==', uid).get();
+            
+            const batch = db.batch();
+            teamMembersQuery.forEach(doc => batch.delete(doc.ref));
+
+            // 3. Eliminar perfil principal
+            batch.delete(db.collection('users').doc(uid));
+
+            await batch.commit();
+
+            return { success: true };
+        } catch (error: any) {
+            console.error('Error deleting user:', error);
+            throw new HttpsError('internal', error.message || 'Error al eliminar usuario.');
+        }
+    }
 );
 
 // Existing functions below...

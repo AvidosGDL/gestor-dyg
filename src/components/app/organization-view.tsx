@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Search, Loader2, Star, StarOff, Users, Edit, ImageUp, ShieldCheck, Landmark, KanbanSquare } from 'lucide-react';
+import { Search, Loader2, Star, StarOff, Users, Edit, ImageUp, ShieldCheck, Landmark, KanbanSquare, Trash2, UserPlus, Mail, Briefcase, Lock, Key } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
@@ -23,10 +23,9 @@ import * as z from 'zod';
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '../ui/switch';
-
-const AVATAR_OPTIONS = 7;
-const avatarCollection = 'lorelei';
-const generateAvatarUrl = (seed: string) => `https://api.dicebear.com/8.x/${avatarCollection}/svg?seed=${seed}`;
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 const adminEditUserSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
@@ -36,16 +35,28 @@ const adminEditUserSchema = z.object({
   avatarUrl: z.string().url('Por favor, selecciona un avatar'),
 });
 
+const adminNewUserSchema = z.object({
+    name: z.string().min(1, 'El nombre es requerido'),
+    email: z.string().email('Correo no válido'),
+    role: z.string().min(1, 'El rol es requerido'),
+    phone: z.string().optional(),
+    bossId: z.string().optional(),
+    password: z.string().optional(),
+    useLink: z.boolean().default(true),
+});
+
 type AdminEditUserValues = z.infer<typeof adminEditUserSchema>;
+type AdminNewUserValues = z.infer<typeof adminNewUserSchema>;
 
 export default function OrganizationView() {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
-  const [isAssigning, setIsAssigning] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [selectedUserForTeams, setSelectedUserForTeams] = useState<UserProfile | null>(null);
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<UserProfile | null>(null);
+  const [isNewUserDialogOpen, setIsNewUserDialogOpen] = useState(false);
 
   const usersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('name')), [firestore]);
   const { data: allUsers, loading } = useCollection<UserProfile>(usersQuery);
@@ -58,16 +69,29 @@ export default function OrganizationView() {
     );
   }, [allUsers, searchTerm]);
 
+  const handleDeleteUser = async (uid: string) => {
+    setIsProcessing(true);
+    try {
+        const functions = getFunctions();
+        const deleteFunction = httpsCallable(functions, 'deleteUserAccount');
+        await deleteFunction({ uid });
+        toast({ title: 'Usuario eliminado', description: 'La cuenta y perfiles asociados han sido borrados.' });
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Error al borrar', description: error.message });
+    } finally {
+        setIsProcessing(false);
+    }
+  };
+
   const handleUpdateTeams = async (targetUser: UserProfile, ownerIds: string[]) => {
     if (!firestore || !targetUser) return;
-    setIsAssigning(true);
+    setIsProcessing(true);
     const targetUid = targetUser.uid || (targetUser as any).id;
     
     try {
         const batch = writeBatch(firestore);
         const userRef = doc(firestore, 'users', targetUid);
         
-        // Actualizar el perfil del subordinado con sus nuevos jefes
         batch.update(userRef, { 
           ownerIds: ownerIds, 
           ownerId: ownerIds[0] || null 
@@ -80,12 +104,10 @@ export default function OrganizationView() {
         const removedBosses = oldOwnerIds.filter(id => !ownerIds.includes(id));
         const addedBosses = ownerIds.filter(id => !oldOwnerIds.includes(id));
 
-        // Eliminar del equipo de los jefes anteriores
         for (const bossId of removedBosses) {
             batch.delete(doc(firestore, `users/${bossId}/teamMembers`, targetUid));
         }
 
-        // Agregar al equipo de los nuevos jefes
         for (const bossId of addedBosses) {
             const memberRef = doc(firestore, `users/${bossId}/teamMembers`, targetUid);
             batch.set(memberRef, {
@@ -101,13 +123,12 @@ export default function OrganizationView() {
         }
 
         await batch.commit();
-        toast({ title: '¡Estructura Actualizada!', description: `La jerarquía de ${targetUser.name} ha sido guardada correctamente.` });
+        toast({ title: '¡Estructura Actualizada!', description: `La jerarquía de ${targetUser.name} ha sido guardada.` });
         setSelectedUserForTeams(null);
     } catch (error: any) {
-        console.error("Error al actualizar equipos:", error);
         toast({ variant: 'destructive', title: 'Error', description: error.message });
     } finally {
-        setIsAssigning(false);
+        setIsProcessing(false);
     }
   };
 
@@ -126,6 +147,16 @@ export default function OrganizationView() {
 
   return (
     <div className="h-full flex flex-col space-y-4">
+      <div className="flex justify-between items-center">
+         <div>
+            <h2 className="text-2xl font-bold">Estructura Global</h2>
+            <p className="text-muted-foreground text-sm">Administra la jerarquía y accesos de toda la organización.</p>
+         </div>
+         <Button onClick={() => setIsNewUserDialogOpen(true)} className="gap-2">
+            <UserPlus size={18}/> Crear Nuevo Usuario
+         </Button>
+      </div>
+
       <Card className="flex-1 flex flex-col overflow-hidden">
         <CardHeader className="pb-2">
           <CardTitle>Configuración Global de Estructura y Accesos</CardTitle>
@@ -173,7 +204,7 @@ export default function OrganizationView() {
                             </div>
                         </div>
                         </TableCell>
-                        <TableCell><Badge variant="outline" className="text-[10px]">{u.role}</Badge></TableCell>
+                        <TableCell><Badge variant="outline" className="text-[10px] uppercase font-bold">{u.role}</Badge></TableCell>
                         <TableCell className="text-center">
                             <Button 
                                 variant="ghost" 
@@ -188,13 +219,34 @@ export default function OrganizationView() {
                             </Button>
                         </TableCell>
                         <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end gap-1">
                             <Button variant="ghost" size="sm" onClick={() => setSelectedUserForEdit(u)} className="h-8 gap-2">
                                 <Edit size={14}/> Perfil
                             </Button>
                             <Button variant="ghost" size="sm" onClick={() => setSelectedUserForTeams(u)} className="h-8 gap-2">
                                 <Users size={14}/> Equipo
                             </Button>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                                        <Trash2 size={16}/>
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>¿Eliminar usuario?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            Esta acción borrará permanentemente la cuenta de <strong>{u.name}</strong>, su perfil y su membresía en cualquier equipo. Esta acción no se puede deshacer.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDeleteUser(u.id)} className="bg-destructive hover:bg-destructive/90">
+                                            Confirmar Eliminación
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </div>
                         </TableCell>
                     </TableRow>
@@ -253,7 +305,7 @@ export default function OrganizationView() {
           allUsers={allUsers || []}
           onClose={() => setSelectedUserForTeams(null)}
           onSave={handleUpdateTeams}
-          isProcessing={isAssigning}
+          isProcessing={isProcessing}
         />
       )}
 
@@ -268,8 +320,103 @@ export default function OrganizationView() {
             }}
         />
       )}
+
+      {isNewUserDialogOpen && (
+          <AdminNewUserDialog 
+            isOpen={isNewUserDialogOpen}
+            onClose={() => setIsNewUserDialogOpen(false)}
+            leaders={allUsers?.filter(u => u.isTeamLeader) || []}
+          />
+      )}
     </div>
   );
+}
+
+function AdminNewUserDialog({ isOpen, onClose, leaders }: { isOpen: boolean, onClose: () => void, leaders: UserProfile[] }) {
+    const { toast } = useToast();
+    const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<AdminNewUserValues>({
+        resolver: zodResolver(adminNewUserSchema),
+        defaultValues: { useLink: true }
+    });
+
+    const useLink = watch('useLink');
+
+    const onSubmit: SubmitHandler<AdminNewUserValues> = async (data) => {
+        try {
+            const functions = getFunctions();
+            const registerFunction = httpsCallable(functions, 'registerTeamMember');
+            
+            await registerFunction({
+                email: data.email,
+                name: data.name,
+                role: data.role,
+                phone: data.phone || '',
+                inviterId: data.bossId === 'none' ? null : data.bossId,
+                inviterName: 'Un Administrador',
+                password: data.useLink ? null : data.password,
+            });
+
+            toast({ title: 'Usuario Creado', description: data.useLink ? 'Se envió la liga de acceso al correo.' : 'Cuenta lista con la contraseña asignada.' });
+            onClose();
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message });
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2"><UserPlus className="text-primary"/> Nuevo Integrante</DialogTitle>
+                    <DialogDescription>Completa los datos del nuevo miembro y define su jerarquía inicial.</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-4">
+                    <div className="space-y-2"><Label>Nombre Completo</Label><Input {...register('name')} placeholder="Ej. Juan Pérez" /></div>
+                    <div className="space-y-2"><Label>Correo Electrónico</Label><Input type="email" {...register('email')} placeholder="usuario@fiscalflow.mx" /></div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2"><Label>Rol / Cargo</Label><Input {...register('role')} placeholder="Contador..." /></div>
+                        <div className="space-y-2"><Label>Teléfono</Label><Input {...register('phone')} placeholder="+52..." /></div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                        <Label>Jefe Inmediato (Asignación Directa)</Label>
+                        <Select onValueChange={(v) => setValue('bossId', v)}>
+                            <SelectTrigger><SelectValue placeholder="Seleccionar jefe..."/></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">Sin jefe (Independiente)</SelectItem>
+                                {leaders.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="p-4 bg-muted/30 rounded-xl border border-dashed space-y-4">
+                        <div className="flex items-center justify-between">
+                            <Label className="flex items-center gap-2"><Key size={14}/> Enviar liga por correo</Label>
+                            <Switch checked={useLink} onCheckedChange={(v) => setValue('useLink', v)} />
+                        </div>
+                        {!useLink && (
+                            <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+                                <Label>Contraseña Manual</Label>
+                                <div className="relative">
+                                    <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                    <Input type="text" {...register('password')} className="pl-9" placeholder="Escribe la clave aquí..." />
+                                </div>
+                                <p className="text-[10px] text-muted-foreground italic">Deberás entregar esta clave manualmente al usuario.</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter className="pt-4 border-t">
+                        <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting ? <Loader2 size={16} className="animate-spin mr-2"/> : <Send size={16} className="mr-2"/>}
+                            Dar de Alta
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
 }
 
 function AdminEditUserDialog({ user, onClose, onSave }: any) {
@@ -308,7 +455,6 @@ function AdminEditUserDialog({ user, onClose, onSave }: any) {
 }
 
 function AssignBossDialog({ user, allUsers, onClose, onSave, isProcessing }: any) {
-  // Aseguramos que currentBossIds sea SIEMPRE un arreglo, incluso si el dato en Firestore es null o corrupto
   const [currentBossIds, setCurrentBossIds] = useState<string[]>(() => {
     if (Array.isArray(user?.ownerIds)) return user.ownerIds;
     if (user?.ownerId) return [user.ownerId];
@@ -324,7 +470,6 @@ function AssignBossDialog({ user, allUsers, onClose, onSave, isProcessing }: any
   }, [allUsers, user]);
 
   const toggleBoss = (bossId: string) => {
-    // Protección: Si currentBossIds no es arreglo por algún motivo, lo reiniciamos
     const safeBossIds = Array.isArray(currentBossIds) ? currentBossIds : [];
     
     if (safeBossIds.includes(bossId)) {
@@ -332,8 +477,6 @@ function AssignBossDialog({ user, allUsers, onClose, onSave, isProcessing }: any
     } else {
         if (safeBossIds.length < 2) {
             setCurrentBossIds(prev => [...(Array.isArray(prev) ? prev : []), bossId]);
-        } else {
-            // Opcional: mostrar toast de límite si se desea
         }
     }
   };
@@ -388,4 +531,3 @@ function AssignBossDialog({ user, allUsers, onClose, onSave, isProcessing }: any
     </Dialog>
   );
 }
-
