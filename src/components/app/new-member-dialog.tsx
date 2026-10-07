@@ -1,6 +1,7 @@
+
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -15,19 +16,18 @@ import { Label } from '@/components/ui/label';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2 } from 'lucide-react';
-import { useFirestore, useUser } from '@/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { Loader2, UserPlus, Mail, Briefcase } from 'lucide-react';
+import { useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
-
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 const memberSchema = z.object({
+  name: z.string().min(1, 'El nombre es requerido'),
   email: z.string().email('El correo electrónico no es válido'),
+  role: z.string().min(1, 'El rol o cargo es requerido'),
 });
 
-type InvitationFormValues = z.infer<typeof memberSchema>;
+type MemberFormValues = z.infer<typeof memberSchema>;
 
 interface NewMemberDialogProps {
   open: boolean;
@@ -39,7 +39,6 @@ export default function NewMemberDialog({
   onOpenChange,
 }: NewMemberDialogProps) {
   const { user } = useUser();
-  const firestore = useFirestore();
   const { toast } = useToast();
 
   const {
@@ -47,10 +46,12 @@ export default function NewMemberDialog({
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<InvitationFormValues>({
+  } = useForm<MemberFormValues>({
     resolver: zodResolver(memberSchema),
     defaultValues: {
+      name: '',
       email: '',
+      role: '',
     },
   });
 
@@ -60,74 +61,110 @@ export default function NewMemberDialog({
     }
   }, [open, reset]);
 
-  const onSubmit: SubmitHandler<InvitationFormValues> = async (data) => {
+  const onSubmit: SubmitHandler<MemberFormValues> = async (data) => {
     if (!user) {
       toast({
         variant: 'destructive',
         title: 'No autenticado',
-        description: 'Debes iniciar sesión para invitar a miembros.',
+        description: 'Debes iniciar sesión para registrar miembros.',
       });
       return;
     }
 
     try {
-      const invitationRef = doc(firestore, 'invitations', data.email);
-      const invitationData = {
+      const functions = getFunctions();
+      const registerFunction = httpsCallable(functions, 'registerTeamMember');
+
+      await registerFunction({
         email: data.email,
+        name: data.name,
+        role: data.role,
         inviterId: user.uid,
-        inviterName: user.displayName || 'un administrador',
-        registrationUrl: `https://gestor.fiscalflow.mx/login`,
-        createdAt: serverTimestamp(),
-      };
-      
-      await setDoc(invitationRef, invitationData).catch(serverError => {
-        const permissionError = new FirestorePermissionError({
-          path: invitationRef.path,
-          operation: 'create',
-          requestResourceData: invitationData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
+        inviterName: user.displayName || 'Un Administrador',
       });
 
       toast({
-        title: 'Invitación Creada',
-        description: `Se ha generado una invitación para ${data.email}. El correo se enviará en breve.`,
+        title: 'Miembro Registrado',
+        description: `Se ha creado la cuenta para ${data.name}. Se ha enviado una liga a su correo para que defina su contraseña.`,
       });
+      
+      console.log(`[Terminal] Alta exitosa: ${data.email} registrado. Contraseña en blanco asignada. Liga de definición enviada.`);
+      
       onOpenChange(false);
 
     } catch (error: any) {
-      console.error("Error creating invitation:", error);
+      console.error("Error registering member:", error);
       toast({
         variant: 'destructive',
-        title: 'Error al crear la invitación',
-        description: error.message || 'Ocurrió un error inesperado.',
+        title: 'Error al dar de alta',
+        description: error.message || 'Ocurrió un error inesperado al procesar el registro.',
       });
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Invitar Nuevo Miembro al Equipo</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <UserPlus className="h-5 w-5 text-primary" />
+            Dar de Alta Nuevo Miembro
+          </DialogTitle>
           <DialogDescription>
-            Ingresa el correo electrónico de la persona que quieres invitar. Recibirá un email con un enlace para registrarse y unirse a tu equipo.
+            Registra los datos del nuevo integrante. El sistema creará su cuenta y le enviará un correo para que establezca su contraseña personal.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
           <div className="space-y-2">
-            <Label htmlFor="email">Correo Electrónico del Invitado</Label>
+            <Label htmlFor="member-name">Nombre Completo</Label>
             <Input
-              id="email"
-              type="email"
-              placeholder="nuevo.miembro@tuempresa.com"
-              {...register('email')}
+              id="member-name"
+              placeholder="Ej. Juan Pérez"
+              {...register('name')}
               disabled={isSubmitting}
             />
+            {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="member-email">Correo Electrónico</Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="member-email"
+                type="email"
+                className="pl-9"
+                placeholder="nuevo.miembro@tuempresa.com"
+                {...register('email')}
+                disabled={isSubmitting}
+              />
+            </div>
             {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
           </div>
-          <DialogFooter>
+
+          <div className="space-y-2">
+            <Label htmlFor="member-role">Rol o Cargo</Label>
+            <div className="relative">
+              <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="member-role"
+                className="pl-9"
+                placeholder="Ej. Contador, Administrador..."
+                {...register('role')}
+                disabled={isSubmitting}
+              />
+            </div>
+            {errors.role && <p className="text-sm text-destructive">{errors.role.message}</p>}
+          </div>
+
+          <div className="p-3 bg-muted/50 rounded-lg border border-dashed border-primary/20">
+             <p className="text-[10px] text-muted-foreground font-bold uppercase">Seguridad</p>
+             <p className="text-xs text-foreground mt-1">
+                La contraseña se mantendrá <strong>vacía</strong> hasta que el usuario la defina mediante la liga de bienvenida.
+             </p>
+          </div>
+
+          <DialogFooter className="pt-4 border-t">
             <Button
               type="button"
               variant="ghost"
@@ -136,8 +173,11 @@ export default function NewMemberDialog({
               Cancelar
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Enviar Invitación
+              {isSubmitting ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando...</>
+              ) : (
+                'Registrar y Enviar Liga'
+              )}
             </Button>
           </DialogFooter>
         </form>

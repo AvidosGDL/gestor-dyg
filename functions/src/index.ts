@@ -135,6 +135,79 @@ export const onSupportTicketUpdated = onDocumentUpdated(
   }
 );
 
+// ================================
+// REGISTRO DE MIEMBRO POR ADMIN
+// ================================
+export const registerTeamMember = onCall(
+  { region: 'us-central1', secrets: [RESEND_API_KEY_SM] },
+  async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Requiere login.');
+    
+    const { email, name, role, inviterId, inviterName } = request.data as any;
+    if (!email || !name || !role) throw new HttpsError('invalid-argument', 'Datos incompletos.');
+
+    try {
+      // 1. Crear usuario en Firebase Auth
+      // Se crea sin contraseña, lo que obliga a usar el link de reseteo para definirla
+      const userRecord = await admin.auth().createUser({
+        email,
+        displayName: name,
+      });
+
+      const uid = userRecord.uid;
+
+      // 2. Crear perfil en Firestore
+      const userProfile = {
+        uid,
+        name,
+        email,
+        role,
+        avatarUrl: `https://api.dicebear.com/8.x/lorelei/svg?seed=${uid}`,
+        ownerIds: [inviterId],
+        ownerId: inviterId,
+      };
+      await admin.firestore().collection('users').doc(uid).set(userProfile);
+
+      // 3. Agregar a la subcolección teamMembers del invitador
+      await admin.firestore().collection('users').doc(inviterId).collection('teamMembers').doc(uid).set({
+        id: uid,
+        uid: uid,
+        name,
+        email,
+        role,
+        avatarUrl: userProfile.avatarUrl,
+        authType: 'email'
+      });
+
+      // 4. Generar liga para que el usuario defina su contraseña
+      const actionCodeSettings = {
+        url: 'https://gestor.fiscalflow.mx/login',
+      };
+      const setupLink = await admin.auth().generatePasswordResetLink(email, actionCodeSettings);
+
+      // 5. Enviar correo con la liga
+      const subject = `Bienvenido a Gestor D&G - Configura tu acceso`;
+      const html = `
+        <h1>Bienvenido al equipo, ${name}</h1>
+        <p>${inviterName} te ha dado de alta en la plataforma.</p>
+        <p>Para comenzar a trabajar, necesitas definir tu contraseña haciendo clic en el siguiente enlace:</p>
+        <p><a href="${setupLink}" style="padding: 10px 20px; background: #3f51b5; color: white; text-decoration: none; border-radius: 5px;">Definir mi Contraseña</a></p>
+        <p>O copia y pega esta URL en tu navegador:</p>
+        <p>${setupLink}</p>
+        <br/>
+        <p>Una vez definida, podrás entrar con tu correo: <strong>${email}</strong></p>
+      `;
+
+      await sendEmail({ to: email, subject, html });
+
+      return { success: true, uid };
+    } catch (error: any) {
+      console.error('Error registering team member:', error);
+      throw new HttpsError('internal', error.message || 'Error al registrar miembro.');
+    }
+  }
+);
+
 // Existing functions below...
 export const sendEmailTask = onCall(
   {region: 'us-central1', secrets: [RESEND_API_KEY_SM]},
