@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Edit, Loader2, ImageUp, Crown } from 'lucide-react';
+import { Trash2, Edit, Loader2, ImageUp, Crown, Link2, Copy, Check } from 'lucide-react';
 import { type TeamMember, type UserProfile } from '@/lib/types';
 import { useCollection, useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, deleteDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
@@ -41,6 +41,9 @@ import * as z from 'zod';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { cn } from '@/lib/utils';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { copyToClipboard } from '@/lib/copy-to-clipboard';
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '../ui/alert-dialog';
 
 
@@ -352,6 +355,52 @@ export default function TeamView() {
     });
   };
 
+  const [generatingLinkFor, setGeneratingLinkFor] = useState<string | null>(null);
+  const [activeLink, setActiveLink] = useState<{ name: string; link: string } | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  // Genera bajo demanda una liga nueva (Admin SDK en backend). No se guarda ni modifica al miembro.
+  // La autorización (jefe directo / admin) se valida en la Function.
+  const handleGeneratePasswordLink = async (member: TeamMember) => {
+    const targetUid = member.uid || member.id;
+    if (!targetUid || generatingLinkFor) return;
+    setGeneratingLinkFor(targetUid);
+    setLinkCopied(false);
+    try {
+      const linkFunction = httpsCallable(getFunctions(), 'generatePasswordLink');
+      const result = await linkFunction({ uid: targetUid, email: member.email });
+      const data = result.data as { resetLink?: string };
+      if (!data.resetLink) throw new Error('No se recibió la liga.');
+      setActiveLink({ name: member.name, link: data.resetLink });
+    } catch (error: any) {
+      console.error('Password link error:', error?.code, error?.message);
+      let description = 'No se pudo generar la liga. Inténtalo de nuevo.';
+      if (error?.code === 'functions/permission-denied') {
+        description = 'No tienes permiso para generar la liga de este usuario.';
+      } else if (error?.code === 'functions/not-found') {
+        description = 'El usuario no existe en Firebase Authentication.';
+      } else if (error?.code === 'functions/unauthenticated') {
+        description = 'Tu sesión expiró. Vuelve a iniciar sesión.';
+      } else if (error?.message && error.message !== 'internal') {
+        description = error.message;
+      }
+      toast({ variant: 'destructive', title: 'Error al generar liga', description });
+    } finally {
+      setGeneratingLinkFor(null);
+    }
+  };
+
+  const handleCopyActiveLink = async () => {
+    if (!activeLink) return;
+    const ok = await copyToClipboard(activeLink.link);
+    if (ok) {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2500);
+    } else {
+      toast({ variant: 'destructive', title: 'No se pudo copiar', description: 'Selecciona la liga y cópiala manualmente.' });
+    }
+  };
+
   const isLoading = isUserLoading || myTeamLoading;
 
   return (
@@ -442,6 +491,24 @@ export default function TeamView() {
                                 <Badge variant="outline">Activo</Badge>
                             </TableCell>
                             <TableCell className="text-right">
+                                <TooltipProvider delayDuration={200}>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                aria-label="Liga contraseña"
+                                                disabled={!!generatingLinkFor}
+                                                onClick={(e) => { e.stopPropagation(); handleGeneratePasswordLink(member); }}
+                                            >
+                                                {generatingLinkFor === (member.uid || member.id)
+                                                    ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                                    : <Link2 className="h-4 w-4 text-muted-foreground" />}
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Liga contraseña</TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
                                 <Button
                                     variant="ghost"
                                     size="icon"
@@ -486,6 +553,30 @@ export default function TeamView() {
             </CardContent>
         </Card>
       </div>
+      {activeLink && (
+        <Dialog open onOpenChange={() => setActiveLink(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Link2 className="h-5 w-5 text-primary" /> Liga para definir contraseña
+              </DialogTitle>
+              <DialogDescription>
+                Liga de acceso generada para <strong>{activeLink.name}</strong>. Compártela con el usuario para que defina su contraseña.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-2">
+              <Input readOnly value={activeLink.link} onFocus={(e) => e.currentTarget.select()} className="font-mono text-xs" />
+              <Button type="button" onClick={handleCopyActiveLink} className="shrink-0 gap-2">
+                {linkCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {linkCopied ? 'Copiada' : 'Copiar Liga'}
+              </Button>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setActiveLink(null)}>Cerrar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       <EditMemberDialog
         isOpen={isEditMemberDialogOpen}
         onOpenChange={setIsEditMemberDialogOpen}

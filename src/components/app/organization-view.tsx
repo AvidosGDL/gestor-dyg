@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Search, Loader2, Star, StarOff, Users, Edit, ImageUp, ShieldCheck, Landmark, KanbanSquare, Trash2, UserPlus, Mail, Briefcase, Lock, Key, Send } from 'lucide-react';
+import { Search, Loader2, Star, StarOff, Users, Edit, ImageUp, ShieldCheck, Landmark, KanbanSquare, Trash2, UserPlus, Mail, Briefcase, Lock, Key, Send, Link2, Copy, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
@@ -24,6 +24,7 @@ import { getStorage, ref as storageRef, uploadString, getDownloadURL } from 'fir
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '../ui/switch';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { copyToClipboard } from '@/lib/copy-to-clipboard';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
@@ -57,6 +58,9 @@ export default function OrganizationView() {
   const [selectedUserForTeams, setSelectedUserForTeams] = useState<UserProfile | null>(null);
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<UserProfile | null>(null);
   const [isNewUserDialogOpen, setIsNewUserDialogOpen] = useState(false);
+  const [generatingLinkFor, setGeneratingLinkFor] = useState<string | null>(null);
+  const [activeLink, setActiveLink] = useState<{ name: string; link: string } | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const usersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('name')), [firestore]);
   const { data: allUsers, loading } = useCollection<UserProfile>(usersQuery);
@@ -81,6 +85,41 @@ export default function OrganizationView() {
         toast({ variant: 'destructive', title: 'Error al borrar', description: error.message || 'Error interno del servidor.' });
     } finally {
         setIsProcessing(false);
+    }
+  };
+
+  // Genera bajo demanda una liga nueva de contraseña (Admin SDK en backend). No se guarda ni cambia al usuario.
+  const handleGeneratePasswordLink = async (targetUser: UserProfile) => {
+    const targetUid = targetUser.uid || (targetUser as any).id;
+    setGeneratingLinkFor(targetUid);
+    setLinkCopied(false);
+    try {
+        const functions = getFunctions();
+        const linkFunction = httpsCallable(functions, 'generatePasswordLink');
+        const result = await linkFunction({ uid: targetUid, email: targetUser.email });
+        const data = result.data as { resetLink?: string };
+        if (!data.resetLink) throw new Error('No se recibió la liga.');
+        setActiveLink({ name: targetUser.name, link: data.resetLink });
+    } catch (error: any) {
+        console.error('Password link error:', error?.code, error?.message);
+        let description = error?.message || 'No se pudo generar la liga.';
+        if (error?.code === 'functions/internal' && error?.message === 'internal') {
+          description = 'No se pudo contactar el servicio. Verifica que la función "generatePasswordLink" esté desplegada.';
+        }
+        toast({ variant: 'destructive', title: 'Error al generar liga', description });
+    } finally {
+        setGeneratingLinkFor(null);
+    }
+  };
+
+  const handleCopyActiveLink = async () => {
+    if (!activeLink) return;
+    const ok = await copyToClipboard(activeLink.link);
+    if (ok) {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2500);
+    } else {
+      toast({ variant: 'destructive', title: 'No se pudo copiar', description: 'Selecciona la liga y cópiala manualmente.' });
     }
   };
 
@@ -227,6 +266,15 @@ export default function OrganizationView() {
                             <Button variant="ghost" size="sm" onClick={() => setSelectedUserForTeams(u)} className="h-8 gap-2">
                                 <Users size={14}/> Equipo
                             </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={generatingLinkFor === (u.uid || (u as any).id)}
+                                onClick={() => handleGeneratePasswordLink(u)}
+                                className="h-8 gap-2"
+                            >
+                                {generatingLinkFor === (u.uid || (u as any).id) ? <Loader2 size={14} className="animate-spin"/> : <Link2 size={14}/>} Liga contraseña
+                            </Button>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
@@ -320,6 +368,29 @@ export default function OrganizationView() {
                 toast({ title: 'Perfil guardado' });
             }}
         />
+      )}
+
+      {activeLink && (
+        <Dialog open onOpenChange={() => setActiveLink(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><Link2 className="h-5 w-5 text-primary" /> Liga para definir contraseña</DialogTitle>
+              <DialogDescription>
+                Liga de acceso generada para <strong>{activeLink.name}</strong>. Compártela con el usuario para que defina su contraseña.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-2">
+              <Input readOnly value={activeLink.link} onFocus={(e) => e.currentTarget.select()} className="font-mono text-xs" />
+              <Button type="button" onClick={handleCopyActiveLink} className="shrink-0 gap-2">
+                {linkCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {linkCopied ? 'Copiada' : 'Copiar Liga'}
+              </Button>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setActiveLink(null)}>Cerrar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {isNewUserDialogOpen && (
