@@ -43,3 +43,17 @@ next-env.d.ts
 # firebase
 firebase-debug.log
 firestore-debug.log
+# dependencies (all levels)
+node_modules/
+**/node_modules/
+
+# next.js (all levels)
+.next/
+**/.next/
+
+# env files
+.env
+.env.*
+
+# debug logs
+*-debug.log
