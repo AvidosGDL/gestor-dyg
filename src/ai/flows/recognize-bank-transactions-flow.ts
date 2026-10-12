@@ -51,7 +51,7 @@ export async function recognizeBankTransactions(
 
 const recognizeTransactionsPrompt = ai.definePrompt({
   name: 'recognizeBankTransactionsPrompt',
-  model: googleAI.model('gemini-2.5-flash'),
+  model: googleAI.model('gemini-3.1-flash-lite'),
   input: { schema: RecognizeBankTransactionsInputSchema },
   output: { schema: RecognizeBankTransactionsOutputSchema },
   prompt: `You are an expert accounting assistant specialized in optical character recognition (OCR) from receipts and invoices.

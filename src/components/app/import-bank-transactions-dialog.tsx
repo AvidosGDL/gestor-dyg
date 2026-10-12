@@ -77,7 +77,7 @@ export default function ImportBankTransactionsDialog({ isOpen, onOpenChange, ban
       const fileData = await Promise.all(filePromises);
       const result = await recognizeBankTransactions({ files: fileData });
       
-      setRecognizedTxs(result.transactions.map(tx => ({ ...tx, id: crypto.randomUUID() })));
+      setRecognizedTxs(result.transactions.map((tx, index) => ({ ...tx, id: `tmp-${Date.now()}-${index}` })));
       setStep('review');
       toast({ title: 'Revisión necesaria', description: `${result.transactions.length} transacciones fueron reconocidas. Por favor, revísalas antes de importar.` });
     } catch (error) {
